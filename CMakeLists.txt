@@ -92,6 +92,11 @@ target_link_libraries(slampp-solution-to-poses but_velodyne)
 add_executable(sac-visual-registration src/apps/sac-visual-registration.cpp)
 target_link_libraries(sac-visual-registration but_velodyne)
 
+########################## Moving object detection: ##########################
+
+add_executable(move-detection src/apps/move-detection.cpp)
+target_link_libraries(move-detection but_velodyne)
+
 ########################## Installation: #####################################
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/but_velodyne-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/but_velodyne-config.cmake" IMMEDIATE @ONLY)
@@ -102,6 +107,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/but_velodyne-config.cmake" "${CMAKE_C
 install(
 TARGETS but_velodyne collar-lines-odom show-kitti-poses show_correspondences extract-vfh
     find-loops-vfh verify-loops register-loops slampp-solution-to-poses sac-visual-registration
+    move-detection
 RUNTIME DESTINATION bin/
 LIBRARY DESTINATION lib/
 INCLUDES DESTINATION include/

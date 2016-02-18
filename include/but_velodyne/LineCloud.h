@@ -58,8 +58,6 @@ public:
    */
   LineCloud() :
     rng(cv::theRNG()),
-    lines_per_cell_pair_generated(-1),
-    lines_per_cell_pair_preserved(-1),
     preservedFactorType(NONE) {
     // empty
   }
@@ -74,6 +72,12 @@ public:
             const int lines_per_cell_pair_generated,
             const int lines_per_cell_pair_preserved,
             const PreservedFactorBy preservedFactorType);
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr generateDenseCloud(
+      const PolarGridOfClouds &polar_grid,
+      const int lines_per_cell_pair_generated,
+      const int lines_per_cell_pair_preserved,
+      const int points_per_cell) const;
 
   /**!
    * @return all lines
@@ -103,16 +107,16 @@ public:
 protected:
   void generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
                                    const CellId &cell1, const CellId &cell2,
-                                   std::vector<PointCloudLine> &line_cloud);
+                                   const int lines_per_cell_pair_generated,
+                                   const int lines_per_cell_pair_preserved,
+                                   std::vector<PointCloudLine> &line_cloud) const;
 
-  float sinOfPlaneAngleWithGround(const VelodynePointCloud &points);
+  float sinOfPlaneAngleWithGround(const VelodynePointCloud &points) const;
 
-  float getPreservedFactor(const VelodynePointCloud &all_points);
+  float getPreservedFactor(const VelodynePointCloud &all_points) const;
 
 private:
   cv::RNG& rng;
-  const int lines_per_cell_pair_generated;
-  const int lines_per_cell_pair_preserved;
   const PreservedFactorBy preservedFactorType;
 };
 
