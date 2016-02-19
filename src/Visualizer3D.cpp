@@ -43,7 +43,7 @@ Visualizer3D::Visualizer3D() :
     identifier(0),
     color_index(0)
 {
-  viewer->setBackgroundColor(255, 255, 255);
+  viewer->setBackgroundColor(1.0, 1.0, 1.0);
   viewer->addCoordinateSystem(0.5);
   viewer->initCameraParameters();
   viewer->setCameraPosition(5, -500, 0, 0, 0, 0);

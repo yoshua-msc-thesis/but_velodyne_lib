@@ -65,11 +65,11 @@ LineCloud::LineCloud(const PolarGridOfClouds &polar_grid,
   for(int polar = 0; polar < PolarGridOfClouds::POLAR_BINS; polar++) {
     for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT-1; ring++) {
       vector<PointCloudLine> lines_among_cells;
-      generateLineCloudAmongCells(polar_grid,
-                                  CellId(polar, ring), CellId(polar, ring+1),
-                                  lines_per_cell_pair_generated,
-                                  lines_per_cell_pair_preserved,
-                                  lines_among_cells);
+      generateLineCloudFromCell(polar_grid,
+                                CellId(polar, ring),
+                                lines_per_cell_pair_generated,
+                                lines_per_cell_pair_preserved,
+                                lines_among_cells);
       line_cloud.insert(line_cloud.end(),
                         lines_among_cells.begin(), lines_among_cells.end());
       for(vector<PointCloudLine>::iterator line = lines_among_cells.begin();
@@ -94,11 +94,11 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr LineCloud::generateDenseCloud(
   for(int polar = 0; polar < PolarGridOfClouds::POLAR_BINS; polar++) {
    for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT-1; ring++) {
      std::vector<PointCloudLine> lines_among_cells;
-     generateLineCloudAmongCells(polar_grid,
-                                 CellId(polar, ring), CellId(polar, ring+1),
-                                 lines_per_cell_pair_generated,
-                                 lines_per_cell_pair_preserved,
-                                 lines_among_cells);
+     generateLineCloudFromCell(polar_grid,
+                               CellId(polar, ring),
+                               lines_per_cell_pair_generated,
+                               lines_per_cell_pair_preserved,
+                               lines_among_cells);
      if(lines_among_cells.size() == 0) {
        continue;
      }
@@ -125,13 +125,21 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr LineCloud::generateDenseCloud(
   return generated_cloud;
 }
 
+float horizontalRangeDiffSq(const PointCloudLine &line) {
+  Eigen::Vector3f start = line.point;
+  Eigen::Vector3f end = line.point + line.orientation;
+  return pow(start.x() - end.x(), 2) + pow(start.z() - end.z(), 2);
+}
+
+bool orderLinesByHorizontalRangeDiff(const PointCloudLine &first, const PointCloudLine &second) {
+  return horizontalRangeDiffSq(first) < horizontalRangeDiffSq(second);
+}
+
 void LineCloud::generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
                                             const CellId &cell1_id, const CellId &cell2_id,
                                             const int lines_per_cell_pair_generated,
                                             const int lines_per_cell_pair_preserved,
                                             vector<PointCloudLine> &output_lines) const {
-  output_lines.clear();
-
   const VelodynePointCloud& cell1 = polar_grid[cell1_id];
   const VelodynePointCloud& cell2 = polar_grid[cell2_id];
   int lines_to_generate = MIN(lines_per_cell_pair_generated, cell1.size()*cell2.size());
@@ -149,8 +157,37 @@ void LineCloud::generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
                                   cell2[cell2_index]);
     output_lines.push_back(generated_line);
   }
-  sort(output_lines.begin(), output_lines.end());
+  sort(output_lines.begin(), output_lines.end(), orderLinesByHorizontalRangeDiff);
   output_lines.erase(output_lines.begin()+lines_to_preserve, output_lines.end());
+}
+
+void LineCloud::generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
+                               const CellId &source_cell,
+                               const int lines_per_cell_pair_generated,
+                               const int lines_per_cell_pair_preserved,
+                               std::vector<PointCloudLine> &line_cloud) const {
+  vector<CellId> target_cells = getTargetCells(source_cell);
+  for(vector<CellId>::iterator target_cell = target_cells.begin(); target_cell < target_cells.end(); target_cell++) {
+    generateLineCloudAmongCells(polar_grid,
+                                source_cell, *target_cell,
+                                lines_per_cell_pair_generated,
+                                lines_per_cell_pair_preserved,
+                                line_cloud);
+  }
+}
+
+vector<CellId> LineCloud::getTargetCells(const CellId &source_cell) const {
+  vector<CellId> target_cells;
+
+  int min_polar = source_cell.polar - PolarGridOfClouds::BIN_SUBDIVISION / 2;
+  int max_polar = source_cell.polar + PolarGridOfClouds::BIN_SUBDIVISION / 2;
+
+  for(int polar = min_polar; polar <= max_polar; polar++) {
+    int polar_periodic = (polar + PolarGridOfClouds::POLAR_BINS) % PolarGridOfClouds::POLAR_BINS;
+    target_cells.push_back(CellId(polar_periodic, source_cell.ring+1));
+  }
+
+  return target_cells;
 }
 
 float LineCloud::sinOfPlaneAngleWithGround(const VelodynePointCloud &points) const {

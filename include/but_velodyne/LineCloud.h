@@ -105,11 +105,19 @@ public:
   pcl::PointCloud<pcl::PointXYZ> line_middles;  ///! midpoints of line segments
 
 protected:
+  void generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
+                                 const CellId &source_cell,
+                                 const int lines_per_cell_pair_generated,
+                                 const int lines_per_cell_pair_preserved,
+                                 std::vector<PointCloudLine> &line_cloud) const;
+
   void generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
                                    const CellId &cell1, const CellId &cell2,
                                    const int lines_per_cell_pair_generated,
                                    const int lines_per_cell_pair_preserved,
                                    std::vector<PointCloudLine> &line_cloud) const;
+
+  std::vector<CellId> getTargetCells(const CellId &source_cell) const;
 
   float sinOfPlaneAngleWithGround(const VelodynePointCloud &points) const;
 

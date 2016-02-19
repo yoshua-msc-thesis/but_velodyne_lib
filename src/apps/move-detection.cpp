@@ -84,13 +84,13 @@ int main(int argc, char** argv) {
   Visualizer3D vis;
 
   PolarGridOfClouds polar_grid(original_cloud);
-  PointCloud<PointXYZ>::Ptr dense_cloud = LineCloud().generateDenseCloud(polar_grid, 110, 100, 400);
+  PointCloud<PointXYZ>::Ptr dense_cloud = LineCloud().generateDenseCloud(polar_grid, 200, 100, 400);
 
   //vis.keepOnlyClouds(0).addPointCloud(*dense_cloud).show();
 
   PointCloud<PointXYZ>::Ptr downsampled_cloud = downsampleCloud<pcl::PointXYZ>(dense_cloud, 0.1);
 
-  vis.keepOnlyClouds(0).addPointCloud(*downsampled_cloud).show();
+  vis.keepOnlyClouds(0).addCloudColoredByHeight(*downsampled_cloud).show();
 
   return EXIT_SUCCESS;
 }

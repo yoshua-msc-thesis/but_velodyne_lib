@@ -88,7 +88,9 @@ public:
    */
   void transform(const Eigen::Matrix4f &t);
 
-  static const int POLAR_BINS = 36;     //!! number of polar bins (10deg each)
+  static const int POLAR_SUPERBINS = 36;                        ///!! number of polar super-bins (per 10deg)
+  static const int BIN_SUBDIVISION = 1;                         ///!! each bin is split into 7 sub-bins
+  static const int POLAR_BINS = POLAR_SUPERBINS*BIN_SUBDIVISION;///!! number of subdivided polar bins
 
 protected:
 

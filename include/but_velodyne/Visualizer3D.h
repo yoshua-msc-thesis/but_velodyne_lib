@@ -28,6 +28,7 @@
 
 #include <cv.h>
 
+#include <pcl/common/common.h>
 #include <pcl/common/eigen.h>
 #include <pcl/common/transforms.h>
 #include <pcl/visualization/cloud_viewer.h>
@@ -99,6 +100,54 @@ public:
       color_cloud->push_back(color_pt);
     }
     return addColorPointCloud(color_cloud);
+  }
+
+  /**!
+   * Add new point cloud of arbitrary point type into the visualization. Cloud
+   * is optionally transformed. The color of each point is estimated according to its height.
+   *
+   * @param cloud point cloud to visualized
+   * @param transformation optional 3D transformation of the cloud before the visualization
+   * @return *this instance with the new point cloud ready to be visualized too
+   */
+  template<typename PointT>
+  Visualizer3D& addCloudColoredByHeight(const pcl::PointCloud<PointT> &cloud, const Eigen::Matrix4f &transformation =
+                                            Eigen::Matrix4f::Identity()) {
+    PointT min_pt, max_pt;
+    pcl::getMinMax3D(cloud, min_pt, max_pt);
+
+    float min = min_pt.y;
+    float max = max_pt.y;
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    for (typename pcl::PointCloud<PointT>::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
+      float normalized_height = 1 - (pt->y - min) / (max - min);        // height is decreasing with increasing Y-coordinate
+
+      // magic by http://ros-users.122217.n3.nabble.com/RVIZ-PointCloud-display-coloring-based-on-height-td981630.html
+      float h = normalized_height * 5.0f + 1.0f;
+      int i = floor(h);
+      float f = h - i;
+      if ( !(i&1) ) f = 1 - f; // if i is even
+      uchar n = (1 - f)*255;
+
+      uchar r, g, b;
+      if      (i <= 1) r = n,   g = 0,   b = 255;
+      else if (i == 2) r = 0,   g = n,   b = 255;
+      else if (i == 3) r = 0,   g = 255, b = n;
+      else if (i == 4) r = n,   g = 255, b = 0;
+      else if (i >= 5) r = 255, g = n,   b = 0;
+
+      pcl::PointXYZRGB rgb_pt;
+      rgb_pt.x = pt->x;
+      rgb_pt.y = pt->y;
+      rgb_pt.z = pt->z;
+      rgb_pt.r = r;
+      rgb_pt.g = g;
+      rgb_pt.b = b;
+      rgb_cloud->push_back(rgb_pt);
+    }
+
+    return this->addColorPointCloud(rgb_cloud, transformation);
   }
 
   /**!
