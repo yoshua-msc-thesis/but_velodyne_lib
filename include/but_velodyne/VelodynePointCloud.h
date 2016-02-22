@@ -31,6 +31,8 @@
 
 #include <cv.h>
 
+#include <but_velodyne/VelodyneSpecification.h>
+
 namespace but_velodyne {
 
 /**!
@@ -225,7 +227,7 @@ protected:
   VelodynePointCloud discartWeakPoints(float threshold);
 
 public:
-  static const uint16_t VELODYNE_RINGS_COUNT = 64;      ///! Expected number of the rings in Velodyne point cloud
+  static const uint16_t VELODYNE_RINGS_COUNT = VelodyneSpecification::RINGS;      ///! Expected number of the rings in Velodyne point cloud
 };
 
 }

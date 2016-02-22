@@ -41,6 +41,9 @@ include_directories(EIGEN3_INCLUDE_DIR)
 FIND_PACKAGE(Boost 1.40 COMPONENTS program_options REQUIRED )
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
+set(VELODYNE_MODEL "64" CACHE FILEPATH "Model of the Velodyne LiDAR (16, 32 or 64=default)")
+add_definitions(-DVELODYNE_MODEL=${VELODYNE_MODEL})
+
 ########################### Library: #########################################
 
 file(GLOB header_files ${CMAKE_CURRENT_SOURCE_DIR}/include/but_velodyne/*.h)
