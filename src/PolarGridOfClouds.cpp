@@ -34,8 +34,17 @@ using namespace pcl;
 
 namespace but_velodyne {
 
+int PolarGridOfClouds::POLAR_SUPERBINS = 36;
+int PolarGridOfClouds::BIN_SUBDIVISION = 1;
+
+std::ostream& operator<< (std::ostream &out, const CellId &id) {
+  out << "[r:" << id.ring << "; p:" << id.polar << "]";
+  return out;
+}
+
 PolarGridOfClouds::PolarGridOfClouds(
-    const pcl::PointCloud<velodyne_pointcloud::PointXYZIR> &point_cloud) {
+    const pcl::PointCloud<velodyne_pointcloud::PointXYZIR> &point_cloud) :
+      polar_grid(getPolarBins()) {
   fill(point_cloud);
 }
 
@@ -49,7 +58,7 @@ void PolarGridOfClouds::fill(
       assert(ring >= 0);
 
       int polar_bin = getPolarBinIndex(*pt);
-      assert(polar_bin < POLAR_BINS);
+      assert(polar_bin < getPolarBins());
       assert(polar_bin >= 0);
 
       polar_grid[polar_bin][ring].push_back(*pt);
@@ -57,7 +66,7 @@ void PolarGridOfClouds::fill(
 }
 
 int PolarGridOfClouds::getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point) {
-  static const float polar_bin_size = 360.0f / POLAR_BINS;
+  static const float polar_bin_size = 360.0f / getPolarBins();
   float angle = getPolarAngle(point.x, point.z) + 180.00000001f;
   if(angle == 0.0) {
     return 0;
@@ -67,7 +76,7 @@ int PolarGridOfClouds::getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &p
 
 void PolarGridOfClouds::showColored() {
   Visualizer3D visualizer;
-  for(int polar = 0; polar < POLAR_BINS; polar++) {
+  for(int polar = 0; polar < getPolarBins(); polar++) {
     for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT; ring++) {
       visualizer.addPointCloud(polar_grid[polar][ring]);
     }
@@ -76,7 +85,7 @@ void PolarGridOfClouds::showColored() {
 }
 
 void PolarGridOfClouds::transform(const Eigen::Matrix4f &t) {
-  for(int polar = 0; polar < POLAR_BINS; polar++) {
+  for(int polar = 0; polar < getPolarBins(); polar++) {
     for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT; ring++) {
       transformPointCloud(polar_grid[polar][ring], polar_grid[polar][ring], t);
     }

@@ -27,6 +27,12 @@ namespace but_velodyne {
 
 using namespace Eigen;
 
+std::ostream& operator<< (std::ostream &out, const PointCloudLine &line) {
+  out << "[" << line.point.x() << "," << line.point.y() << "," << line.point.z() <<  " ; " <<
+      line.orientation.x() << "," << line.orientation.y() << "," << line.orientation.z() << "]";
+  return out;
+}
+
 Vector3f PointCloudLine::distanceVectorFrom(const PointCloudLine &other) const {
   Vector3f w0;
   float sc;
@@ -136,6 +142,11 @@ void PointCloudLine::closestPointsCoefficients(const PointCloudLine &other,
   float denominator = a*c-b*b;
   sc = (b*e-c*d)/denominator;
   tc = (a*e-b*d)/denominator;
+}
+
+float PointCloudLine::horizontalRangeDiff() const {
+  Eigen::Vector3f end = point + orientation;
+  return fabs(sqrt(pow(point.x(),2) + pow(point.z(),2)) - sqrt(pow(end.x(),2) + pow(end.z(),2)));
 }
 
 }

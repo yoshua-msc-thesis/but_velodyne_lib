@@ -24,15 +24,18 @@
 #ifndef VELODYNE_H_
 #define VELODYNE_H_
 
+#include <iostream>
+#include <map>
+
 namespace but_velodyne {
+
+float radToDeg(float rad);
+
+float degToRad(float deg);
 
 class VelodyneSpecification {
 
 public:
-
-#ifdef VELODYNE_MODEL
-  static const int RINGS = VELODYNE_MODEL;
-#endif
 
   /**
    * Angles in degrees, O = sensor.
@@ -51,7 +54,7 @@ public:
 
 #if VELODYNE_MODEL == 16
 
-  static const float MIN_ANGLE =  75.00;    // deg
+  static const float MIN_ANGLE =  75.00;        // deg
   static const float MAX_ANGLE = 105.00;
 
 #elif VELODYNE_MODEL == 36
@@ -69,6 +72,42 @@ public:
 #error Type of the Velodyne LiDAR is not specified.
 
 #endif
+
+#ifdef VELODYNE_MODEL
+  static const int RINGS = VELODYNE_MODEL;
+#endif
+
+  static const float KITTI_HEIGHT = 2.0;        // m
+
+
+  /**!
+   * O sensor
+   * | \
+   * |  \ laser ray
+   * |   \
+   * |    \
+   * |-----x point
+   * |     |
+   *  Range
+   *
+   * @param ring ID (rings are indexed from furthest to nearest)
+   * @param height how height is Velodyne positioned
+   * @return expected horizontal range of points from given ring
+   */
+  static float getExpectedRange(const int ring, const int height) {
+    int n = RINGS - ring - 1;       // invert indexing (0=nearest)
+    static std::map<int, float> ranges;
+
+    if(ranges.empty()) {
+      float delta = (MAX_ANGLE - MIN_ANGLE)/(RINGS-1);
+      for(int n = 0; n < RINGS; n++) {
+        float angle = MIN_ANGLE + n*delta;
+        ranges[n] = (angle < 90.0f) ? (tan(degToRad(angle))*height) : INFINITY;
+      }
+    }
+
+    return ranges[n];
+  }
 };
 
 }

@@ -102,6 +102,21 @@ public:
     return addColorPointCloud(color_cloud);
   }
 
+  static void colorizeIntensity(float normalized_intensity, uchar &r, uchar &g, uchar &b) {
+    // magic by http://ros-users.122217.n3.nabble.com/RVIZ-PointCloud-display-coloring-based-on-height-td981630.html
+    float h = normalized_intensity * 5.0f + 1.0f;
+    int i = floor(h);
+    float f = h - i;
+    if ( !(i&1) ) f = 1 - f; // if i is even
+    uchar n = (1 - f)*255;
+
+    if      (i <= 1) r = n,   g = 0,   b = 255;
+    else if (i == 2) r = 0,   g = n,   b = 255;
+    else if (i == 3) r = 0,   g = 255, b = n;
+    else if (i == 4) r = n,   g = 255, b = 0;
+    else if (i >= 5) r = 255, g = n,   b = 0;
+  }
+
   /**!
    * Add new point cloud of arbitrary point type into the visualization. Cloud
    * is optionally transformed. The color of each point is estimated according to its height.
@@ -123,19 +138,8 @@ public:
     for (typename pcl::PointCloud<PointT>::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
       float normalized_height = 1 - (pt->y - min) / (max - min);        // height is decreasing with increasing Y-coordinate
 
-      // magic by http://ros-users.122217.n3.nabble.com/RVIZ-PointCloud-display-coloring-based-on-height-td981630.html
-      float h = normalized_height * 5.0f + 1.0f;
-      int i = floor(h);
-      float f = h - i;
-      if ( !(i&1) ) f = 1 - f; // if i is even
-      uchar n = (1 - f)*255;
-
       uchar r, g, b;
-      if      (i <= 1) r = n,   g = 0,   b = 255;
-      else if (i == 2) r = 0,   g = n,   b = 255;
-      else if (i == 3) r = 0,   g = 255, b = n;
-      else if (i == 4) r = n,   g = 255, b = 0;
-      else if (i >= 5) r = 255, g = n,   b = 0;
+      colorizeIntensity(normalized_height, r, g, b);
 
       pcl::PointXYZRGB rgb_pt;
       rgb_pt.x = pt->x;
@@ -361,6 +365,13 @@ public:
     return viewer;
   }
 
+  static boost::shared_ptr<Visualizer3D> getCommonVisualizer() {
+    if(!commonVisualizer) {
+      commonVisualizer.reset(new Visualizer3D);
+    }
+    return commonVisualizer;
+  }
+
 protected:
   std::string getId(const string &what);
 
@@ -375,6 +386,8 @@ protected:
   boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
   int identifier;
   vector<string> all_identifiers;
+
+  static boost::shared_ptr<Visualizer3D> commonVisualizer;
 };
 
 } /* namespace but_velodyne */

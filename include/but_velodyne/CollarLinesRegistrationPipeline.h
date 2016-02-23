@@ -121,7 +121,6 @@ public:
     Parameters(
         int linesPerCellGenerated_ = 20,
         int linesPerCellPreserved_ = 5,
-        LineCloud::PreservedFactorBy preservedFactorOfLinesBy_ = LineCloud::NONE,
         int minIterations_ = 20,
         int maxIterations_ = 500,
         int maxTimeSpent_ = 20,  // sec
@@ -132,7 +131,6 @@ public:
     :
       linesPerCellGenerated(linesPerCellGenerated_),
       linesPerCellPreserved(linesPerCellPreserved_),
-      preservedFactorOfLinesBy(preservedFactorOfLinesBy_),
       minIterations(minIterations_),
       maxIterations(maxIterations_),
       maxTimeSpent(maxTimeSpent_),
@@ -144,7 +142,6 @@ public:
 
     int linesPerCellGenerated;  /// how many collar lines are generated per polar bin
     int linesPerCellPreserved;  /// how many collar lines are preserved within each bin
-    LineCloud::PreservedFactorBy preservedFactorOfLinesBy;      /// [Experimental] how is the probability of collar line estimated
 
     int minIterations;                  /// minimal number of algorithm iterations
     int maxIterations;                  /// algorithm is terminated after maxIterations is reached

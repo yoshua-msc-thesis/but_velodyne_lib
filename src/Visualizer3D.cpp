@@ -37,6 +37,8 @@ using namespace cv;
 using namespace pcl;
 using namespace Eigen;
 
+boost::shared_ptr<Visualizer3D> Visualizer3D::commonVisualizer;
+
 Visualizer3D::Visualizer3D() :
     rng(cv::theRNG()),
     viewer(new pcl::visualization::PCLVisualizer("3D Viewer")),
@@ -47,6 +49,9 @@ Visualizer3D::Visualizer3D() :
   viewer->addCoordinateSystem(0.5);
   viewer->initCameraParameters();
   viewer->setCameraPosition(5, -500, 0, 0, 0, 0);
+  viewer->addText3D("x", PointXYZ(0.5, 0, 0), 0.1, 0.5, 0, 0.5, getId("text"));
+  viewer->addText3D("y", PointXYZ(0, 0.5, 0), 0.1, 0.5, 0, 0.5, getId("text"));
+  viewer->addText3D("z", PointXYZ(0, 0, 0.5), 0.1, 0.5, 0, 0.5, getId("text"));
 }
 
 Visualizer3D::~Visualizer3D() {
@@ -79,6 +84,10 @@ Visualizer3D& Visualizer3D::addLine(const PointCloudLine &line,
                                     float r, float g, float b) {
   viewer->addLine(line.getBeginPoint(), line.getEndPoint(),
                   r, g, b, getId("line"));
+  PointXYZ text_pos(line.getBeginPoint().x, line.getBeginPoint().y - 0.2, line.getBeginPoint().z);
+  stringstream ss;
+  ss << line.horizontalRangeDiff();
+  viewer->addText3D(ss.str(), text_pos, 0.1, 1.0, 0.0, 1.0, getId("text"));
   return *this;
 }
 

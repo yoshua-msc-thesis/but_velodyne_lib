@@ -46,6 +46,8 @@ struct CellId {
   }
 };
 
+std::ostream& operator<< (std::ostream &out, const CellId &id);
+
 /**!
  * Polar grid structure grouping the Velodyne 3D points of the same ring and the similar horizontal angle.
  */
@@ -88,9 +90,15 @@ public:
    */
   void transform(const Eigen::Matrix4f &t);
 
-  static const int POLAR_SUPERBINS = 36;                        ///!! number of polar super-bins (per 10deg)
-  static const int BIN_SUBDIVISION = 1;                         ///!! each bin is split into 7 sub-bins
-  static const int POLAR_BINS = POLAR_SUPERBINS*BIN_SUBDIVISION;///!! number of subdivided polar bins
+  static int POLAR_SUPERBINS;                        ///!! number of polar super-bins
+  static int BIN_SUBDIVISION;                        ///!! each bin is split into N sub-bins
+
+  /**!
+   * @return number of subdivided polar bins
+   */
+  static int getPolarBins() {
+    return POLAR_SUPERBINS*BIN_SUBDIVISION;
+  }
 
 protected:
 
@@ -104,9 +112,9 @@ protected:
 
   int getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point);
 
-  boost::array<
-    boost::array<VelodynePointCloud, VelodynePointCloud::VELODYNE_RINGS_COUNT>,
-    POLAR_BINS > polar_grid;            // polar bins of rings
+  std::vector<
+    boost::array<VelodynePointCloud, VelodynePointCloud::VELODYNE_RINGS_COUNT>
+  > polar_grid;            // polar bins of rings
 };
 
 } /* namespace but_velodyne */

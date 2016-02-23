@@ -201,7 +201,6 @@ int main(int argc, char** argv)
       CollarLinesRegistrationPipeline::Parameters pipeline_parameters(
           10,   // generated
           2,    // preserved
-          LineCloud::NONE,
           201,  // min iterations
           2000, // max iterations
           20,   // max time spent

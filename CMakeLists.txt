@@ -54,7 +54,8 @@ install(FILES ${header_files} DESTINATION include/${BUT_VELODYNE_INCLUDE_INSTALL
 add_library(but_velodyne SHARED src/CollarLinesRegistration.cpp src/CollarLinesRegistrationPipeline.cpp
 src/ImageLine.cpp src/KeypointsCorrespondenceProjector.cpp src/LineCloud.cpp src/MoveEstimation.cpp
 src/PointCloudLine.cpp src/PolarGridOfClouds.cpp src/PoseGraphEdge.cpp src/Termination.cpp
-src/VelodynePointCloud.cpp src/Visualizer2DCorrespondences.cpp src/Visualizer3D.cpp)
+src/VelodynePointCloud.cpp src/Visualizer2DCorrespondences.cpp src/Visualizer3D.cpp
+src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp)
 target_include_directories(but_velodyne PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(but_velodyne ${PCL_LIBRARIES})
 target_link_libraries(but_velodyne ${OpenCV_LIBS})
@@ -72,6 +73,9 @@ target_link_libraries(show-kitti-poses but_velodyne)
 
 add_executable(show_correspondences src/apps/show_correspondences.cpp)
 target_link_libraries(show_correspondences but_velodyne)
+
+add_executable(kitti-viewer src/apps/kitti-viewer.cpp)
+target_link_libraries(kitti-viewer but_velodyne)
 
 ########################## Loops detection/closure: ##########################
 

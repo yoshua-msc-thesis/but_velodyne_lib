@@ -31,6 +31,7 @@
 
 #include <but_velodyne/PointCloudLine.h>
 #include <but_velodyne/PolarGridOfClouds.h>
+#include <but_velodyne/CollarLinesFilter.h>
 
 namespace but_velodyne
 {
@@ -43,22 +44,11 @@ class LineCloud
 public:
 
   /**!
-   * Probability of line to be preserved may be based on the
-   * angle of polar bin (estimated plane) with ground plane - vertical bins are preferred.
-   */
-  enum PreservedFactorBy {
-    ANGLE_WITH_GROUND,
-    NONE
-  };
-
-  friend std::istream& operator>> (std::istream &in, PreservedFactorBy &factor_type);
-
-  /**!
    * Initialize empty line cloud.
    */
   LineCloud() :
     rng(cv::theRNG()),
-    preservedFactorType(NONE) {
+    filter(CollarLinesFilter(0)) {
     // empty
   }
 
@@ -70,14 +60,9 @@ public:
    */
   LineCloud(const PolarGridOfClouds &polar_grid,
             const int lines_per_cell_pair_generated,
-            const int lines_per_cell_pair_preserved,
-            const PreservedFactorBy preservedFactorType);
+            CollarLinesFilter &filter_);
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr generateDenseCloud(
-      const PolarGridOfClouds &polar_grid,
-      const int lines_per_cell_pair_generated,
-      const int lines_per_cell_pair_preserved,
-      const int points_per_cell) const;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr generateDenseCloud(const int points_per_cell) const;
 
   /**!
    * @return all lines
@@ -108,24 +93,18 @@ protected:
   void generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
                                  const CellId &source_cell,
                                  const int lines_per_cell_pair_generated,
-                                 const int lines_per_cell_pair_preserved,
                                  std::vector<PointCloudLine> &line_cloud) const;
 
   void generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
-                                   const CellId &cell1, const CellId &cell2,
-                                   const int lines_per_cell_pair_generated,
-                                   const int lines_per_cell_pair_preserved,
+                                   CellId cell1, CellId cell2,
+                                   int lines_per_cell_pair_generated,
                                    std::vector<PointCloudLine> &line_cloud) const;
 
   std::vector<CellId> getTargetCells(const CellId &source_cell) const;
 
-  float sinOfPlaneAngleWithGround(const VelodynePointCloud &points) const;
-
-  float getPreservedFactor(const VelodynePointCloud &all_points) const;
-
 private:
   cv::RNG& rng;
-  const PreservedFactorBy preservedFactorType;
+  const CollarLinesFilter &filter;
 };
 
 } /* namespace but_velodyne */

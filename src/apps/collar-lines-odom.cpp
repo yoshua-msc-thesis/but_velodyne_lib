@@ -136,8 +136,6 @@ bool parse_arguments(int argc, char **argv,
           "How many collar lines are generated per single polar bin")
       ("lines_per_bin_preserved,p", po::value<int>(&pipeline_parameters.linesPerCellPreserved)->default_value(pipeline_parameters.linesPerCellPreserved),
           "How many collar lines are preserved per single polar bin after filtering")
-      ("lines_preserved_factor_by", po::value<LineCloud::PreservedFactorBy>(&pipeline_parameters.preservedFactorOfLinesBy)->default_value(pipeline_parameters.preservedFactorOfLinesBy),
-          "Discard part of the generated lines based on the vertical population of polar bin (on/off). Possible values: ANGLE_WITH_GROUND|NONE")
       ("min_iterations", po::value<int>(&pipeline_parameters.minIterations)->default_value(pipeline_parameters.minIterations),
           "Minimal number of registration iterations (similar to ICP iterations)")
       ("max_iterations", po::value<int>(&pipeline_parameters.maxIterations)->default_value(pipeline_parameters.maxIterations),

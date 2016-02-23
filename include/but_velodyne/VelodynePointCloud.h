@@ -108,6 +108,7 @@ bool projectPoint(const velodyne_pointcloud::PointXYZIR &pt,
 class VelodynePointCloud : public pcl::PointCloud<velodyne_pointcloud::PointXYZIR>
 {
 public:
+
   /**!
    * Normalization of the point intensities to interval [min_intensity, max_intensity]
    *

@@ -23,6 +23,7 @@
 
 #include <but_velodyne/CollarLinesRegistrationPipeline.h>
 #include <but_velodyne/PoseGraphEdge.h>
+#include <but_velodyne/CollarLinesFilter.h>
 
 using namespace std;
 using namespace pcl;
@@ -42,11 +43,9 @@ Eigen::Matrix4f CollarLinesRegistrationPipeline::registerTwoGrids(const PolarGri
                           pipeline_params.significantErrorDeviation, pipeline_params.targetError);
   Eigen::Matrix4f transformation = initial_transformation;
   while(!termination()) {
-
-    LineCloud source_line_cloud(source, pipeline_params.linesPerCellGenerated,
-                                pipeline_params.linesPerCellPreserved, pipeline_params.preservedFactorOfLinesBy);
-    LineCloud target_line_cloud(target, pipeline_params.linesPerCellGenerated,
-                                pipeline_params.linesPerCellPreserved, pipeline_params.preservedFactorOfLinesBy);
+    CollarLinesFilter filter(pipeline_params.linesPerCellPreserved);
+    LineCloud source_line_cloud(source, pipeline_params.linesPerCellGenerated, filter);
+    LineCloud target_line_cloud(target, pipeline_params.linesPerCellGenerated, filter);
 
     CollarLinesRegistration icl_fitting(source_line_cloud, target_line_cloud,
                                         registration_params, transformation);
@@ -92,10 +91,9 @@ Eigen::Matrix4f CollarLinesRegistrationPipeline::pickBestByError(const PolarGrid
                                               const vector<Eigen::Matrix4f> &transformations) {
   float best_error = INFINITY;
   Eigen::Matrix4f best_transform;
-  LineCloud source(*(history.front().getGridCloud()), pipeline_params.linesPerCellGenerated,
-                   pipeline_params.linesPerCellPreserved, pipeline_params.preservedFactorOfLinesBy);
-  LineCloud target(*target_cloud, pipeline_params.linesPerCellGenerated,
-                   pipeline_params.linesPerCellPreserved, pipeline_params.preservedFactorOfLinesBy);
+  CollarLinesFilter filter(pipeline_params.linesPerCellPreserved);
+  LineCloud source(*(history.front().getGridCloud()), pipeline_params.linesPerCellGenerated, filter);
+  LineCloud target(*target_cloud, pipeline_params.linesPerCellGenerated, filter);
   int i = 0;
   int best_index = -1;
   for(vector<Eigen::Matrix4f>::const_iterator t = transformations.begin();

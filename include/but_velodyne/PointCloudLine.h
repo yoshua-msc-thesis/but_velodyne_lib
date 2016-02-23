@@ -209,10 +209,14 @@ public:
     return orientation / orientation.norm() * l;
   }
 
+  float horizontalRangeDiff() const;
+
 protected:
   void closestPointsCoefficients(const PointCloudLine &other,
                                  Eigen::Vector3f &w0, float &sc, float &tc) const;
 };
+
+std::ostream& operator<< (std::ostream &out, const PointCloudLine &line);
 
 }
 
