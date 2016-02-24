@@ -50,25 +50,27 @@ public:
   class Parameters {
   public:
     Parameters(
+      int lines_to_preserve_ = 50,
       float horizontal_range_diff_tolerance_rel_ = 1.1,
       float horizontal_range_diff_tolerance_abs_ = 0.2,
       float max_horizontal_range_diff_ = 1.0,
       float weight_of_expected_horizontal_range_diff_ = -1) :
+        lines_to_preserve(lines_to_preserve_),
         horizontal_range_diff_tolerance_rel(horizontal_range_diff_tolerance_rel_),
         horizontal_range_diff_tolerance_abs(horizontal_range_diff_tolerance_abs_),
         max_horizontal_range_diff(max_horizontal_range_diff_),
         weight_of_expected_horizontal_range_diff(weight_of_expected_horizontal_range_diff_) {
     }
+    int lines_to_preserve;
     float horizontal_range_diff_tolerance_rel;
     float horizontal_range_diff_tolerance_abs;
     float max_horizontal_range_diff;
     float weight_of_expected_horizontal_range_diff;
   };
 
-  AngularCollarLinesFilter(int lines_to_preserve_,
-                           COMPARATION comparation_metric_,
+  AngularCollarLinesFilter(COMPARATION comparation_metric_,
                            Parameters params_) :
-                            CollarLinesFilter(lines_to_preserve_, comparation_metric_),
+                            CollarLinesFilter(params_.lines_to_preserve, comparation_metric_),
                             params(params_),
                             max_ring_ranges(VelodyneSpecification::RINGS, 0.0),
                             clouds_processed(0) {

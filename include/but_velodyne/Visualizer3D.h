@@ -36,6 +36,7 @@
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/LineCloud.h>
 #include <but_velodyne/Correspondence.h>
+#include <but_velodyne/Regular2DGrid.h>
 
 using namespace std;
 
@@ -78,7 +79,7 @@ public:
    * @return *this instance with the new point cloud ready to be visualized too
    */
   template<typename PointT>
-  Visualizer3D& addPointCloud(const pcl::PointCloud<PointT> cloud,
+  Visualizer3D& addPointCloud(const pcl::PointCloud<PointT> &cloud,
                               const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity()) {
     pcl::PointCloud<PointT> cloud_transformed;
     transformPointCloud(cloud, cloud_transformed, transformation);
@@ -175,9 +176,24 @@ public:
    */
   template<typename PointT>
   Visualizer3D& addPointClouds(const std::vector< pcl::PointCloud<PointT> > &clouds) {
-    for(std::vector<VelodynePointCloud>::const_iterator cloud = clouds.begin();
+    for(typename std::vector< pcl::PointCloud<PointT> >::const_iterator cloud = clouds.begin();
         cloud < clouds.end(); cloud++) {
       addPointCloud(*cloud);
+    }
+    return *this;
+  }
+
+  template<typename PointT>
+  Visualizer3D& addEvenOddColoredGrid(const Regular2DGrid<pcl::PointCloud<PointT> > &grid) {
+    for(int r = 0; r < grid.rows; r++) {
+      for(int c = 0; c < grid.cols; c++) {
+        if((r+c)%2 == 0) {
+          setColor(200, 0, 0);
+        } else {
+          setColor(0, 0, 200);
+        }
+        addPointCloud(grid.at(r, c));
+      }
     }
     return *this;
   }
@@ -371,6 +387,8 @@ public:
     }
     return commonVisualizer;
   }
+
+  Visualizer3D& addRingColoredCloud(const VelodynePointCloud &cloud);
 
 protected:
   std::string getId(const string &what);

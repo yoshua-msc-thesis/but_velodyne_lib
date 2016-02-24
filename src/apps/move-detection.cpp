@@ -39,6 +39,7 @@
 #include <but_velodyne/LineCloud.h>
 #include <but_velodyne/PolarGridOfClouds.h>
 #include <but_velodyne/Visualizer3D.h>
+#include <but_velodyne/Regular2DGridGenerator.h>
 
 using namespace std;
 using namespace cv;
@@ -50,23 +51,6 @@ namespace po = boost::program_options;
 
 
 #define log cerr
-
-class Parameters {
-public:
-  Parameters(
-      int lines_generated_ = 100,
-      int lines_preserved_ = 50,
-      int points_per_cell_ = 400) :
-        lines_generated(lines_generated_),
-        lines_preserved(lines_preserved_),
-        points_per_cell(points_per_cell_) {
-  }
-
-public:
-  int lines_generated;
-  int lines_preserved;
-  int points_per_cell;
-};
 
 template <class PointType>
 typename pcl::PointCloud<PointType>::Ptr downsampleCloud(
@@ -82,36 +66,51 @@ typename pcl::PointCloud<PointType>::Ptr downsampleCloud(
     return cloud_filtered;
 }
 
-PointCloud<PointXYZRGB>::Ptr color_rings(const VelodynePointCloud &cloud) {
-  uchar red = 0;
-  PointCloud<PointXYZRGB>::Ptr colored_cloud(new PointCloud<PointXYZRGB>);
-  for(int r = 0; r < VelodyneSpecification::RINGS; r++, red+=255/VelodyneSpecification::RINGS) {
-    float range = VelodyneSpecification::getExpectedRange(r, VelodyneSpecification::KITTI_HEIGHT);
-    //cerr << "ring: " << r << " range: " << range << endl;
-    for(VelodynePointCloud::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
-      if(pt->ring == r) {
-        uchar red, green, blue;
-        //Visualizer3D::colorizeIntensity(r/(float)(VelodyneSpecification::RINGS-1), red, green, blue);
-        red = green = blue = 0.0;
-        if(r%3 == 0) {
-          red = 255;
-        } else if(r%3 == 1) {
-          green = 255;
-        } else {
-          blue = 255;
-        }
-        PointXYZRGB colored_pt(red, green, blue);
-        colored_pt.x = pt->x;
-        colored_pt.y = pt->y;
-        colored_pt.z = pt->z;
-        colored_cloud->push_back(colored_pt);
-      }
-    }
-  }
-  return colored_cloud;
-}
+class MoveDetection {
+public:
 
-bool parse_arguments(int argc, char **argv, Parameters &parameters,
+  class Parameters {
+  public:
+    Parameters(
+        int lines_generated_ = 100,
+        int points_per_cell_ = 400) :
+          lines_generated(lines_generated_),
+          points_per_cell(points_per_cell_) {
+    }
+
+  public:
+    int lines_generated;
+    int points_per_cell;
+  };
+
+  MoveDetection(Parameters params_,
+                AngularCollarLinesFilter &filter_) :
+    params(params_),
+    filter(filter_),
+    grid_generator(Regular2DGridGenerator::Parameters()) {
+  }
+
+  // TODO return 2D bool grid
+  void run(const VelodynePointCloud &new_cloud) {
+    PolarGridOfClouds polar_grid(new_cloud);
+    filter.addNewMaxRingRanges(new_cloud.getMaxOfRingRanges());
+    LineCloud lines(polar_grid, params.lines_generated, filter);
+    PointCloud<PointXYZ>::Ptr dense_cloud = lines.generateDenseCloud(params.points_per_cell);
+    PointCloud<PointXYZ>::Ptr dense_downsampled_cloud = downsampleCloud<pcl::PointXYZ>(dense_cloud, 0.1);
+    //Visualizer3D().addCloudColoredByHeight(*dense_downsampled_cloud).addRingColoredCloud(new_cloud).show();
+    *dense_downsampled_cloud += *new_cloud.getXYZCloudPtr();
+
+    Regular2DGrid< PointCloud<PointXYZ> > new_grid(grid_generator.params.rows, grid_generator.params.cols);
+    grid_generator.generate(*dense_downsampled_cloud, 20, 20, new_grid);
+    Visualizer3D().addEvenOddColoredGrid(new_grid).show();
+  }
+
+  Parameters params;
+  AngularCollarLinesFilter &filter;
+  Regular2DGridGenerator grid_generator;
+};
+
+bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters,
                      AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process);
 
@@ -120,36 +119,31 @@ bool parse_arguments(int argc, char **argv, Parameters &parameters,
  */
 int main(int argc, char** argv) {
 
-  Parameters parameters;
+  MoveDetection::Parameters parameters;
   AngularCollarLinesFilter::Parameters filter_parameters;
   vector<string> clouds_to_process;
   if(!parse_arguments(argc, argv, parameters, filter_parameters, clouds_to_process)) {
     return EXIT_FAILURE;
   }
-  string filename(clouds_to_process[0]);
 
-  VelodynePointCloud original_cloud;
-  log << "KITTI file: " << filename << endl << flush;
-  if (filename.find(".pcd") != string::npos) {
-    io::loadPCDFile(filename, original_cloud);
-  } else {
-    VelodynePointCloud::fromKitti(filename, original_cloud);
+  for(vector<string>::iterator filename = clouds_to_process.begin(); filename < clouds_to_process.end(); filename++) {
+    VelodynePointCloud new_cloud;
+    log << "Processing KITTI file: " << *filename << endl << flush;
+    if (filename->find(".pcd") != string::npos) {
+      io::loadPCDFile(*filename, new_cloud);
+    } else {
+      VelodynePointCloud::fromKitti(*filename, new_cloud);
+    }
+
+    AngularCollarLinesFilter filter(CollarLinesFilter::HORIZONTAL_RANGE_DIFF, filter_parameters);
+    MoveDetection move_detection(parameters, filter);
+    move_detection.run(new_cloud);
   }
-
-  PolarGridOfClouds polar_grid(original_cloud);
-  AngularCollarLinesFilter filter(parameters.lines_preserved,
-                                  CollarLinesFilter::HORIZONTAL_RANGE_DIFF,
-                                  filter_parameters);
-  filter.addNewMaxRingRanges(original_cloud.getMaxOfRingRanges());
-  LineCloud lines(polar_grid, parameters.lines_generated, filter);
-  PointCloud<PointXYZ>::Ptr dense_cloud = lines.generateDenseCloud(parameters.points_per_cell);
-  PointCloud<PointXYZ>::Ptr downsampled_cloud = downsampleCloud<pcl::PointXYZ>(dense_cloud, 0.05);
-  Visualizer3D().addCloudColoredByHeight(*downsampled_cloud).addColorPointCloud(color_rings(original_cloud)).show();
 
   return EXIT_SUCCESS;
 }
 
-bool parse_arguments(int argc, char **argv, Parameters &parameters, AngularCollarLinesFilter::Parameters &filter_parameters,
+bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters, AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process) {
   bool use_kalman = false;
   int linear_estimator = 3;
@@ -162,7 +156,7 @@ bool parse_arguments(int argc, char **argv, Parameters &parameters, AngularColla
       ("help,h", "produce help message")
       ("lines_generated,g", po::value<int>(&parameters.lines_generated)->default_value(parameters.lines_generated),
           "How many collar lines are generated per single polar bin")
-      ("lines_preserved,p", po::value<int>(&parameters.lines_preserved)->default_value(parameters.lines_preserved),
+      ("lines_preserved,p", po::value<int>(&filter_parameters.lines_to_preserve)->default_value(filter_parameters.lines_to_preserve),
           "How many collar lines are preserved per single polar bin after filtering")
       ("points_per_cell", po::value<int>(&parameters.points_per_cell)->default_value(parameters.points_per_cell),
           "How many points are generated within each polar bin")

@@ -196,6 +196,28 @@ Visualizer3D& Visualizer3D::setColor(unsigned r, unsigned g, unsigned b) {
   return *this;
 }
 
+Visualizer3D& Visualizer3D::addRingColoredCloud(const VelodynePointCloud &cloud) {
+  PointCloud<PointXYZRGB>::Ptr colored_cloud(new PointCloud<PointXYZRGB>);
+  for(VelodynePointCloud::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
+    uchar red, green, blue;
+    red = green = blue = 0.0;
+    if(pt->ring%3 == 0) {
+      red = 255;
+    } else if(pt->ring%3 == 1) {
+      green = 255;
+    } else {
+      blue = 255;
+    }
+    PointXYZRGB colored_pt(red, green, blue);
+    colored_pt.x = pt->x;
+    colored_pt.y = pt->y;
+    colored_pt.z = pt->z;
+    colored_cloud->push_back(colored_pt);
+  }
+  return addColorPointCloud(colored_cloud);
+}
+
+
 std::string Visualizer3D::getId(const string &what) {
   std::stringstream ss;
   ss << what << "_" << identifier++;
