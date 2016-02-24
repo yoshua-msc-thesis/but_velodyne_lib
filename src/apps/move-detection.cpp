@@ -56,25 +56,16 @@ public:
   Parameters(
       int lines_generated_ = 100,
       int lines_preserved_ = 50,
-      int points_per_cell_ = 400,
-      float horizontal_range_diff_tolerance_rel_ = 1.5,
-      float horizontal_range_diff_tolerance_abs_ = 0.3,
-      float max_horizontal_range_diff_ = 3.0) :
+      int points_per_cell_ = 400) :
         lines_generated(lines_generated_),
         lines_preserved(lines_preserved_),
-        points_per_cell(points_per_cell_),
-        horizontal_range_diff_tolerance_rel(horizontal_range_diff_tolerance_rel_),
-        horizontal_range_diff_tolerance_abs(horizontal_range_diff_tolerance_abs_),
-        max_horizontal_range_diff(max_horizontal_range_diff_) {
+        points_per_cell(points_per_cell_) {
   }
 
 public:
   int lines_generated;
   int lines_preserved;
   int points_per_cell;
-  float horizontal_range_diff_tolerance_rel;
-  float horizontal_range_diff_tolerance_abs;
-  float max_horizontal_range_diff;
 };
 
 template <class PointType>
@@ -121,6 +112,7 @@ PointCloud<PointXYZRGB>::Ptr color_rings(const VelodynePointCloud &cloud) {
 }
 
 bool parse_arguments(int argc, char **argv, Parameters &parameters,
+                     AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process);
 
 /**
@@ -129,8 +121,9 @@ bool parse_arguments(int argc, char **argv, Parameters &parameters,
 int main(int argc, char** argv) {
 
   Parameters parameters;
+  AngularCollarLinesFilter::Parameters filter_parameters;
   vector<string> clouds_to_process;
-  if(!parse_arguments(argc, argv, parameters, clouds_to_process)) {
+  if(!parse_arguments(argc, argv, parameters, filter_parameters, clouds_to_process)) {
     return EXIT_FAILURE;
   }
   string filename(clouds_to_process[0]);
@@ -143,33 +136,20 @@ int main(int argc, char** argv) {
     VelodynePointCloud::fromKitti(filename, original_cloud);
   }
 
-  Visualizer3D::getCommonVisualizer()->setColor(0,0,200).addColorPointCloud(color_rings(original_cloud));
   PolarGridOfClouds polar_grid(original_cloud);
-  AngularCollarLinesFilter filter(parameters.lines_preserved, CollarLinesFilter::HORIZONTAL_RANGE_DIFF,
-                                  parameters.horizontal_range_diff_tolerance_rel,
-                                  parameters.horizontal_range_diff_tolerance_abs,
-                                  parameters.max_horizontal_range_diff);
+  AngularCollarLinesFilter filter(parameters.lines_preserved,
+                                  CollarLinesFilter::HORIZONTAL_RANGE_DIFF,
+                                  filter_parameters);
+  filter.addNewMaxRingRanges(original_cloud.getMaxOfRingRanges());
   LineCloud lines(polar_grid, parameters.lines_generated, filter);
-
-  /*Visualizer3D vis;
-  vis.setColor(0,0,200).addPointCloud(original_cloud);
-  for(vector<PointCloudLine>::const_iterator l = lines.getLines().begin(); l < lines.getLines().end(); l++) {
-    if(l->point.z() > 5 && fabs(l->point.x()) < 2) {
-      vis.addLine(*l);
-    }
-  }
-  vis.show();*/
-
   PointCloud<PointXYZ>::Ptr dense_cloud = lines.generateDenseCloud(parameters.points_per_cell);
-
-  PointCloud<PointXYZ>::Ptr downsampled_cloud = downsampleCloud<pcl::PointXYZ>(dense_cloud, 0.2);
-
+  PointCloud<PointXYZ>::Ptr downsampled_cloud = downsampleCloud<pcl::PointXYZ>(dense_cloud, 0.05);
   Visualizer3D().addCloudColoredByHeight(*downsampled_cloud).addColorPointCloud(color_rings(original_cloud)).show();
 
   return EXIT_SUCCESS;
 }
 
-bool parse_arguments(int argc, char **argv, Parameters &parameters,
+bool parse_arguments(int argc, char **argv, Parameters &parameters, AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process) {
   bool use_kalman = false;
   int linear_estimator = 3;
@@ -190,12 +170,14 @@ bool parse_arguments(int argc, char **argv, Parameters &parameters,
           "Number of polar bins in the grid")
       ("bin_subdivision", po::value<int>(&PolarGridOfClouds::BIN_SUBDIVISION)->default_value(5),
           "How many times is the polar bin sub-divided")
-      ("max_line_horizontal_diff", po::value<float>(&parameters.max_horizontal_range_diff)->default_value(parameters.max_horizontal_range_diff),
+      ("max_line_horizontal_diff", po::value<float>(&filter_parameters.max_horizontal_range_diff)->default_value(filter_parameters.max_horizontal_range_diff),
           "Max difference of horizontal ranges for preserved line")
-      ("line_horizontal_diff_rel_tolerance", po::value<float>(&parameters.horizontal_range_diff_tolerance_rel)->default_value(parameters.horizontal_range_diff_tolerance_rel),
+      ("line_horizontal_diff_rel_tolerance", po::value<float>(&filter_parameters.horizontal_range_diff_tolerance_rel)->default_value(filter_parameters.horizontal_range_diff_tolerance_rel),
           "Relative tolerance of line horizontal range difference")
-      ("line_horizontal_diff_abs_tolerance", po::value<float>(&parameters.horizontal_range_diff_tolerance_abs)->default_value(parameters.horizontal_range_diff_tolerance_abs),
+      ("line_horizontal_diff_abs_tolerance", po::value<float>(&filter_parameters.horizontal_range_diff_tolerance_abs)->default_value(filter_parameters.horizontal_range_diff_tolerance_abs),
           "Absolute tolerance of line horizontal range difference")
+      ("horizontal_range_diff_weight", po::value<float>(&filter_parameters.weight_of_expected_horizontal_range_diff)->default_value(filter_parameters.weight_of_expected_horizontal_range_diff),
+          "Weight of horizontal range difference estimation (value < 0 => MAX)")
    ;
 
     po::variables_map vm;

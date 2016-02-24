@@ -47,23 +47,44 @@ private:
 
 class AngularCollarLinesFilter : public CollarLinesFilter {
 public:
-  AngularCollarLinesFilter(int lines_to_preserve_, COMPARATION comparation_metric_,
-                          float horizontal_range_diff_tolerance_rel_,
-                          float horizontal_range_diff_tolerance_abs_,
-                          float max_horizontal_range_diff_) :
+  class Parameters {
+  public:
+    Parameters(
+      float horizontal_range_diff_tolerance_rel_ = 1.1,
+      float horizontal_range_diff_tolerance_abs_ = 0.2,
+      float max_horizontal_range_diff_ = 1.0,
+      float weight_of_expected_horizontal_range_diff_ = -1) :
+        horizontal_range_diff_tolerance_rel(horizontal_range_diff_tolerance_rel_),
+        horizontal_range_diff_tolerance_abs(horizontal_range_diff_tolerance_abs_),
+        max_horizontal_range_diff(max_horizontal_range_diff_),
+        weight_of_expected_horizontal_range_diff(weight_of_expected_horizontal_range_diff_) {
+    }
+    float horizontal_range_diff_tolerance_rel;
+    float horizontal_range_diff_tolerance_abs;
+    float max_horizontal_range_diff;
+    float weight_of_expected_horizontal_range_diff;
+  };
+
+  AngularCollarLinesFilter(int lines_to_preserve_,
+                           COMPARATION comparation_metric_,
+                           Parameters params_) :
                             CollarLinesFilter(lines_to_preserve_, comparation_metric_),
-                            horizontal_range_diff_tolerance_abs(horizontal_range_diff_tolerance_abs_),
-                            horizontal_range_diff_tolerance_rel(horizontal_range_diff_tolerance_rel_),
-                            max_horizontal_range_diff(max_horizontal_range_diff_) {
+                            params(params_),
+                            max_ring_ranges(VelodyneSpecification::RINGS, 0.0),
+                            clouds_processed(0) {
   }
+
+  void addNewMaxRingRanges(std::vector<float> max_ring_ranges_);
 
 protected:
   virtual bool checkLine(const PointCloudLine &line, const CellId &src_cell, const CellId &targ_cell) const;
 
+  float getExpectedRangesDiff(int ring1, int ring2) const;
+
 private:
-  const float horizontal_range_diff_tolerance_rel;
-  const float horizontal_range_diff_tolerance_abs;
-  const float max_horizontal_range_diff;
+  Parameters params;
+  std::vector<float> max_ring_ranges;
+  int clouds_processed;
 };
 
 } /* namespace but_visual_registration */

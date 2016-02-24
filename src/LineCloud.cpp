@@ -90,7 +90,9 @@ void LineCloud::generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
     cell2 = &polar_grid[cell2_id];
     if(cell2->empty() && (cell2_id.ring < VelodyneSpecification::RINGS-1)) {
       cell2_id.ring++;
-      //cerr << cell1_id << " -> " << cell2_id << endl;
+      /*cerr << cell1_id << " -> " << cell2_id << ", expected_range_diff: "
+          << fabs(VelodyneSpecification::getExpectedRange(cell1_id.ring, VelodyneSpecification::KITTI_HEIGHT) -
+          VelodyneSpecification::getExpectedRange(cell2_id.ring, VelodyneSpecification::KITTI_HEIGHT)) << endl;*/
     } else {
       break;
     }

@@ -229,5 +229,23 @@ bool projectPoint(const PointXYZIR &pt,
   return projected_pt.inside(plane);
 }
 
+vector<float> VelodynePointCloud::getMaxOfRingRanges() const {
+  vector< vector<float> > ranges(VelodyneSpecification::RINGS);
+  for(const_iterator pt = begin(); pt < end(); pt++) {
+    ranges[pt->ring].push_back(pt->x*pt->x + pt->z*pt->z);
+  }
+  vector<float> almost_maximums;
+  for(int ring = 0; ring < ranges.size(); ring++) {
+    if(ranges[ring].empty()) {
+      almost_maximums.push_back(NAN);
+    } else {
+      sort(ranges[ring].begin(), ranges[ring].end());
+      almost_maximums.push_back(sqrt(ranges[ring][ranges[ring].size()*0.9]));
+    }
+  }
+  return almost_maximums;
+}
+
+
 }
 

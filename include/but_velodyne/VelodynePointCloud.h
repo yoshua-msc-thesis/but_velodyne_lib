@@ -223,6 +223,8 @@ public:
     std::cerr << "Read KTTI point cloud " << infile << " with " << i << " points." << std::endl;
   }
 
+  std::vector<float> getMaxOfRingRanges() const;
+
 protected:
   std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > getRings() const;
   VelodynePointCloud discartWeakPoints(float threshold);
