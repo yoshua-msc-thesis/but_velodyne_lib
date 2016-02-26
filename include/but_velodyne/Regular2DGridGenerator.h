@@ -38,9 +38,12 @@ public:
         float width_ = 40,
         float height_ = 50,
         int rows_ = 250,
-        int cols_ = 100) :
+        int cols_ = 100,
+        float h_origin_ = -20,
+        float v_origin_ = -20) :
           width(width_), height(height_),
-          rows(rows_), cols(cols_) {
+          rows(rows_), cols(cols_),
+          h_origin(h_origin_), v_origin(v_origin_) {
     }
 
     bool operator==(const Parameters &other) {
@@ -49,11 +52,14 @@ public:
           fabs(this->width - other.width) < eps &&
           fabs(this->height - other.height) < eps &&
           this->rows == other.rows &&
-          this->cols == other.cols;
+          this->cols == other.cols &&
+          this->h_origin == other.h_origin &&
+          this->v_origin == other.v_origin;
     }
 
     float width, height;
     int rows, cols;
+    float h_origin, v_origin;
   } params;
 
   Regular2DGridGenerator(Parameters params_) :
@@ -64,15 +70,14 @@ public:
 
   template <typename PointT>
   void generate(const pcl::PointCloud<PointT> &in_cloud,
-                float x_origin, float z_origin,
                 Regular2DGrid< pcl::PointCloud<PointT> > &output) {
-    cv::Rect_<float> dimensions(-x_origin, -z_origin, params.width, params.height);
+    cv::Rect_<float> dimensions(params.h_origin, params.v_origin, params.width, params.height);
     for(typename pcl::PointCloud<PointT>::const_iterator pt = in_cloud.begin(); pt < in_cloud.end(); pt++) {
       cv::Point2f pt_2D(pt->x, pt->z);
       if(pt_2D.inside(dimensions)) {
-        int col = MAX(0, MIN((pt->x+x_origin)/col_width, params.cols-1));
-        int row = MAX(0, MIN((pt->z+z_origin)/row_height, params.rows-1));
-        output.at(row, col).push_back(*pt);
+        int col = MAX(0, MIN((pt->x-params.h_origin)/col_width, params.cols-1));
+        int row = MAX(0, MIN((pt->z-params.v_origin)/row_height, params.rows-1));
+        output.at(row, col)->push_back(*pt);
       }
     }
   }

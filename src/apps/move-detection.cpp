@@ -30,6 +30,7 @@
 #include <pcl/common/eigen.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/common/centroid.h>
 
 #include <boost/program_options.hpp>
 #include <cv.h>
@@ -39,7 +40,9 @@
 #include <but_velodyne/LineCloud.h>
 #include <but_velodyne/PolarGridOfClouds.h>
 #include <but_velodyne/Visualizer3D.h>
+#include <but_velodyne/Visualizer2D.h>
 #include <but_velodyne/Regular2DGridGenerator.h>
+#include <but_velodyne/Regular2DGridProcessor.h>
 
 using namespace std;
 using namespace cv;
@@ -66,6 +69,19 @@ typename pcl::PointCloud<PointType>::Ptr downsampleCloud(
     return cloud_filtered;
 }
 
+class HeightAverage : public Modificator<PointCloud<PointXYZ>, float> {
+public:
+  virtual void operator()(const PointCloud<PointXYZ> &cloud, float &height_avg) {
+    if(cloud.empty()) {
+      height_avg = NAN;
+    } else {
+      Eigen::Vector4f centroid;
+      compute3DCentroid(cloud, centroid);
+      height_avg = centroid.y();
+    }
+  }
+};
+
 class MoveDetection {
 public:
 
@@ -84,10 +100,11 @@ public:
   };
 
   MoveDetection(Parameters params_,
-                AngularCollarLinesFilter &filter_) :
+                AngularCollarLinesFilter &filter_,
+                Regular2DGridGenerator::Parameters grid_params) :
     params(params_),
     filter(filter_),
-    grid_generator(Regular2DGridGenerator::Parameters()) {
+    grid_generator(grid_params) {
   }
 
   // TODO return 2D bool grid
@@ -101,8 +118,14 @@ public:
     *dense_downsampled_cloud += *new_cloud.getXYZCloudPtr();
 
     Regular2DGrid< PointCloud<PointXYZ> > new_grid(grid_generator.params.rows, grid_generator.params.cols);
-    grid_generator.generate(*dense_downsampled_cloud, 20, 20, new_grid);
-    Visualizer3D().addEvenOddColoredGrid(new_grid).show();
+    grid_generator.generate(*dense_downsampled_cloud, new_grid);
+    //Visualizer3D().addEvenOddColoredGrid(new_grid).show();
+
+    Regular2DGrid<float> new_grid_height(grid_generator.params.rows, grid_generator.params.cols);
+    HeightAverage height_avg;
+    Regular2DGridProcessor::modify(new_grid, new_grid_height, height_avg);
+    Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "HeightMap")
+        .addHeightMap(new_grid_height).show(100);
   }
 
   Parameters params;
@@ -113,6 +136,46 @@ public:
 bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters,
                      AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process);
+
+class Modif : public Modificator<float, int> {
+public:
+  virtual void operator()(const float &s, int &t) {
+    t = round(s);
+  }
+};
+
+class Sum : public Aggregator<float> {
+public:
+  virtual void operator()(const vector< boost::shared_ptr<float> > &s, float &t) {
+    t = 0;
+    for(int i = 0; i < s.size(); i++) {
+      t += *s[i];
+    }
+  }
+};
+
+void gridProcessingTest() {
+  Regular2DGrid<float>::Ptr fgrid(new Regular2DGrid<float>(2,2));
+  *fgrid->at(0,0) = 1.2;
+  *fgrid->at(0,1) = 2.4;
+  *fgrid->at(1,0) = 3.6;
+  *fgrid->at(1,1) = 4.8;
+  Regular2DGrid<int>::Ptr igrid(new Regular2DGrid<int>(2,2));
+
+  Modif m;
+  Regular2DGridProcessor::modify(*fgrid, *igrid, m);
+  cerr << *fgrid << endl;
+  cerr << *igrid << endl;
+
+  vector<Regular2DGrid<float>::Ptr> to_sum;
+  to_sum.push_back(fgrid);
+  to_sum.push_back(fgrid);
+  to_sum.push_back(fgrid);
+  Sum summ_f;
+  Regular2DGrid<float> sum_targ(2,2);
+  Regular2DGridProcessor::aggregate(to_sum, sum_targ, summ_f);
+  cerr << sum_targ << endl;
+}
 
 /**
  * ./move-detection cloud.bin
@@ -136,7 +199,8 @@ int main(int argc, char** argv) {
     }
 
     AngularCollarLinesFilter filter(CollarLinesFilter::HORIZONTAL_RANGE_DIFF, filter_parameters);
-    MoveDetection move_detection(parameters, filter);
+    Regular2DGridGenerator::Parameters grid_params;
+    MoveDetection move_detection(parameters, filter, grid_params);
     move_detection.run(new_cloud);
   }
 

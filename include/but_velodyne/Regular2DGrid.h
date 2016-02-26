@@ -24,6 +24,8 @@
 #ifndef REGULAR2DGRID_H_
 #define REGULAR2DGRID_H_
 
+#include <iostream>
+
 namespace but_velodyne {
 
 /**!
@@ -33,24 +35,46 @@ template <typename CellType>
 class Regular2DGrid {
 public:
 
+  typedef boost::shared_ptr< Regular2DGrid<CellType> > Ptr;
+
   Regular2DGrid(int rows_, int cols_) :
     cells(rows_*cols_),
     rows(rows_), cols(cols_) {
+    for(int i = 0; i < rows*cols; i++) {
+      cells[i].reset(new CellType);
+    }
   }
 
-  const CellType& at(int r, int c) const {
-    return cells[r*cols + c];
+  const boost::shared_ptr<CellType> at(int r, int c) const {
+    return cells[toIndex(r, c)];
   }
 
-  CellType& at(int r, int c) {
-    return cells[r*cols + c];
+  boost::shared_ptr<CellType> at(int r, int c) {
+    return cells[toIndex(r, c)];
   }
 
   const int cols, rows;
 
-//private:
-  std::vector<CellType> cells;
+protected:
+  int toIndex(int r, int c) const {
+    return r*cols + c;
+  }
+
+private:
+  std::vector< boost::shared_ptr<CellType> > cells;
 };
+
+template <typename CellType>
+std::ostream& operator<< (std::ostream &out, const Regular2DGrid<CellType> &grid) {
+  for(int r = 0; r < grid.rows; r++) {
+    for(int c = 0; c < grid.cols; c++) {
+      out << *grid.at(r,c) << "; ";
+    }
+    out << std::endl;
+  }
+  return out;
+}
+
 
 }
 

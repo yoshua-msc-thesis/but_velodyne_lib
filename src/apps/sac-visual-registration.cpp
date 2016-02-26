@@ -40,7 +40,7 @@
 #include <but_velodyne/Correspondence.h>
 #include <but_velodyne/KeypointsCorrespondenceProjector.h>
 #include <but_velodyne/VelodynePointCloud.h>
-#include <but_velodyne/Visualizer2DCorrespondences.h>
+#include <but_velodyne/Visualizer2D.h>
 #include <but_velodyne/Stopwatch.h>
 #include <but_velodyne/Visualizer3D.h>
 

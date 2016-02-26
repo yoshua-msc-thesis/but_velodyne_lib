@@ -28,7 +28,7 @@
 #include <cv.h>
 #include <highgui.h>
 
-#include <but_velodyne/Visualizer2DCorrespondences.h>
+#include <but_velodyne/Visualizer2D.h>
 
 using namespace pcl;
 using namespace cv;
@@ -37,10 +37,12 @@ using namespace velodyne_pointcloud;
 
 namespace but_velodyne {
 
-Visualizer2DCorrespondences::Visualizer2DCorrespondences(
+Visualizer2D::Visualizer2D(
     const cv::Mat &source_image,
-    const cv::Mat &target_image) :
+    const cv::Mat &target_image,
+    std::string description_) :
         imageFrame(0, 0, source_image.cols, source_image.rows),
+        description(description_),
         rng(theRNG()),
         drawingImage(source_image.rows, source_image.cols+target_image.cols, CV_8UC3) {
 
@@ -55,8 +57,34 @@ Visualizer2DCorrespondences::Visualizer2DCorrespondences(
   target_color_image.copyTo(drawingImageRightHalf);
 }
 
+Visualizer2D::Visualizer2D(
+    const cv::Mat &background, std::string description_) :
+        imageFrame(0, 0, background.cols, background.rows),
+        description(description_),
+        rng(theRNG()),
+        drawingImage(background.rows, background.cols, CV_8UC3) {
 
-void Visualizer2DCorrespondences::viewLineCorrespondences(
+  drawingImageLeftHalf  = drawingImage.colRange(0, drawingImage.cols/2);
+  drawingImageRightHalf = drawingImage.colRange(drawingImage.cols/2, drawingImage.cols);
+  Mat background_color_image, target_color_image;
+  cvtColor(background, background_color_image, CV_GRAY2RGB);
+
+  background_color_image.copyTo(drawingImage);
+}
+
+Visualizer2D::Visualizer2D(
+    cv::Rect image_frame, std::string description_) :
+        imageFrame(image_frame),
+        description(description_),
+        rng(theRNG()),
+        drawingImage(image_frame.height, image_frame.width, CV_8UC3, CV_RGB(255, 255, 255)) {
+
+  drawingImageLeftHalf  = drawingImage.colRange(0, drawingImage.cols/2);
+  drawingImageRightHalf = drawingImage.colRange(drawingImage.cols/2, drawingImage.cols);
+}
+
+
+Visualizer2D& Visualizer2D::addLineCorrespondences(
                                            const vector<ImageLine> &source_lines,
                                            const vector<ImageLine> &target_lines,
                                            const vector<DMatch> &matches) {
@@ -75,10 +103,10 @@ void Visualizer2DCorrespondences::viewLineCorrespondences(
          color, 2);
   }
 
-  show("Matched lines");
+  return *this;
 }
 
-bool Visualizer2DCorrespondences::view3DLineCorrenspondences(
+Visualizer2D& Visualizer2D::add3DLineCorrenspondences(
                            const vector<PointCloudLine> &source_lines,
                            const vector<PointCloudLine> &target_lines,
                            const vector<DMatch> &matches,
@@ -112,14 +140,39 @@ bool Visualizer2DCorrespondences::view3DLineCorrenspondences(
     line(drawingImage, source_img_line.p1, target_img_line.p1, color, 2);
   }
   cerr << "Viewing " << matches.size() << " matches." << endl;
-  return show("matched filtered lines") == 27;
+  return *this;
 }
 
-int Visualizer2DCorrespondences::show(std::string description) {
+Visualizer2D& Visualizer2D::addHeightMap(const Regular2DGrid<float> &height_map) {
+  float min = INFINITY;
+  float max = -INFINITY;
+  for(int r = 0; r < height_map.rows; r++) {
+    for(int c = 0; c < height_map.cols; c++) {
+      float val = *height_map.at(r, c);
+      if(!isnan(val)) {
+        min = MIN(min, val);
+        max = MAX(max, val);
+      }
+    }
+  }
+  for(int r = 0; r < height_map.rows; r++) {
+    for(int c = 0; c < height_map.cols; c++) {
+      float val = *height_map.at(r, c);
+      if(!isnan(val)) {
+        Vec3b &pixel = drawingImage.at<Vec3b>(r, c);
+        Visualizer3D::colorizeIntensity((*height_map.at(r, c) - min) / (max - min),
+                                        pixel.val[0], pixel.val[1], pixel.val[2]);
+      }
+    }
+  }
+  return *this;
+}
+
+
+void Visualizer2D::show(int wait) {
   imshow(description, drawingImage);
-  char key = waitKey(0);
+  char key = waitKey(wait);
   imwrite(description + ".png", drawingImage);
-  return key;
 }
 
 }

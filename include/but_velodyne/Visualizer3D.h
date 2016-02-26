@@ -37,6 +37,7 @@
 #include <but_velodyne/LineCloud.h>
 #include <but_velodyne/Correspondence.h>
 #include <but_velodyne/Regular2DGrid.h>
+#include <but_velodyne/Regular2DGridGenerator.h>
 
 using namespace std;
 
@@ -192,11 +193,15 @@ public:
         } else {
           setColor(0, 0, 200);
         }
-        addPointCloud(grid.at(r, c));
+        addPointCloud(*grid.at(r, c));
       }
     }
     return *this;
   }
+
+  Visualizer3D& addHeightMap(const Regular2DGrid<float> &height_map,
+                             const Regular2DGridGenerator::Parameters &params,
+                             const float min_height = VelodyneSpecification::KITTI_HEIGHT);
 
   /**!
    * Add line segments bound by the corresponding 3D points. The color for each line
