@@ -149,7 +149,7 @@ Visualizer2D& Visualizer2D::addHeightMap(const Regular2DGrid<float> &height_map)
   for(int r = 0; r < height_map.rows; r++) {
     for(int c = 0; c < height_map.cols; c++) {
       float val = *height_map.at(r, c);
-      if(!isnan(val)) {
+      if(!isnan(val) && !isinf(val)) {
         min = MIN(min, val);
         max = MAX(max, val);
       }
@@ -158,10 +158,12 @@ Visualizer2D& Visualizer2D::addHeightMap(const Regular2DGrid<float> &height_map)
   for(int r = 0; r < height_map.rows; r++) {
     for(int c = 0; c < height_map.cols; c++) {
       float val = *height_map.at(r, c);
-      if(!isnan(val)) {
+      if(!isnan(val) && !isinf(val)) {
         Vec3b &pixel = drawingImage.at<Vec3b>(r, c);
-        Visualizer3D::colorizeIntensity((*height_map.at(r, c) - min) / (max - min),
-                                        pixel.val[0], pixel.val[1], pixel.val[2]);
+        if(!isnan(val)) {
+          Visualizer3D::colorizeIntensity((*height_map.at(r, c) - min) / (max - min),
+                                          pixel.val[0], pixel.val[1], pixel.val[2]);
+        }
       }
     }
   }

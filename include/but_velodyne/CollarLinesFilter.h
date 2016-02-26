@@ -51,9 +51,9 @@ public:
   public:
     Parameters(
       int lines_to_preserve_ = 50,
-      float horizontal_range_diff_tolerance_rel_ = 1.1,
+      float horizontal_range_diff_tolerance_rel_ = 1.2,
       float horizontal_range_diff_tolerance_abs_ = 0.2,
-      float max_horizontal_range_diff_ = 1.0,
+      float max_horizontal_range_diff_ = 2.0,
       float weight_of_expected_horizontal_range_diff_ = -1) :
         lines_to_preserve(lines_to_preserve_),
         horizontal_range_diff_tolerance_rel(horizontal_range_diff_tolerance_rel_),

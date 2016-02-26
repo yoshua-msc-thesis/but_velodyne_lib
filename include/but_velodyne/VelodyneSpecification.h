@@ -77,7 +77,7 @@ public:
   static const int RINGS = VELODYNE_MODEL;
 #endif
 
-  static const float KITTI_HEIGHT = 2.0;        // m
+  static const float KITTI_HEIGHT = 1.73;        // m
 
 
   /**!
