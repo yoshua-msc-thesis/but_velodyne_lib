@@ -117,6 +117,21 @@ private:
   float variance_threshold;
 };
 
+void gridToMatrix(const Regular2DGrid<float> &src, Mat &target) {
+
+}
+
+void transform3Dto2D(const Eigen::Affine3f &t, Mat &transform2D) {
+
+}
+
+void transformGrid(const Regular2DGrid<float> &src, Regular2DGrid<float> &target, const Eigen::Affine3f &t) {
+  Mat matix;
+  gridToMatrix(src, matix);
+  Mat transform2D;
+  transform3Dto2D(t, transform2D);
+}
+
 class MoveDetection {
 public:
 
