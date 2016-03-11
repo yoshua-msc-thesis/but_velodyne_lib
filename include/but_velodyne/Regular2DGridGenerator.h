@@ -82,6 +82,13 @@ public:
     }
   }
 
+  cv::Point getSensorPosition() {
+    cv::Point pos;
+    pos.x = -params.h_origin/col_width;
+    pos.y = -params.v_origin/row_height;
+    return pos;
+  }
+
 private:
   float col_width, row_height;
 

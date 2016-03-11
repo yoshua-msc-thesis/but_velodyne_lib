@@ -94,7 +94,9 @@ public:
 
   Visualizer2D& addHeightMap(const Regular2DGrid<float> &height_map);
 
-  void show(int wait = 0);
+  Visualizer2D& addSenzor(cv::Point pos);
+
+  void show(int wait = 0, float scale = 1.0);
 
 protected:
   cv::Mat drawingImage;
@@ -102,6 +104,7 @@ protected:
   cv::Rect imageFrame;
   cv::RNG& rng;
   string description;
+  cv::Point senzor_position;
 };
 
 } /* namespace but_velodyne */

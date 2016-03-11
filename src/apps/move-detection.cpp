@@ -76,13 +76,13 @@ typename pcl::PointCloud<PointType>::Ptr downsampleCloud(
     return cloud_filtered;
 }
 
-float GROUND_CELL = INFINITY;
+const float GROUND_CELL = 0.0f;
 
 bool isGround(float cell_height) {
   return isinf(cell_height);
 }
 
-float EMPTY_CELL = NAN;
+const float EMPTY_CELL = NAN;
 
 bool isEmpty(float cell_height) {
   return isnan(cell_height);
@@ -104,7 +104,7 @@ public:
       computeCovarianceMatrix(cloud, centroid, covariance);
       centroid.y() = VelodyneSpecification::KITTI_HEIGHT - centroid.y();
       //cerr << "centroid: " << centroid << "; covariance: " << covariance << endl;
-      if(false && centroid.y() < mean_threshold && covariance(1,1) < variance_threshold) {
+      if(centroid.y() < mean_threshold && covariance(1,1) < variance_threshold) {
         height_mean = GROUND_CELL;
       } else {
         height_mean = centroid.y();
@@ -128,7 +128,7 @@ public:
         float height_mean_threshold_ = 0.30,
         float height_variance_threshold_ = 0.03,
         int history_size_ = 10,
-        int spatial_cell_dist_tolerance_ = 5,
+        int spatial_cell_dist_tolerance_ = 2,
         float value_diff_rel_tolerance_ = 0.2) :
           lines_generated(lines_generated_),
           points_per_cell(points_per_cell_),
@@ -158,7 +158,7 @@ public:
   }
 
   // TODO return 2D bool grid
-  void run(const VelodynePointCloud &new_cloud, Eigen::Affine3f pose) {
+  void run(const VelodynePointCloud &new_cloud, Eigen::Affine3f last_odometry) {
     PolarGridOfClouds polar_grid(new_cloud);
     filter.addNewMaxRingRanges(new_cloud.getMaxOfRingRanges());
     LineCloud lines(polar_grid, params.lines_generated, filter);
@@ -169,7 +169,7 @@ public:
 
     //Visualizer3D vis;
     //vis.addCloudColoredByHeight(*dense_downsampled_cloud).show();
-    removeGroundPlane(dense_downsampled_cloud);
+    //removeGroundPlane(dense_downsampled_cloud);
     //vis.keepOnlyClouds(0).addCloudColoredByHeight(*dense_downsampled_cloud).show();
 
     Regular2DGrid< PointCloud<PointXYZ> > new_grid(grid_generator.params.rows, grid_generator.params.cols);
@@ -180,9 +180,10 @@ public:
     HeightGridCreator height_avg(params.height_mean_threshold, params.height_variance_threshold);
     Regular2DGridProcessor::modify(new_grid, new_grid_height, height_avg);
     Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "Current")
-        .addHeightMap(new_grid_height).show(100);
+        .addSenzor(grid_generator.getSensorPosition())
+        .addHeightMap(new_grid_height).show(100, 2.0);
 
-    updateHistoryPose(pose);
+    updateHistoryPose(last_odometry);
     PointCloud<PointXYZ>::Ptr history_cloud(new PointCloud<PointXYZ>);
     squashHistory(*history_cloud);
     //Visualizer3D().addCloudColoredByHeight(*history_cloud).show();
@@ -191,11 +192,13 @@ public:
     Regular2DGrid<float> map_grid(grid_generator.params.rows, grid_generator.params.cols);
     Regular2DGridProcessor::modify(history_cloud_grid, map_grid, height_avg);
     Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "Map")
-        .addHeightMap(map_grid).show(100);
+        .addSenzor(grid_generator.getSensorPosition())
+        .addHeightMap(map_grid).show(100, 2.0);
 
     Regular2DGrid<float>::Ptr diff = gridDifference(map_grid, new_grid_height);
     Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "Move")
-        .addHeightMap(*diff).show(100);
+        .addSenzor(grid_generator.getSensorPosition())
+        .addHeightMap(*diff).show(100, 2.0);
 
     addFrame(dense_downsampled_cloud);
   }
@@ -230,8 +233,8 @@ protected:
     }
   }
 
-  void updateHistoryPose(Eigen::Affine3f new_pose) {
-    Eigen::Affine3f inverse = new_pose.inverse();
+  void updateHistoryPose(Eigen::Affine3f last_odometry) {
+    Eigen::Affine3f inverse = last_odometry.inverse();
     for(vector<PointCloud<PointXYZ>::Ptr>::iterator h = last_frames.begin(); h < last_frames.end(); h++) {
       transformPointCloud(**h, **h, inverse);
     }
@@ -249,20 +252,20 @@ protected:
     for(int c = 0; c < new_grid.cols; c++) {
       for(int r = 0; r < new_grid.rows; r++) {
         float min_diff = INFINITY;
+        float new_val = *new_grid.at(r, c);
         for(int map_c = c-params.spatial_cell_dist_tolerance; map_c < c+params.spatial_cell_dist_tolerance; map_c++) {
-          for(int map_r = r-c-params.spatial_cell_dist_tolerance; map_r < r+params.spatial_cell_dist_tolerance; map_r++) {
+          for(int map_r = r-params.spatial_cell_dist_tolerance; map_r < r+params.spatial_cell_dist_tolerance; map_r++) {
             if(map_c < 0 || map_r < 0) {
               continue;
             } else if(map_c >= map_grid.cols || map_r >= map_grid.rows) {
               break;
             } else {
               float map_val = *map_grid.at(map_r, map_c);
-              float new_val = *new_grid.at(r, c);
               min_diff = (isEmpty(map_val) || isEmpty(new_val)) ? -INFINITY : MIN(min_diff, fabs(map_val - new_val));
             }
           }
         }
-        *diff->at(r,c) = (min_diff < params.value_diff_rel_tolerance) ? EMPTY_CELL : min_diff;
+        *diff->at(r,c) = (min_diff < params.value_diff_rel_tolerance*fabs(new_val)) ? EMPTY_CELL : min_diff;
       }
     }
     return diff;
@@ -278,46 +281,6 @@ bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameter
                      AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process,
                      string &pose_file);
-
-class Modif : public Modificator<float, int> {
-public:
-  virtual void operator()(const float &s, int &t) {
-    t = round(s);
-  }
-};
-
-class Sum : public Aggregator<float> {
-public:
-  virtual void operator()(const vector< boost::shared_ptr<float> > &s, float &t) {
-    t = 0;
-    for(int i = 0; i < s.size(); i++) {
-      t += *s[i];
-    }
-  }
-};
-
-void gridProcessingTest() {
-  Regular2DGrid<float>::Ptr fgrid(new Regular2DGrid<float>(2,2));
-  *fgrid->at(0,0) = 1.2;
-  *fgrid->at(0,1) = 2.4;
-  *fgrid->at(1,0) = 3.6;
-  *fgrid->at(1,1) = 4.8;
-  Regular2DGrid<int>::Ptr igrid(new Regular2DGrid<int>(2,2));
-
-  Modif m;
-  Regular2DGridProcessor::modify(*fgrid, *igrid, m);
-  cerr << *fgrid << endl;
-  cerr << *igrid << endl;
-
-  vector<Regular2DGrid<float>::Ptr> to_sum;
-  to_sum.push_back(fgrid);
-  to_sum.push_back(fgrid);
-  to_sum.push_back(fgrid);
-  Sum summ_f;
-  Regular2DGrid<float> sum_targ(2,2);
-  Regular2DGridProcessor::aggregate(to_sum, sum_targ, summ_f);
-  cerr << sum_targ << endl;
-}
 
 /**
  * ./move-detection cloud.bin
@@ -347,7 +310,14 @@ int main(int argc, char** argv) {
     } else {
       VelodynePointCloud::fromKitti(*filename, new_cloud);
     }
-    move_detection.run(new_cloud, *pose);
+    Eigen::Affine3f last_transformation;
+    if(filename == clouds_to_process.begin()) {
+      last_transformation = Eigen::Affine3f::Identity();
+    } else {
+      last_transformation = (pose-1)->inverse() * (*pose);
+    }
+
+    move_detection.run(new_cloud, last_transformation);
   }
 
   return EXIT_SUCCESS;

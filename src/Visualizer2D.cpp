@@ -44,7 +44,8 @@ Visualizer2D::Visualizer2D(
         imageFrame(0, 0, source_image.cols, source_image.rows),
         description(description_),
         rng(theRNG()),
-        drawingImage(source_image.rows, source_image.cols+target_image.cols, CV_8UC3) {
+        drawingImage(source_image.rows, source_image.cols+target_image.cols, CV_8UC3),
+        senzor_position(INT_MIN, INT_MIN) {
 
   drawingImageLeftHalf  = drawingImage.colRange(0, source_image.cols);
   drawingImageRightHalf = drawingImage.colRange(source_image.cols,
@@ -62,7 +63,8 @@ Visualizer2D::Visualizer2D(
         imageFrame(0, 0, background.cols, background.rows),
         description(description_),
         rng(theRNG()),
-        drawingImage(background.rows, background.cols, CV_8UC3) {
+        drawingImage(background.rows, background.cols, CV_8UC3),
+        senzor_position(INT_MIN, INT_MIN) {
 
   drawingImageLeftHalf  = drawingImage.colRange(0, drawingImage.cols/2);
   drawingImageRightHalf = drawingImage.colRange(drawingImage.cols/2, drawingImage.cols);
@@ -77,7 +79,8 @@ Visualizer2D::Visualizer2D(
         imageFrame(image_frame),
         description(description_),
         rng(theRNG()),
-        drawingImage(image_frame.height, image_frame.width, CV_8UC3, CV_RGB(255, 255, 255)) {
+        drawingImage(image_frame.height, image_frame.width, CV_8UC3, CV_RGB(255, 255, 255)),
+        senzor_position(INT_MIN, INT_MIN) {
 
   drawingImageLeftHalf  = drawingImage.colRange(0, drawingImage.cols/2);
   drawingImageRightHalf = drawingImage.colRange(drawingImage.cols/2, drawingImage.cols);
@@ -149,7 +152,7 @@ Visualizer2D& Visualizer2D::addHeightMap(const Regular2DGrid<float> &height_map)
   for(int r = 0; r < height_map.rows; r++) {
     for(int c = 0; c < height_map.cols; c++) {
       float val = *height_map.at(r, c);
-      if(!isnan(val) && !isinf(val)) {
+      if(!isnan(val) && !isinf(val) && val != 0.0) {
         min = MIN(min, val);
         max = MAX(max, val);
       }
@@ -158,7 +161,7 @@ Visualizer2D& Visualizer2D::addHeightMap(const Regular2DGrid<float> &height_map)
   for(int r = 0; r < height_map.rows; r++) {
     for(int c = 0; c < height_map.cols; c++) {
       float val = *height_map.at(r, c);
-      if(!isnan(val) && !isinf(val)) {
+      if(!isnan(val) && !isinf(val) && val != 0.0) {
         Vec3b &pixel = drawingImage.at<Vec3b>(r, c);
         if(!isnan(val)) {
           Visualizer3D::colorizeIntensity((*height_map.at(r, c) - min) / (max - min),
@@ -170,11 +173,18 @@ Visualizer2D& Visualizer2D::addHeightMap(const Regular2DGrid<float> &height_map)
   return *this;
 }
 
+Visualizer2D& Visualizer2D::addSenzor(Point pos) {
+  senzor_position = pos;
+  return *this;
+}
 
-void Visualizer2D::show(int wait) {
-  imshow(description, drawingImage);
+void Visualizer2D::show(int wait, float scale) {
+  circle(drawingImage, senzor_position, 5, CV_RGB(255, 0, 255), 1);
+  Mat drawingImageScaled;
+  resize(drawingImage, drawingImageScaled, Size(), scale, scale, INTER_NEAREST);
+  imshow(description, drawingImageScaled);
   char key = waitKey(wait);
-  imwrite(description + ".png", drawingImage);
+  imwrite(description + ".png", drawingImageScaled);
 }
 
 }
