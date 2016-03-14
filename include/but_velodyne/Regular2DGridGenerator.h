@@ -37,13 +37,13 @@ public:
     Parameters(
         float width_ = 40,
         float height_ = 50,
-        int rows_ = 250,
-        int cols_ = 100,
+        float resolution_ = 0.2,
         float h_origin_ = -20,
         float v_origin_ = -20) :
           width(width_), height(height_),
-          rows(rows_), cols(cols_),
-          h_origin(h_origin_), v_origin(v_origin_) {
+          rows(height_/resolution_), cols(width_/resolution_),
+          h_origin(h_origin_), v_origin(v_origin_),
+          resolution(resolution_) {
     }
 
     bool operator==(const Parameters &other) {
@@ -57,15 +57,21 @@ public:
           this->v_origin == other.v_origin;
     }
 
+    cv::Point getSensorPosition() const {
+      cv::Point pos;
+      pos.x = -h_origin/resolution;
+      pos.y = -v_origin/resolution;
+      return pos;
+    }
+
     float width, height;
     int rows, cols;
     float h_origin, v_origin;
+    float resolution;
   } params;
 
   Regular2DGridGenerator(Parameters params_) :
-    params(params_),
-    col_width(params_.width/params_.cols),
-    row_height(params_.height/params_.rows) {
+    params(params_) {
   }
 
   template <typename PointT>
@@ -75,23 +81,12 @@ public:
     for(typename pcl::PointCloud<PointT>::const_iterator pt = in_cloud.begin(); pt < in_cloud.end(); pt++) {
       cv::Point2f pt_2D(pt->x, pt->z);
       if(pt_2D.inside(dimensions)) {
-        int col = MAX(0, MIN((pt->x-params.h_origin)/col_width, params.cols-1));
-        int row = MAX(0, MIN((pt->z-params.v_origin)/row_height, params.rows-1));
+        int col = MAX(0, MIN((pt->x-params.h_origin)/params.resolution, params.cols-1));
+        int row = MAX(0, MIN((pt->z-params.v_origin)/params.resolution, params.rows-1));
         output.at(row, col)->push_back(*pt);
       }
     }
   }
-
-  cv::Point getSensorPosition() {
-    cv::Point pos;
-    pos.x = -params.h_origin/col_width;
-    pos.y = -params.v_origin/row_height;
-    return pos;
-  }
-
-private:
-  float col_width, row_height;
-
 };
 
 }

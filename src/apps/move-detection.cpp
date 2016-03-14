@@ -40,6 +40,7 @@
 
 #include <boost/program_options.hpp>
 #include <cv.h>
+#include <highgui.h>
 
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/EigenUtils.h>
@@ -79,7 +80,7 @@ typename pcl::PointCloud<PointType>::Ptr downsampleCloud(
 const float GROUND_CELL = 0.0f;
 
 bool isGround(float cell_height) {
-  return isinf(cell_height);
+  return cell_height == GROUND_CELL;
 }
 
 const float EMPTY_CELL = NAN;
@@ -88,10 +89,14 @@ bool isEmpty(float cell_height) {
   return isnan(cell_height);
 }
 
+bool isOccupied(float cell_height) {
+  return !isGround(cell_height) && !isEmpty(cell_height);
+}
+
 class HeightGridCreator : public Modificator<PointCloud<PointXYZ>, float> {
 public:
-  HeightGridCreator(float mean_threshold_, float variance_threshold_) :
-    mean_threshold(mean_threshold_), variance_threshold(variance_threshold_) {
+  HeightGridCreator(float mean_threshold_, float variance_threshold_, float delta_threshold_) :
+    mean_threshold(mean_threshold_), variance_threshold(variance_threshold_), delta_threshold(delta_threshold_) {
   }
 
   virtual void operator()(const PointCloud<PointXYZ> &cloud, float &height_mean) {
@@ -100,11 +105,14 @@ public:
     } else {
       Eigen::Vector4f centroid;
       Eigen::Matrix3f covariance;
+      PointXYZ min, max;
       compute3DCentroid(cloud, centroid);
       computeCovarianceMatrix(cloud, centroid, covariance);
+      getMinMax3D(cloud, min, max);
+      float delta = max.y - min.y;
       centroid.y() = VelodyneSpecification::KITTI_HEIGHT - centroid.y();
       //cerr << "centroid: " << centroid << "; covariance: " << covariance << endl;
-      if(centroid.y() < mean_threshold && covariance(1,1) < variance_threshold) {
+      if(centroid.y() < mean_threshold && covariance(1,1) < variance_threshold && delta < delta_threshold) {
         height_mean = GROUND_CELL;
       } else {
         height_mean = centroid.y();
@@ -115,22 +123,23 @@ public:
 private:
   float mean_threshold;
   float variance_threshold;
+  float delta_threshold;
 };
 
-void gridToMatrix(const Regular2DGrid<float> &src, Mat &target) {
-
-}
-
-void transform3Dto2D(const Eigen::Affine3f &t, Mat &transform2D) {
-
-}
-
-void transformGrid(const Regular2DGrid<float> &src, Regular2DGrid<float> &target, const Eigen::Affine3f &t) {
-  Mat matix;
-  gridToMatrix(src, matix);
-  Mat transform2D;
-  transform3Dto2D(t, transform2D);
-}
+class GridAvg : public Aggregator<float> {
+public:
+  virtual void operator()(const vector< boost::shared_ptr<float> > &cells, float &avg) {
+    avg = 0.0;
+    int count = 0;
+    for(int i = 0; i < cells.size(); i++) {
+      if(isOccupied(*cells[i])) {
+        avg += *cells[i];
+        count++;
+      }
+    }
+    avg /= count;
+  }
+};
 
 class MoveDetection {
 public:
@@ -140,8 +149,9 @@ public:
     Parameters(
         int lines_generated_ = 100,
         int points_per_cell_ = 400,
-        float height_mean_threshold_ = 0.30,
-        float height_variance_threshold_ = 0.03,
+        float height_mean_threshold_ = 0.50,
+        float height_variance_threshold_ = 0.1,
+        float delta_threshold_ = 0.2,
         int history_size_ = 10,
         int spatial_cell_dist_tolerance_ = 2,
         float value_diff_rel_tolerance_ = 0.2) :
@@ -149,6 +159,7 @@ public:
           points_per_cell(points_per_cell_),
           height_mean_threshold(height_mean_threshold_),
           height_variance_threshold(height_variance_threshold_),
+          height_delta_threshold(delta_threshold_),
           history_size(history_size_),
           spatial_cell_dist_tolerance(spatial_cell_dist_tolerance_),
           value_diff_rel_tolerance(value_diff_rel_tolerance_) {
@@ -159,6 +170,7 @@ public:
     int points_per_cell;
     float height_mean_threshold;
     float height_variance_threshold;
+    float height_delta_threshold;
     int history_size;
     int spatial_cell_dist_tolerance;
     float value_diff_rel_tolerance;
@@ -191,35 +203,32 @@ public:
     grid_generator.generate(*dense_downsampled_cloud, new_grid);
     //Visualizer3D().addEvenOddColoredGrid(new_grid).show();
 
-    Regular2DGrid<float> new_grid_height(grid_generator.params.rows, grid_generator.params.cols);
-    HeightGridCreator height_avg(params.height_mean_threshold, params.height_variance_threshold);
-    Regular2DGridProcessor::modify(new_grid, new_grid_height, height_avg);
+    Regular2DGrid<float>::Ptr new_grid_height(new Regular2DGrid<float>(grid_generator.params.rows, grid_generator.params.cols));
+    HeightGridCreator height_avg(params.height_mean_threshold, params.height_variance_threshold, params.height_delta_threshold);
+    Regular2DGridProcessor::modify(new_grid, *new_grid_height, height_avg);
     Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "Current")
-        .addSenzor(grid_generator.getSensorPosition())
-        .addHeightMap(new_grid_height).show(100, 2.0);
+        .addSenzor(grid_generator.params.getSensorPosition())
+        .addHeightMap(*new_grid_height).show(100, 2.0);
 
     updateHistoryPose(last_odometry);
-    PointCloud<PointXYZ>::Ptr history_cloud(new PointCloud<PointXYZ>);
-    squashHistory(*history_cloud);
-    //Visualizer3D().addCloudColoredByHeight(*history_cloud).show();
-    Regular2DGrid< PointCloud<PointXYZ> > history_cloud_grid(grid_generator.params.rows, grid_generator.params.cols);
-    grid_generator.generate(*history_cloud, history_cloud_grid);
+
     Regular2DGrid<float> map_grid(grid_generator.params.rows, grid_generator.params.cols);
-    Regular2DGridProcessor::modify(history_cloud_grid, map_grid, height_avg);
+    PointCloud<PointXYZ>::Ptr history_cloud(new PointCloud<PointXYZ>);
+    squashHistory(map_grid);
     Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "Map")
-        .addSenzor(grid_generator.getSensorPosition())
+        .addSenzor(grid_generator.params.getSensorPosition())
         .addHeightMap(map_grid).show(100, 2.0);
 
-    Regular2DGrid<float>::Ptr diff = gridDifference(map_grid, new_grid_height);
+    Regular2DGrid<float>::Ptr diff = gridDifference(map_grid, *new_grid_height);
     Visualizer2D(cv::Rect(0, 0, grid_generator.params.cols, grid_generator.params.rows), "Move")
-        .addSenzor(grid_generator.getSensorPosition())
+        .addSenzor(grid_generator.params.getSensorPosition())
         .addHeightMap(*diff).show(100, 2.0);
 
-    addFrame(dense_downsampled_cloud);
+    addFrame(new_grid_height);
   }
 
 protected:
-  void removeGroundPlane(PointCloud<PointXYZ>::Ptr cloud) {
+  void removeGroundPlaneRansac(PointCloud<PointXYZ>::Ptr cloud) {
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
     pcl::SACSegmentation<pcl::PointXYZ> seg;
@@ -241,8 +250,8 @@ protected:
     eifilter.filterDirectly(cloud);
   }
 
-  void addFrame(PointCloud<PointXYZ>::Ptr &cloud) {
-    last_frames.push_back(cloud);
+  void addFrame(Regular2DGrid<float>::Ptr &grid) {
+    last_frames.push_back(grid);
     if(last_frames.size() > params.history_size) {
       last_frames.erase(last_frames.begin());
     }
@@ -250,15 +259,14 @@ protected:
 
   void updateHistoryPose(Eigen::Affine3f last_odometry) {
     Eigen::Affine3f inverse = last_odometry.inverse();
-    for(vector<PointCloud<PointXYZ>::Ptr>::iterator h = last_frames.begin(); h < last_frames.end(); h++) {
-      transformPointCloud(**h, **h, inverse);
+    for(vector<Regular2DGrid<float>::Ptr>::iterator h = last_frames.begin(); h < last_frames.end(); h++) {
+      transformGrid(**h, **h, inverse, grid_generator.params);
     }
   }
 
-  void squashHistory(PointCloud<PointXYZ> &output) {
-    for(vector<PointCloud<PointXYZ>::Ptr>::iterator h = last_frames.begin(); h < last_frames.end(); h++) {
-      output += **h;
-    }
+  void squashHistory(Regular2DGrid<float> &output) {
+    static GridAvg average;
+    Regular2DGridProcessor::aggregate(last_frames, output, average);
   }
 
   Regular2DGrid<float>::Ptr gridDifference(const Regular2DGrid<float> &map_grid,
@@ -268,34 +276,124 @@ protected:
       for(int r = 0; r < new_grid.rows; r++) {
         float min_diff = INFINITY;
         float new_val = *new_grid.at(r, c);
-        for(int map_c = c-params.spatial_cell_dist_tolerance; map_c < c+params.spatial_cell_dist_tolerance; map_c++) {
-          for(int map_r = r-params.spatial_cell_dist_tolerance; map_r < r+params.spatial_cell_dist_tolerance; map_r++) {
-            if(map_c < 0 || map_r < 0) {
-              continue;
-            } else if(map_c >= map_grid.cols || map_r >= map_grid.rows) {
-              break;
-            } else {
-              float map_val = *map_grid.at(map_r, map_c);
-              min_diff = (isEmpty(map_val) || isEmpty(new_val)) ? -INFINITY : MIN(min_diff, fabs(map_val - new_val));
+        if(isOccupied(new_val)) {
+          for(int map_c = c-params.spatial_cell_dist_tolerance; map_c < c+params.spatial_cell_dist_tolerance; map_c++) {
+            for(int map_r = r-params.spatial_cell_dist_tolerance; map_r < r+params.spatial_cell_dist_tolerance; map_r++) {
+              if(map_c < 0 || map_r < 0) {
+                continue;
+              } else if(map_c >= map_grid.cols || map_r >= map_grid.rows) {
+                break;
+              } else {
+                float map_val = *map_grid.at(map_r, map_c);
+                min_diff = (isEmpty(map_val) || isEmpty(new_val)) ? -INFINITY : MIN(min_diff, fabs(map_val - new_val));
+              }
             }
           }
+          *diff->at(r,c) = (min_diff < params.value_diff_rel_tolerance*fabs(new_val)) ? EMPTY_CELL : min_diff;
+        } else {
+          *diff->at(r,c) = EMPTY_CELL;
         }
-        *diff->at(r,c) = (min_diff < params.value_diff_rel_tolerance*fabs(new_val)) ? EMPTY_CELL : min_diff;
       }
     }
     return diff;
   }
 
+  void gridToMatrix(const Regular2DGrid<float> &src, Mat &target) {
+    for(int r = 0; r < src.rows; r++) {
+      for(int c = 0; c < src.cols; c++) {
+        target.at<float>(r, c) = *src.at(r, c);
+      }
+    }
+  }
+
+  void matrixToGrid(const Mat &src, Regular2DGrid<float> &target) {
+    for(int r = 0; r < src.rows; r++) {
+      for(int c = 0; c < src.cols; c++) {
+        *target.at(r, c) = src.at<float>(r, c);
+      }
+    }
+  }
+
+  void transform3Dto2D(const Eigen::Affine3f &t,
+                       Mat &transform2D,
+                       const Point2f &grid_origin,
+                       float resolution) {
+    //cerr << "original: " << t.matrix() << endl;
+    //cerr << "grid origin: " << grid_origin << endl;
+    float x, y, z, roll, pitch, yaw;
+    getTranslationAndEulerAngles(t, x, y, z, roll, pitch, yaw);
+    Mat rotation = getRotationMatrix2D(grid_origin, radToDeg(pitch), 1.0);
+    Mat offset = (Mat_<double>(2,3) << 0, 0, x/resolution, 0, 0, z/resolution);
+    //cerr << "2D rot: " << rotation << endl;
+    //cerr << "offset: " << offset << endl;
+    transform2D = rotation + offset;
+    //cerr << "2D: " << transform2D << endl;
+  }
+
+  void transformGrid(const Regular2DGrid<float> &src,
+                     Regular2DGrid<float> &target,
+                     const Eigen::Affine3f &t,
+                     const Regular2DGridGenerator::Parameters grid_params) {
+    Mat matrix(src.rows, src.cols, CV_32FC1);
+    gridToMatrix(src, matrix);
+    Point2f grid_origin = grid_params.getSensorPosition();
+    grid_origin.x = grid_params.cols - grid_origin.x;
+    Mat transform2D;
+    transform3Dto2D(t, transform2D, grid_origin, grid_params.resolution);
+    warpAffine(matrix, matrix, transform2D, matrix.size(), INTER_NEAREST);
+    matrixToGrid(matrix, target);
+  }
+
   Parameters params;
   AngularCollarLinesFilter &filter;
   Regular2DGridGenerator grid_generator;
-  vector<PointCloud<PointXYZ>::Ptr> last_frames;
+  vector<Regular2DGrid<float>::Ptr> last_frames;
 };
 
 bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters,
                      AngularCollarLinesFilter::Parameters &filter_parameters,
                      vector<string> &clouds_to_process,
-                     string &pose_file);
+                     string &pose_file, string &image_dir);
+
+/*void testGridTransformation(const VelodynePointCloud &cloud) {
+  Regular2DGridGenerator::Parameters grid_params;
+  Regular2DGridGenerator generator(grid_params);
+
+  Regular2DGrid< PointCloud<PointXYZ> > original_grid(grid_params.rows, grid_params.cols);
+  generator.generate(*cloud.getXYZCloudPtr(), original_grid);
+  Regular2DGrid<float> original_height_grid(grid_params.rows, grid_params.cols);
+  HeightGridCreator height_avg(0.30, 0.03);
+  Regular2DGridProcessor::modify(original_grid, original_height_grid, height_avg);
+
+  float x = 10;
+  float y = 0;
+  float z = 20;
+  float roll = degToRad(0);
+  float pitch = degToRad(30);
+  float yaw = degToRad(0);
+  Eigen::Affine3f t;
+  getTransformation(x, y, z, roll, pitch, yaw, t);
+
+  PointCloud<PointXYZ> transformed_cloud;
+  transformPointCloud(*cloud.getXYZCloudPtr(), transformed_cloud, t);
+  Regular2DGrid< PointCloud<PointXYZ> > grid_from_transformed(grid_params.rows, grid_params.cols);
+  generator.generate(transformed_cloud, grid_from_transformed);
+  Regular2DGrid<float> height_grid_from_transformed(grid_params.rows, grid_params.cols);
+  Regular2DGridProcessor::modify(grid_from_transformed, height_grid_from_transformed, height_avg);
+
+  Regular2DGrid<float> transformed_height_grid(grid_params.rows, grid_params.cols);
+  transformGrid(original_height_grid, transformed_height_grid, t, grid_params);
+
+  Visualizer2D(cv::Rect(0, 0, generator.params.cols, generator.params.rows), "Original")
+      .addSenzor(generator.params.getSensorPosition())
+      .addHeightMap(original_height_grid).show(100, 2.0);
+  Visualizer2D(cv::Rect(0, 0, generator.params.cols, generator.params.rows), "From transformed")
+      .addSenzor(generator.params.getSensorPosition())
+      .addHeightMap(height_grid_from_transformed).show(100, 2.0);
+  Visualizer2D(cv::Rect(0, 0, generator.params.cols, generator.params.rows), "Transformed grid")
+      .addSenzor(generator.params.getSensorPosition())
+      .addHeightMap(transformed_height_grid).show(0, 2.0);
+}*/
 
 /**
  * ./move-detection cloud.bin
@@ -306,7 +404,8 @@ int main(int argc, char** argv) {
   AngularCollarLinesFilter::Parameters filter_parameters;
   vector<string> clouds_to_process;
   string pose_filename;
-  if(!parse_arguments(argc, argv, parameters, filter_parameters, clouds_to_process, pose_filename)) {
+  string image_dir;
+  if(!parse_arguments(argc, argv, parameters, filter_parameters, clouds_to_process, pose_filename, image_dir)) {
     return EXIT_FAILURE;
   }
 
@@ -333,13 +432,18 @@ int main(int argc, char** argv) {
     }
 
     move_detection.run(new_cloud, last_transformation);
+
+    boost::filesystem::path p(filename->c_str());
+    Mat image = imread(image_dir + "/" + p.stem().string() + ".png");
+    imshow("Image", image);
+    waitKey(100);
   }
 
   return EXIT_SUCCESS;
 }
 
 bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters, AngularCollarLinesFilter::Parameters &filter_parameters,
-                     vector<string> &clouds_to_process, string &pose_file) {
+                     vector<string> &clouds_to_process, string &pose_file, string &image_dir) {
   bool use_kalman = false;
   int linear_estimator = 3;
 
@@ -369,6 +473,8 @@ bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameter
           "Weight of horizontal range difference estimation (value < 0 => MAX)")
       ("poses", po::value<string>(&pose_file)->required(),
           "KITTI pose file")
+      ("images", po::value<string>(&image_dir)->required(),
+          "Directory of KITTI images for given sequence")
    ;
 
     po::variables_map vm;
