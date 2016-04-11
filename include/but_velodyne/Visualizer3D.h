@@ -88,20 +88,22 @@ public:
       cerr << "Transformation:" << endl << transformation.matrix() << endl;
       printRT(transformation);
     }
+    return addColorPointCloud(colorizeCloud(cloud_transformed, rngU(), rngU(), rngU()));
+  }
 
+  template<typename PointT>
+  static pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeCloud(const pcl::PointCloud<PointT> &cloud, uchar r, uchar g, uchar b) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
-    unsigned rgb[] = { rngU(), rngU(), rngU()} ;
 
-    for (typename pcl::PointCloud<PointT>::const_iterator pt = cloud_transformed.begin();
-        pt < cloud_transformed.end(); pt++)
+    for (typename pcl::PointCloud<PointT>::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++)
     {
-      pcl::PointXYZRGB color_pt(rgb[0], rgb[1], rgb[2]);
+      pcl::PointXYZRGB color_pt(r, g, b);
       color_pt.x = pt->x;
       color_pt.y = pt->y;
       color_pt.z = pt->z;
       color_cloud->push_back(color_pt);
     }
-    return addColorPointCloud(color_cloud);
+    return color_cloud;
   }
 
   static void colorizeIntensity(float normalized_intensity, uchar &r, uchar &g, uchar &b) {

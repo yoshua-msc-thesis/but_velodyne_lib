@@ -74,11 +74,17 @@ public:
    */
   void showColored();
 
+  PolarGridOfClouds::Ptr summarize() const;
+
   /**!
    * @param cellId identifier of the cell
    * @returns the points of the specific polar grid
    */
   const VelodynePointCloud& operator[](const CellId &cellId) const {
+    return polar_grid[cellId.polar][cellId.ring];
+  }
+
+  const VelodynePointCloud& at(const CellId &cellId) const {
     return polar_grid[cellId.polar][cellId.ring];
   }
 

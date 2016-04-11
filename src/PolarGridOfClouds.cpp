@@ -65,6 +65,25 @@ void PolarGridOfClouds::fill(
     }
 }
 
+PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
+  PolarGridOfClouds::Ptr sumarized = of(VelodynePointCloud());
+  for(int polar = 0; polar < getPolarBins(); polar++) {
+    for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT; ring++) {
+      Eigen::Vector4f centroid;
+      pcl::compute3DCentroid(polar_grid[polar][ring], centroid);
+      velodyne_pointcloud::PointXYZIR centroid_ir;
+      centroid_ir.x = centroid(0);
+      centroid_ir.y = centroid(1);
+      centroid_ir.z = centroid(2);
+      centroid_ir.ring = ring;
+      sumarized->polar_grid[polar][ring].push_back(centroid_ir);
+      //cerr << centroid << endl;
+    }
+  }
+  return sumarized;
+}
+
+
 int PolarGridOfClouds::getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point) {
   static const float polar_bin_size = 360.0f / getPolarBins();
   float angle = getPolarAngle(point.x, point.z) + 180.00000001f;

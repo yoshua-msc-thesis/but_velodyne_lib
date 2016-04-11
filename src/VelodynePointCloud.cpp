@@ -240,7 +240,7 @@ vector<float> VelodynePointCloud::getMaxOfRingRanges() const {
       almost_maximums.push_back(NAN);
     } else {
       sort(ranges[ring].begin(), ranges[ring].end());
-      almost_maximums.push_back(sqrt(ranges[ring][ranges[ring].size()*0.9]));
+      almost_maximums.push_back(sqrt(ranges[ring][ranges[ring].size()*0.8]));
     }
   }
   return almost_maximums;

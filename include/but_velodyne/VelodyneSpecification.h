@@ -94,7 +94,7 @@ public:
    * @param height how height is Velodyne positioned
    * @return expected horizontal range of points from given ring
    */
-  static float getExpectedRange(const int ring, const int height) {
+  static float getExpectedRange(const int ring, const int height = KITTI_HEIGHT) {
     int n = RINGS - ring - 1;       // invert indexing (0=nearest)
     static std::map<int, float> ranges;
 

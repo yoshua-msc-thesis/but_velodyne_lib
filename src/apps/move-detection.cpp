@@ -39,6 +39,7 @@
 #include <pcl/filters/extract_indices.h>
 
 #include <boost/program_options.hpp>
+#include <boost/math/distributions/normal.hpp>
 #include <cv.h>
 #include <highgui.h>
 
@@ -395,6 +396,187 @@ bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameter
       .addHeightMap(transformed_height_grid).show(0, 2.0);
 }*/
 
+float gauss(float mean, float sd, float x) {
+  float exponent = (x - mean) / sd;
+  exponent *= -exponent / 2.0;
+  return exp(exponent);// / (sd * sqrt(2*M_PI));
+}
+
+void groundSegmentationRangeObsolete(const VelodynePointCloud &cloud) {
+  vector<float> ring_ranges = cloud.getMaxOfRingRanges();
+  vector<float> p_ground;
+  float min_prob = INFINITY;
+  float max_prob = -INFINITY;
+  float sigma = 1;    // 2*sigma = most of the mass
+  bool flag = false;
+  for(VelodynePointCloud::const_iterator p = cloud.begin(); p < cloud.end(); p++) {
+    float range = sqrt(p->x*p->x + p->z*p->z);
+    float range_diff = MAX(ring_ranges[p->ring] - range, 0.0);
+    float prob = range_diff;
+    p_ground.push_back(prob);
+    min_prob = MIN(min_prob, prob);
+    max_prob = MAX(max_prob, prob);
+  }
+
+  PointCloud<PointXYZRGB>::Ptr color_cloud(new PointCloud<PointXYZRGB>);
+  for(int i = 0; i < cloud.size(); i++) {
+    uchar r, g, b;
+    Visualizer3D::colorizeIntensity((p_ground[i]-min_prob)/(max_prob-min_prob), r, g, b);
+    PointXYZRGB pt(r, g, b);
+    pt.x = cloud[i].x;
+    pt.y = cloud[i].y;
+    pt.z = cloud[i].z;
+    color_cloud->push_back(pt);
+  }
+  static Visualizer3D vis;
+  vis.keepOnlyClouds(0).addColorPointCloud(color_cloud).show();
+}
+
+class NormalizedGroundFeature {
+public:
+  NormalizedGroundFeature() :
+    sorted(true) {
+  }
+
+  virtual ~NormalizedGroundFeature() {
+  }
+
+  float normalize(float value) {
+    if(!sorted) {
+      std::sort(values.begin(), values.end());
+      sorted = true;
+    }
+    float min = values[values.size()*0.05];
+    float max = values[values.size()*0.95];
+    if(value > max) {
+      return max;
+    } else if(value < min) {
+      return min;
+    }
+    return (value - min) / (max - min);
+  }
+
+protected:
+  void updateMinMax(float value) {
+    sorted = false;
+    values.push_back(value);
+  }
+
+  vector<float> values;
+  bool sorted;
+};
+
+class GroundProbabilityByHeight : public NormalizedGroundFeature {
+public:
+  float compute(const Eigen::Vector3f &current_point) {
+    updateMinMax(current_point.y());
+    return current_point.y();
+  }
+};
+
+class GroundProbabilityByRingDist {
+public:
+  GroundProbabilityByRingDist() : last_range(-1.0) {
+  }
+
+  float compute(const Eigen::Vector3f &current_point, int ring) {
+    float current_range = sqrt(current_point.x()*current_point.x() + current_point.z()*current_point.z());
+    float ret_val;
+    if(last_range > 0) {
+      float expected_diff = fabs(VelodyneSpecification::getExpectedRange(ring) - VelodyneSpecification::getExpectedRange(ring+1));
+      float found_diff = fabs(last_range-current_range);
+      ret_val = gauss(0.0, 1.0, MAX(expected_diff - found_diff, 0));
+    } else {
+      ret_val = 1.0;
+    }
+    last_range = current_range;
+    return ret_val;
+  }
+private:
+  float last_range;
+};
+
+class GroundProbabilityByElevationDiff {
+public:
+  GroundProbabilityByElevationDiff() : cells_processed(0) {
+  }
+
+  float compute(const Eigen::Vector3f &current_point) {
+    float output;
+    Eigen::Vector3f current_vector = (current_point - last_point);
+    current_vector.normalize();
+    if(cells_processed >= 2) {
+      output = current_vector.dot(last_vector);
+      if(output < 0.0) {
+        output = (last_point - current_point).dot(last_vector);
+      }
+    } else {
+      output = 1.0;
+    }
+    last_vector = current_vector;
+    last_point = current_point;
+    cells_processed++;
+    return output;
+  }
+private:
+  Eigen::Vector3f last_vector;
+  Eigen::Vector3f last_point;
+  int cells_processed;
+};
+
+void getColorsForProbability(float prob, const Eigen::Vector3f &current_point, uchar &r, uchar &g, uchar &b) {
+  float current_range = sqrt(current_point.x()*current_point.x() + current_point.z()*current_point.z());
+  if(current_range < 30.0) {
+    Visualizer3D::colorizeIntensity(prob, r, g, b);
+  } else {
+    r = g = b = 125;
+  }
+}
+
+void groundSegmentation(const VelodynePointCloud &cloud) {
+  PolarGridOfClouds::POLAR_SUPERBINS = 360;
+  PolarGridOfClouds::BIN_SUBDIVISION = 1;
+  PolarGridOfClouds polar_grid(cloud);
+  PolarGridOfClouds::Ptr summary = polar_grid.summarize();
+
+  vector<float> normalized_probabilities;
+  vector<float> height_probabilities;
+
+  // probabilities requiring normalization:
+  GroundProbabilityByHeight prob_height;
+
+  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
+    // normalized probabilities:
+    GroundProbabilityByElevationDiff prob_elevation;
+    GroundProbabilityByRingDist prob_rdist;
+    for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
+      if(!summary->at(CellId(polar, ring)).empty()) {
+        Eigen::Vector3f current_point = summary->at(CellId(polar, ring)).front().getVector3fMap();
+        normalized_probabilities.push_back(
+            prob_elevation.compute(current_point)*
+            prob_rdist.compute(current_point, ring));
+        height_probabilities.push_back(prob_height.compute(current_point));
+      }
+    }
+  }
+
+  PointCloud<PointXYZRGB>::Ptr ground_map(new PointCloud<PointXYZRGB>);
+  int prob_index = 0;
+  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
+    for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--, prob_index++) {
+      uchar red, green, blue;
+      Eigen::Vector3f current_point = summary->at(CellId(polar, ring)).front().getVector3fMap();
+      getColorsForProbability(
+          normalized_probabilities[prob_index]*
+          prob_height.normalize(height_probabilities[prob_index]), current_point, red, green, blue);
+      *ground_map += *Visualizer3D::colorizeCloud(polar_grid[CellId(polar, ring)], red, green, blue);
+    }
+  }
+
+  static Visualizer3D vis;
+  vis.keepOnlyClouds(0).addColorPointCloud(ground_map).show();
+}
+
 /**
  * ./move-detection cloud.bin
  */
@@ -430,6 +612,9 @@ int main(int argc, char** argv) {
     } else {
       last_transformation = (pose-1)->inverse() * (*pose);
     }
+
+    groundSegmentation(new_cloud);
+    continue;
 
     move_detection.run(new_cloud, last_transformation);
 
