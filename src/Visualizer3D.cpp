@@ -39,6 +39,8 @@ using namespace Eigen;
 
 boost::shared_ptr<Visualizer3D> Visualizer3D::commonVisualizer;
 
+bool Visualizer3D::useCommonVisualizer = true;
+
 Visualizer3D::Visualizer3D() :
     rng(cv::theRNG()),
     viewer(new pcl::visualization::PCLVisualizer("3D Viewer")),
@@ -48,7 +50,7 @@ Visualizer3D::Visualizer3D() :
   viewer->setBackgroundColor(1.0, 1.0, 1.0);
   viewer->addCoordinateSystem(0.5);
   viewer->initCameraParameters();
-  viewer->setCameraPosition(5, -500, 0, 0, 0, 0);
+  viewer->setCameraPosition(5, -5, 0, 0, 0, 0);
   viewer->addText3D("x", PointXYZ(0.5, 0, 0), 0.1, 0.5, 0, 0.5, getId("text"));
   viewer->addText3D("y", PointXYZ(0, 0.5, 0), 0.1, 0.5, 0, 0.5, getId("text"));
   viewer->addText3D("z", PointXYZ(0, 0, 0.5), 0.1, 0.5, 0, 0.5, getId("text"));

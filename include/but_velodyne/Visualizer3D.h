@@ -395,6 +395,8 @@ public:
     return commonVisualizer;
   }
 
+  static bool useCommonVisualizer;
+
   Visualizer3D& addRingColoredCloud(const VelodynePointCloud &cloud);
 
 protected:

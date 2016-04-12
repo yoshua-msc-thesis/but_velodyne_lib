@@ -44,6 +44,11 @@ inline float computeRange(const velodyne_pointcloud::PointXYZIR &pt)
   return sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
 }
 
+inline float compute2DRange(const velodyne_pointcloud::PointXYZIR &pt)
+{
+  return sqrt(pt.x * pt.x + pt.z * pt.z);
+}
+
 /**!
  * Conversion from PCL point to Eigen::Vector3f
  *

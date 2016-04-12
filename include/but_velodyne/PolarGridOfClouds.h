@@ -62,9 +62,9 @@ public:
    *
    * @param point_cloud oroginal Velodyne point cloud
    */
-  PolarGridOfClouds(const pcl::PointCloud<velodyne_pointcloud::PointXYZIR> &point_cloud);
+  PolarGridOfClouds(const VelodynePointCloud &point_cloud, bool redistribute = false);
 
-  static Ptr of(const pcl::PointCloud<velodyne_pointcloud::PointXYZIR> &point_cloud) {
+  static Ptr of(const VelodynePointCloud &point_cloud) {
     PolarGridOfClouds *grid = new PolarGridOfClouds(point_cloud);
     return Ptr(grid);
   }
@@ -108,7 +108,11 @@ public:
 
 protected:
 
-  void fill(const pcl::PointCloud<velodyne_pointcloud::PointXYZIR> &point_cloud);
+  PolarGridOfClouds();
+
+  void fill(const VelodynePointCloud &point_cloud);
+
+  void fillRedistributed(const VelodynePointCloud &point_cloud);
 
   float getPolarAngle(float x, float y)
   {
@@ -117,6 +121,9 @@ protected:
   }
 
   int getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point);
+
+  int computeNewRingIndex(const velodyne_pointcloud::PointXYZIR &point,
+                          const std::vector<float> &borders);
 
   std::vector<
     boost::array<VelodynePointCloud, VelodynePointCloud::VELODYNE_RINGS_COUNT>
