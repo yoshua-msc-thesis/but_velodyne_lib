@@ -45,11 +45,7 @@ std::ostream& operator<< (std::ostream &out, const CellId &id) {
 PolarGridOfClouds::PolarGridOfClouds(
     const VelodynePointCloud &point_cloud, bool redistribute) :
       polar_grid(getPolarBins()) {
-  if(redistribute) {
-    fillRedistributed(point_cloud);
-  } else {
-    fill(point_cloud);
-  }
+  fill(point_cloud, redistribute);
 }
 
 PolarGridOfClouds::PolarGridOfClouds() :
@@ -57,34 +53,29 @@ PolarGridOfClouds::PolarGridOfClouds() :
 }
 
 void PolarGridOfClouds::fill(
-    const VelodynePointCloud &point_cloud) {
+    const VelodynePointCloud &point_cloud, bool redistribute) {
+  std::vector<float> borders;
+  if(redistribute) {
+    borders = point_cloud.getMaxOfRingRanges();
+  }
   for(VelodynePointCloud::const_iterator pt = point_cloud.begin();
         pt < point_cloud.end();
         pt++) {
-      int ring = pt->ring;
-      assert(ring < VelodynePointCloud::VELODYNE_RINGS_COUNT);
-      assert(ring >= 0);
-
-      int polar_bin = getPolarBinIndex(*pt);
-      assert(polar_bin < getPolarBins());
-      assert(polar_bin >= 0);
-
-      polar_grid[polar_bin][ring].push_back(*pt);
+    int ring;
+    if(redistribute) {
+      ring = computeNewRingIndex(*pt, borders);
+    } else {
+      ring = pt->ring;
     }
-}
+    assert(ring < VelodynePointCloud::VELODYNE_RINGS_COUNT);
+    assert(ring >= 0);
 
-void PolarGridOfClouds::fillRedistributed(const VelodynePointCloud &point_cloud) {
-  PolarGridOfClouds::Ptr grid(new PolarGridOfClouds(point_cloud));
-  std::vector<float> borders = point_cloud.getMaxOfRingRanges();
-  for(VelodynePointCloud::const_iterator pt = point_cloud.begin();
-      pt < point_cloud.end();
-      pt++) {
     int polar_bin = getPolarBinIndex(*pt);
     assert(polar_bin < getPolarBins());
     assert(polar_bin >= 0);
 
-    int new_ring_id = computeNewRingIndex(*pt, borders);
-    polar_grid[polar_bin][new_ring_id].push_back(*pt);
+    polar_grid[polar_bin][ring].push_back(*pt);
+    indices.push_back(CellId(polar_bin, ring));
   }
 }
 
@@ -121,7 +112,7 @@ PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
 
 
 int PolarGridOfClouds::getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point) {
-  static const float polar_bin_size = 360.0f / getPolarBins();
+  float polar_bin_size = 360.0f / getPolarBins();
   float angle = getPolarAngle(point.x, point.z) + 180.00000001f;
   if(angle == 0.0) {
     return 0;

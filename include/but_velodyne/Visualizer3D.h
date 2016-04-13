@@ -121,6 +121,13 @@ public:
     else if (i >= 5) r = 255, g = n,   b = 0;
   }
 
+  template<typename PointT>
+  static pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeCloud(const pcl::PointCloud<PointT> &cloud, float intensity) {
+    uchar r, g, b;
+    colorizeIntensity(intensity, r, g, b);
+    return colorizeCloud(cloud, r, g, b);
+  }
+
   /**!
    * Add new point cloud of arbitrary point type into the visualization. Cloud
    * is optionally transformed. The color of each point is estimated according to its height.

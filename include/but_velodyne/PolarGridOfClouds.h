@@ -37,12 +37,23 @@ namespace but_velodyne
 /**!
  * Identifier of the polar cell.
  */
-struct CellId {
-  int ring;     ///! Velodyne ring ID
+class CellId {
+public:
   int polar;    ///! discretized horizontal angle
+  int ring;     ///! Velodyne ring ID
 
   CellId(int p, int r) :
-    ring(r), polar(p) {
+   polar(p), ring(r) {
+  }
+
+  bool operator<(const CellId &other) const {
+    return (this->ring < other.ring) ?
+        true :
+        (this->ring == other.ring) && (this->polar < other.polar);
+  }
+
+  bool operator==(const CellId &other) const {
+    return (this->ring == other.ring) && (this->polar == other.polar);
   }
 };
 
@@ -106,13 +117,15 @@ public:
     return POLAR_SUPERBINS*BIN_SUBDIVISION;
   }
 
+  const std::vector<CellId>& getIndices() {
+    return indices;
+  }
+
 protected:
 
   PolarGridOfClouds();
 
-  void fill(const VelodynePointCloud &point_cloud);
-
-  void fillRedistributed(const VelodynePointCloud &point_cloud);
+  void fill(const VelodynePointCloud &point_cloud, bool redistribute);
 
   float getPolarAngle(float x, float y)
   {
@@ -128,6 +141,8 @@ protected:
   std::vector<
     boost::array<VelodynePointCloud, VelodynePointCloud::VELODYNE_RINGS_COUNT>
   > polar_grid;            // polar bins of rings
+
+  std::vector<CellId> indices;
 };
 
 } /* namespace but_velodyne */

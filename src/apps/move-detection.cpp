@@ -64,9 +64,6 @@ namespace po = boost::program_options;
 
 #define log cerr
 
-const float MIN_RANGE =  3.0;
-const float MAX_RANGE = 30.0;
-
 template <class PointType>
 typename pcl::PointCloud<PointType>::Ptr downsampleCloud(
                 typename pcl::PointCloud<PointType>::Ptr input,
@@ -552,40 +549,21 @@ private:
   float last_range;
 };
 
-void getColorsForProbability(float prob, const Eigen::Vector3f &current_point, uchar &r, uchar &g, uchar &b) {
-  float current_range = sqrt(current_point.x()*current_point.x() + current_point.z()*current_point.z());
-  if(current_range < INFINITY) {
-    Visualizer3D::colorizeIntensity(prob, r, g, b);
-  } else {
-    r = g = b = 125;
-  }
-}
-
-void groundSegmentationByRings(const VelodynePointCloud &cloud) {
+vector<float> groundSegmentationByRings(const VelodynePointCloud &cloud) {
   PolarGridOfClouds::POLAR_SUPERBINS = 360;
   PolarGridOfClouds::BIN_SUBDIVISION = 1;
-  /*VelodynePointCloud filtered_cloud;
-  for(VelodynePointCloud::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
-    float range = sqrt(pt->x*pt->x + pt->z*pt->z);
-    if(range > MIN_RANGE && range < MAX_RANGE) {
-      filtered_cloud.push_back(*pt);
-    }
-  }*/
   PolarGridOfClouds polar_grid(cloud);
   PolarGridOfClouds::Ptr summary = polar_grid.summarize();
 
-  vector<float> normalized_probabilities;
-  vector<float> height_probabilities;
-  vector<float> rdist_probabilities;
+  map<CellId, float> normalized_probabilities;
+  map<CellId, float> height_probabilities;
+  map<CellId, float> hdev_probabilities;
 
   // probabilities requiring normalization:
   GroundProbabilityByHeight prob_height;
   GroundProbabilityByHeightDev prob_hdev;
 
   for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
-    if(polar != 260 && false) {
-      continue;
-    }
     // normalized probabilities:
     GroundProbabilityByElevationDiff prob_elevation;
     GroundProbabilityByRingDist prob_rdist;
@@ -593,40 +571,32 @@ void groundSegmentationByRings(const VelodynePointCloud &cloud) {
     for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
       if(!summary->at(CellId(polar, ring)).empty()) {
         Eigen::Vector3f current_point = summary->at(CellId(polar, ring)).front().getVector3fMap();
-        normalized_probabilities.push_back(prob_elevation.compute(current_point)*
-                                           prob_rdist.compute(current_point, ring));
-        rdist_probabilities.push_back(prob_hdev.compute(ring));
-        height_probabilities.push_back(prob_height.compute(current_point));
+        normalized_probabilities[CellId(polar, ring)] =
+            prob_elevation.compute(current_point)*
+            prob_rdist.compute(current_point, ring);
+        hdev_probabilities[CellId(polar, ring)] = prob_hdev.compute(ring);
+        height_probabilities[CellId(polar, ring)] = prob_height.compute(current_point);
       }
     }
   }
 
-  Visualizer3D::getCommonVisualizer()->getViewer()->removeAllShapes();
-  PointCloud<PointXYZRGB>::Ptr ground_map(new PointCloud<PointXYZRGB>);
-  int prob_index = 0;
-  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
-    for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
-      if(!summary->at(CellId(polar, ring)).empty()) {
-        uchar red, green, blue;
-        if(polar == 260 || true) {
-          Eigen::Vector3f current_point = summary->at(CellId(polar, ring)).front().getVector3fMap();
-          getColorsForProbability(
-              prob_hdev.normalize(rdist_probabilities[prob_index])*
-              normalized_probabilities[prob_index]*
-              prob_height.normalize(height_probabilities[prob_index]), current_point, red, green, blue);
-          /*stringstream ss;
-          ss << ring << ":" << prob_rdist.normalize(rdist_probabilities[prob_index]);
-          Visualizer3D::getCommonVisualizer()->getViewer()->addText3D(ss.str(), summary->at(CellId(polar, ring)).front(), 0.05, 0, 0, 0);*/
-          prob_index++;
-        } else {
-          red = green = blue = 125;
-        }
-        *ground_map += *Visualizer3D::colorizeCloud(polar_grid[CellId(polar, ring)], red, green, blue);
-      }
-    }
+  map<CellId, float>::iterator height_prob_it = height_probabilities.begin();
+  map<CellId, float>::iterator hdev_prob_it = hdev_probabilities.begin();
+  for(int i = 0; i < normalized_probabilities.size();
+      i++, height_prob_it++, hdev_prob_it++) {
+    height_prob_it->second = prob_height.normalize(height_prob_it->second);
+    hdev_prob_it->second = prob_hdev.normalize(hdev_prob_it->second);
   }
 
-  Visualizer3D::getCommonVisualizer()->keepOnlyClouds(0).addColorPointCloud(ground_map).show();
+  const vector<CellId>& polar_indices = polar_grid.getIndices();
+  vector<float> resulting_probabilities;
+  for(vector<CellId>::const_iterator cell_id = polar_indices.begin(); cell_id < polar_indices.end(); cell_id++) {
+    resulting_probabilities.push_back(
+        normalized_probabilities[*cell_id]*
+        height_probabilities[*cell_id]*
+        hdev_probabilities[*cell_id]);
+  }
+  return resulting_probabilities;
 }
 
 class GroundProbabilityByDevInCell : public NormalizedGroundFeature {
@@ -643,36 +613,34 @@ public:
 };
 
 
-void groundSegmentationRegularPolarGrid(const VelodynePointCloud &cloud) {
+vector<float> groundSegmentationRegularPolarGrid(const VelodynePointCloud &cloud) {
   PolarGridOfClouds::POLAR_SUPERBINS = 72;
   PolarGridOfClouds::BIN_SUBDIVISION = 1;
   PolarGridOfClouds grid(cloud, true);
 
-  vector<float> hdist_probabilities;
+  map<CellId, float> hdist_probabilities;
   GroundProbabilityByDevInCell prob_height_dist;
   for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
     for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
-      if(!grid.at(CellId(polar, ring)).empty()) {
-        hdist_probabilities.push_back(prob_height_dist.compute(grid.at(CellId(polar, ring))));
+      CellId cell_id(polar, ring);
+      const VelodynePointCloud &cell_content = grid.at(cell_id);
+      if(!cell_content.empty()) {
+        hdist_probabilities[cell_id] = prob_height_dist.compute(cell_content);
       }
     }
   }
 
-  PointCloud<PointXYZRGB>::Ptr ground_map(new PointCloud<PointXYZRGB>);
-  int prob_index = 0;
-  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
-    for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
-      if(!grid.at(CellId(polar, ring)).empty()) {
-        uchar red, green, blue;
-        float prob = hdist_probabilities[prob_index];
-        float normalized = prob_height_dist.normalize(prob);
-        getColorsForProbability(normalized, Eigen::Vector3f::Zero(), red, green, blue);
-        *ground_map += *Visualizer3D::colorizeCloud(grid[CellId(polar, ring)], red, green, blue);
-        prob_index++;
-      }
-    }
+  for(map<CellId, float>::iterator cell_p = hdist_probabilities.begin(); cell_p != hdist_probabilities.end(); cell_p++) {
+    cell_p->second = prob_height_dist.normalize(cell_p->second);
   }
-  Visualizer3D::getCommonVisualizer()->keepOnlyClouds(0).addColorPointCloud(ground_map).show();
+
+  const vector<CellId>& polar_indices = grid.getIndices();
+  vector<float> resulting_probabilities;
+  for(vector<CellId>::const_iterator cell_id = polar_indices.begin(); cell_id < polar_indices.end(); cell_id++) {
+    resulting_probabilities.push_back(hdist_probabilities[*cell_id]);
+  }
+
+  return resulting_probabilities;
 }
 
 /**
@@ -711,8 +679,21 @@ int main(int argc, char** argv) {
       last_transformation = (pose-1)->inverse() * (*pose);
     }
 
-//    groundSegmentationByRings(new_cloud);
-    groundSegmentationRegularPolarGrid(new_cloud);
+    vector<float> prob_from_rings = groundSegmentationByRings(new_cloud);
+    vector<float> prob_from_polar_grid = groundSegmentationRegularPolarGrid(new_cloud);
+    PointCloud<PointXYZRGB>::Ptr ground_map(new PointCloud<PointXYZRGB>);
+    int pt_id = 0;
+    for(VelodynePointCloud::iterator pt = new_cloud.begin(); pt < new_cloud.end(); pt++, pt_id++) {
+      PointXYZRGB pt_rgb;
+      pt_rgb.x = pt->x;
+      pt_rgb.y = pt->y;
+      pt_rgb.z = pt->z;
+      Visualizer3D::colorizeIntensity(prob_from_rings[pt_id]*prob_from_polar_grid[pt_id],
+                                      pt_rgb.r, pt_rgb.g, pt_rgb.b);
+      ground_map->push_back(pt_rgb);
+    }
+    static Visualizer3D vis;
+    vis.keepOnlyClouds(0).addColorPointCloud(ground_map).show();
     continue;
 
     move_detection.run(new_cloud, last_transformation);
