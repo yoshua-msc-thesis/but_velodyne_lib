@@ -39,8 +39,6 @@ using namespace Eigen;
 
 boost::shared_ptr<Visualizer3D> Visualizer3D::commonVisualizer;
 
-bool Visualizer3D::useCommonVisualizer = true;
-
 Visualizer3D::Visualizer3D() :
     rng(cv::theRNG()),
     viewer(new pcl::visualization::PCLVisualizer("3D Viewer")),

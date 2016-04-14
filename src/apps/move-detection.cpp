@@ -38,6 +38,8 @@
 #include <pcl/common/centroid.h>
 #include <pcl/filters/extract_indices.h>
 
+#include <Eigen/Eigenvalues>
+
 #include <boost/program_options.hpp>
 #include <boost/math/distributions/normal.hpp>
 #include <cv.h>
@@ -402,28 +404,48 @@ float gauss(float mean, float sd, float x) {
   return exp(exponent);// / (sd * sqrt(2*M_PI));
 }
 
-class NormalizedGroundFeature {
+class NormalizedFeature {
 public:
-  NormalizedGroundFeature() :
+  NormalizedFeature() :
     sorted(true) {
+    setRelativeMinIndex();
+    setRelativeMaxIndex();
   }
 
-  virtual ~NormalizedGroundFeature() {
+  virtual ~NormalizedFeature() {
   }
 
   float normalize(float value) {
     if(!sorted) {
+      for(vector<float>::iterator v = values.begin(); v < values.end();) {
+        if(isnan(*v) || isinf(*v)) {
+          v = values.erase(v);
+        } else {
+          v++;
+        }
+      }
       std::sort(values.begin(), values.end());
       sorted = true;
+      /*float min = values[values.size()*relative_min_index];
+      float max = values[values.size()*relative_max_index];
+      cerr << "min: " << min << "; max: " << max << endl;*/
     }
-    float min = values[values.size()*0.1];
-    float max = values[values.size()*0.9];
+    float min = values[values.size()*relative_min_index];
+    float max = values[values.size()*relative_max_index];
     if(value > max) {
       return 1.0;
     } else if(value < min) {
       return 0.0;
     }
     return (value - min) / (max - min);
+  }
+
+  void setRelativeMaxIndex(float relativeMaxIndex = 0.9) {
+    relative_max_index = relativeMaxIndex;
+  }
+
+  void setRelativeMinIndex(float relativeMinIndex = 0.1) {
+    relative_min_index = relativeMinIndex;
   }
 
 protected:
@@ -434,6 +456,8 @@ protected:
 
   vector<float> values;
   bool sorted;
+  float relative_min_index;
+  float relative_max_index;
 };
 
 float deviation(vector<float>::const_iterator begin, vector<float>::const_iterator end) {
@@ -457,7 +481,7 @@ float deviation(vector<float>::const_iterator begin, vector<float>::const_iterat
   return deviation;
 }
 
-class GroundProbabilityByHeight : public NormalizedGroundFeature {
+class GroundProbabilityByHeight : public NormalizedFeature {
 public:
   float compute(const Eigen::Vector3f &current_point) {
     updateMinMax(current_point.y());
@@ -465,7 +489,7 @@ public:
   }
 };
 
-class GroundProbabilityByHeightDev : public NormalizedGroundFeature {
+class GroundProbabilityByHeightDev : public NormalizedFeature {
 public:
   GroundProbabilityByHeightDev() :
     ranges_diff(VelodyneSpecification::RINGS) {
@@ -479,11 +503,8 @@ public:
       else {
         velodyne_pointcloud::PointXYZIR pt = grid->at(CellId(polar_id, ring)).front();
         ranges_diff[ring] = pt.y;
-//        ranges_diff[ring] = sqrt(pt.x * pt.x + pt.z * pt.z) - VelodyneSpecification::getExpectedRange(ring);
       }
     }
-    if(Visualizer3D::useCommonVisualizer)
-      Visualizer3D::getCommonVisualizer()->getViewer()->removeAllShapes();
   }
 
   float compute(int ring) {
@@ -496,7 +517,7 @@ public:
 
 private:
   vector<float> ranges_diff;
-  const int MAX_RANGES_USED = 7;
+  static const int MAX_RANGES_USED = 7;
 };
 
 class GroundProbabilityByElevationDiff {
@@ -599,9 +620,14 @@ vector<float> groundSegmentationByRings(const VelodynePointCloud &cloud) {
   return resulting_probabilities;
 }
 
-class GroundProbabilityByDevInCell : public NormalizedGroundFeature {
+class NormalizedFeatureInRegularGrid : public NormalizedFeature {
 public:
-  float compute(const VelodynePointCloud &cell_pts) {
+  virtual float compute(const VelodynePointCloud &cell_pts) =0;
+};
+
+class GroundProbabilityByDevInCell : public NormalizedFeatureInRegularGrid {
+public:
+  virtual float compute(const VelodynePointCloud &cell_pts) {
     vector<float> heights;
     for(VelodynePointCloud::const_iterator pt = cell_pts.begin(); pt < cell_pts.end(); pt++) {
       heights.push_back(pt->y);
@@ -613,25 +639,31 @@ public:
 };
 
 
-vector<float> groundSegmentationRegularPolarGrid(const VelodynePointCloud &cloud) {
+vector<float> segmentationRegularPolarGrid(
+    const VelodynePointCloud &cloud,
+    NormalizedFeatureInRegularGrid &feature_esimator) {
   PolarGridOfClouds::POLAR_SUPERBINS = 72;
   PolarGridOfClouds::BIN_SUBDIVISION = 1;
   PolarGridOfClouds grid(cloud, true);
 
+  //static Visualizer3D vis;
+  //vis.keepOnlyClouds(0).setColor(200, 200, 200).addPointCloud(cloud);
   map<CellId, float> hdist_probabilities;
-  GroundProbabilityByDevInCell prob_height_dist;
   for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
     for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
       CellId cell_id(polar, ring);
       const VelodynePointCloud &cell_content = grid.at(cell_id);
       if(!cell_content.empty()) {
-        hdist_probabilities[cell_id] = prob_height_dist.compute(cell_content);
+        hdist_probabilities[cell_id] = feature_esimator.compute(cell_content);
+        //cerr << cell_id << endl;
+        //vis.addColorPointCloud(Visualizer3D::colorizeCloud(cell_content, hdist_probabilities[cell_id]/1000));
       }
     }
   }
+  //vis.show();
 
   for(map<CellId, float>::iterator cell_p = hdist_probabilities.begin(); cell_p != hdist_probabilities.end(); cell_p++) {
-    cell_p->second = prob_height_dist.normalize(cell_p->second);
+    cell_p->second = feature_esimator.normalize(cell_p->second);
   }
 
   const vector<CellId>& polar_indices = grid.getIndices();
@@ -643,9 +675,24 @@ vector<float> groundSegmentationRegularPolarGrid(const VelodynePointCloud &cloud
   return resulting_probabilities;
 }
 
-/**
- * ./move-detection cloud.bin
- */
+class ScatteredProbabilityInCell : public NormalizedFeatureInRegularGrid {
+public:
+  virtual float compute(const VelodynePointCloud &cell_pts) {
+    Eigen::Matrix3f covaraince;
+    Eigen::Vector4f centroid;
+    compute3DCentroid(cell_pts, centroid);
+    computeCovarianceMatrix(cell_pts, centroid, covaraince);
+    Eigen::Vector3cf eigenvalues = covaraince.eigenvalues();
+    float e1 = std::real(eigenvalues(0));
+    float e2 = std::real(eigenvalues(1));
+    float e3 = std::real(eigenvalues(2));
+    float largest  = MAX(MAX(e1, e2), e3);
+    float smallest = MIN(MIN(e1, e2), e3) / largest;
+    updateMinMax(smallest);
+    return smallest;
+  }
+};
+
 int main(int argc, char** argv) {
 
   MoveDetection::Parameters parameters;
@@ -680,20 +727,25 @@ int main(int argc, char** argv) {
     }
 
     vector<float> prob_from_rings = groundSegmentationByRings(new_cloud);
-    vector<float> prob_from_polar_grid = groundSegmentationRegularPolarGrid(new_cloud);
-    PointCloud<PointXYZRGB>::Ptr ground_map(new PointCloud<PointXYZRGB>);
+    GroundProbabilityByDevInCell height_deviation_estimator;
+    vector<float> prob_from_polar_grid = segmentationRegularPolarGrid(new_cloud, height_deviation_estimator);
+    ScatteredProbabilityInCell scatter_estimator;
+    scatter_estimator.setRelativeMinIndex(0.001);
+    scatter_estimator.setRelativeMaxIndex(0.999);
+    vector<float> scattered_prob = segmentationRegularPolarGrid(new_cloud, scatter_estimator);
+    PointCloud<PointXYZRGB>::Ptr vis_cloud(new PointCloud<PointXYZRGB>);
     int pt_id = 0;
     for(VelodynePointCloud::iterator pt = new_cloud.begin(); pt < new_cloud.end(); pt++, pt_id++) {
       PointXYZRGB pt_rgb;
       pt_rgb.x = pt->x;
       pt_rgb.y = pt->y;
       pt_rgb.z = pt->z;
-      Visualizer3D::colorizeIntensity(prob_from_rings[pt_id]*prob_from_polar_grid[pt_id],
-                                      pt_rgb.r, pt_rgb.g, pt_rgb.b);
-      ground_map->push_back(pt_rgb);
+//      Visualizer3D::colorizeIntensity(prob_from_rings[pt_id]*prob_from_polar_grid[pt_id], pt_rgb.r, pt_rgb.g, pt_rgb.b);
+      Visualizer3D::colorizeIntensity(scattered_prob[pt_id], pt_rgb.r, pt_rgb.g, pt_rgb.b);
+      vis_cloud->push_back(pt_rgb);
     }
     static Visualizer3D vis;
-    vis.keepOnlyClouds(0).addColorPointCloud(ground_map).show();
+    vis.keepOnlyClouds(0).addColorPointCloud(vis_cloud).show();
     continue;
 
     move_detection.run(new_cloud, last_transformation);
