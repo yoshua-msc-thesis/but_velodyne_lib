@@ -230,6 +230,8 @@ public:
 
   std::vector<float> getMaxOfRingRanges() const;
 
+  float averageIntensity() const;
+
 protected:
   std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > getRings() const;
   VelodynePointCloud discartWeakPoints(float threshold);

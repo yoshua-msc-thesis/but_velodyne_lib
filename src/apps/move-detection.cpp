@@ -353,11 +353,6 @@ protected:
   vector<Regular2DGrid<float>::Ptr> last_frames;
 };
 
-bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters,
-                     AngularCollarLinesFilter::Parameters &filter_parameters,
-                     vector<string> &clouds_to_process,
-                     string &pose_file, string &image_dir);
-
 /*void testGridTransformation(const VelodynePointCloud &cloud) {
   Regular2DGridGenerator::Parameters grid_params;
   Regular2DGridGenerator generator(grid_params);
@@ -693,14 +688,274 @@ public:
   }
 };
 
+void presentHistogram(const Mat &matrix, const string &name) {
+  const int BINS = 20;
+  vector<int> histogram(BINS, 0);
+  double min, max;
+  minMaxLoc(matrix, &min, &max);
+  double bin_size = (max - min) / BINS;
+  for(int i = 0; i < matrix.rows*matrix.cols; i++) {
+    double val = matrix.at<float>(i);
+    int bin = (val - min) / (max - min) * (BINS - 1);
+    histogram[bin]++;
+  }
+  cout << "============================================================" << endl;
+  cout << name << endl;
+  for(int i = 0; i < BINS; i++) {
+    cout << (max - min) / (BINS - 1) * i + min << ": " << histogram[i] << endl;
+  }
+  cout << "============================================================" << endl;
+}
+
+void presentMatrix(const Mat &matrix, const string &name) {
+  Mat equalized;
+  normalize(matrix, equalized, 0.0, 255.0, NORM_MINMAX);
+  equalized.convertTo(equalized, CV_8UC1);
+  imwrite(name + ".png", equalized);
+}
+
+template <typename T>
+class FillingFM {
+public:
+  typedef enum {
+    START, NOT_FIXABLE, OCCUPIED, FIXABLE
+  } State;
+
+  typedef struct {
+    T first_value, last_value;
+    int first_index, last_index;
+  } FillData;
+
+  FillingFM() :
+    state(START), index(0), valid_fill(false) {
+  }
+
+  void next(bool occupancy, T value) {
+    if(occupancy) {
+      if(state == FIXABLE) {
+        current_data.last_value = value;
+        current_data.last_index = index-1;
+        last_data = current_data;
+        valid_fill = true;
+      }
+      current_data.first_value = value;
+      state = OCCUPIED;
+    } else {
+      switch(state) {
+        case START:
+        case NOT_FIXABLE:
+          state = NOT_FIXABLE; break;
+        case OCCUPIED:
+          current_data.first_index = index;
+        case FIXABLE:
+          state = FIXABLE; break;
+      }
+    }
+    index++;
+  }
+
+  bool getFillData(FillData &out) {
+    out = last_data;
+    return valid_fill;
+  }
+
+private:
+  State state;
+  FillData current_data, last_data;
+  int index;
+  bool valid_fill;
+};
+
+void fillMissing(Mat &data, const Mat &occupancy) {
+  for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
+    FillingFM<float> fill_fm;
+    for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+      fill_fm.next(occupancy.at<uchar>(r, c) != 0, data.at<float>(r, c));
+      FillingFM<float>::FillData fill_data;
+      if(fill_fm.getFillData(fill_data)) {
+        float delta = (fill_data.last_value - fill_data.first_value) / (fill_data.last_index - fill_data.first_index + 1);
+        for(int i = 0; i <= (fill_data.last_index - fill_data.first_index); i++) {
+          data.at<float>(fill_data.first_index + i, c) = delta*i + fill_data.first_value;
+        }
+      }
+    }
+  }
+}
+
+PointXYZIR operator +(const PointXYZIR &p1, const PointXYZIR &p2) {
+  PointXYZIR res;
+  res.x = p1.x + p2.x;
+  res.y = p1.y + p2.y;
+  res.z = p1.z + p2.z;
+  res.intensity = p1.intensity + p2.intensity;
+  return res;
+}
+
+PointXYZIR operator *(const PointXYZIR &p1, float s) {
+  PointXYZIR res;
+  res.x = p1.x * s;
+  res.y = p1.y * s;
+  res.z = p1.z * s;
+  res.intensity = p1.intensity * s;
+  return res;
+}
+
+PointXYZIR operator -(const PointXYZIR &p1, const PointXYZIR &p2) {
+  return p1 + (p2 * (-1));
+}
+
+PointXYZIR operator /(const PointXYZIR &p1, float s) {
+  return p1 * (1/s);
+}
+
+void fillMissing(PolarGridOfClouds &summarized_data) {
+  for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
+    FillingFM<PointXYZIR> fill_fm;
+    for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+      bool occupied = !summarized_data.at(CellId(c, r)).empty();
+      PointXYZIR pt;
+      if(occupied) {
+        pt = summarized_data.at(CellId(c, r)).front();
+      }
+      fill_fm.next(occupied, pt);
+      FillingFM<PointXYZIR>::FillData fill_data;
+      if(fill_fm.getFillData(fill_data)) {
+        PointXYZIR delta = (fill_data.last_value - fill_data.first_value) / (fill_data.last_index - fill_data.first_index + 1);
+        for(int i = 0; i <= (fill_data.last_index - fill_data.first_index); i++) {
+          summarized_data.at(CellId(c, fill_data.first_index + i)).push_back(delta*i + fill_data.first_value);
+        }
+      }
+    }
+  }
+}
+
+bool isValid(PointXYZIR pt) {
+  return EigenUtils::allFinite(pt.getVector4fMap()) &&
+      !isnan(pt.intensity) && !isinf(pt.intensity) &&
+      pt.y < 5 && pt.y > -5;
+}
+
+void summarizeProbabilities(const vector<float> &probabilities,
+                            const vector<CellId> &indices,
+                            Mat &out_matrix) {
+  out_matrix = 0.0;
+  Mat counters(out_matrix.rows, out_matrix.cols, CV_32SC1);
+  counters = Scalar(0);
+  for(int i = 0; i < probabilities.size(); i++) {
+    out_matrix.at<float>(indices[i].ring, indices[i].polar) += probabilities[i];
+    counters.at<int>(indices[i].ring, indices[i].polar)++;
+  }
+  for(int i = 0; i < out_matrix.rows*out_matrix.cols; i++) {
+    out_matrix.at<float>(i) /= counters.at<int>(i);
+  }
+}
+
+void threshold_matrix(const Mat &matrix_probabilities,
+                      Mat &matrix_ground_labels,
+                      float prob_threshold) {
+  for(int i = 0; i < matrix_probabilities.rows*matrix_probabilities.cols; i++) {
+    matrix_ground_labels.at<uchar>(i) = (matrix_probabilities.at<float>(i) > prob_threshold) ? 1 : 0;
+  }
+}
+
+void createMatrix(const VelodynePointCloud &cloud, const vector<float> &probabilities, float prob_threshold) {
+  PolarGridOfClouds::POLAR_SUPERBINS = 360;
+  PolarGridOfClouds::BIN_SUBDIVISION = 1;
+  PolarGridOfClouds polar_grid(cloud);
+  const vector<CellId> &indices = polar_grid.getIndices();
+
+  PolarGridOfClouds::Ptr summary = polar_grid.summarize();
+  //fillMissing(*summary);
+  Mat matrix_probabilities(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  summarizeProbabilities(probabilities, indices, matrix_probabilities);
+
+  Mat matrix_x(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  Mat matrix_y(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  Mat matrix_z(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  Mat matrix_range(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  Mat matrix_intensity(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  Mat matrix_occupancy(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_8UC1);
+  //PointCloud<PointXYZRGB>::Ptr colored_cloud(new PointCloud<PointXYZRGB>);
+  for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+    for(int p = 0; p < PolarGridOfClouds::getPolarBins(); p++) {
+      const int c = p;
+      const CellId cell_id(p, r);
+      PointXYZIR pt;
+      if(!summary->at(cell_id).empty() && isValid(pt = summary->at(cell_id).front())) {
+        matrix_x.at<float>(r, c) = pt.x;
+        matrix_y.at<float>(r, c) = pt.y;
+        matrix_z.at<float>(r, c) = pt.z;
+        matrix_range.at<float>(r, c) = sqrt(pt.x*pt.x + pt.z*pt.z);
+        matrix_intensity.at<float>(r, c) = pt.intensity;
+        /*PointXYZRGB color_pt;
+        color_pt.x = pt.x;
+        color_pt.y = pt.y;
+        color_pt.z = pt.z;
+        color_pt.r = matrix_intensity.at<float>(r, c)/0.4*255;
+        color_pt.g = 0;
+        color_pt.b = (1 - matrix_intensity.at<float>(r, c)/0.4)*255;
+        colored_cloud->push_back(color_pt);*/
+        matrix_occupancy.at<uchar>(r, c) = 1;
+      } else {
+        matrix_x.at<float>(r, c) = matrix_y.at<float>(r, c) = matrix_z.at<float>(r, c) =
+            matrix_intensity.at<float>(r, c) = matrix_range.at<float>(r, c) = 0.0;
+        matrix_occupancy.at<uchar>(r, c) = 0;
+      }
+    }
+  }
+  fillMissing(matrix_x, matrix_occupancy);
+  fillMissing(matrix_y, matrix_occupancy);
+  fillMissing(matrix_z, matrix_occupancy);
+  fillMissing(matrix_range, matrix_occupancy);
+  fillMissing(matrix_intensity, matrix_occupancy);
+  fillMissing(matrix_probabilities, matrix_occupancy);
+  Mat matrix_ground_labels(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_8UC1);
+  threshold_matrix(matrix_probabilities, matrix_ground_labels, prob_threshold);
+  presentMatrix(matrix_x, "matrix_x");
+  presentMatrix(matrix_y, "matrix_y");
+  presentMatrix(matrix_z, "matrix_z");
+  presentMatrix(matrix_range, "matrix_range");
+  presentMatrix(matrix_intensity, "matrix_intensity");
+  presentMatrix(matrix_probabilities, "matrix_probabilities");
+  presentMatrix(matrix_ground_labels, "matrix_ground_labels");
+  //Visualizer3D().addColorPointCloud(colored_cloud).show();
+}
+
+class GroundDetection {
+public:
+  class Parameters {
+  public:
+    Parameters(
+        float threshold_ = 0.5
+        ) :
+          threshold(threshold_) {
+    }
+
+    float threshold;
+  };
+};
+
+void joinProbabilities(const vector<float> &prob1, const vector<float> &prob2, vector<float> &out) {
+  for(int i = 0; i < prob1.size(); i++) {
+    out.push_back(prob1[i]*prob2[i]);
+  }
+}
+
+bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters,
+                     AngularCollarLinesFilter::Parameters &filter_parameters,
+                     GroundDetection::Parameters &ground_params,
+                     vector<string> &clouds_to_process,
+                     string &pose_file, string &image_dir);
+
 int main(int argc, char** argv) {
 
   MoveDetection::Parameters parameters;
   AngularCollarLinesFilter::Parameters filter_parameters;
+  GroundDetection::Parameters ground_params;
   vector<string> clouds_to_process;
   string pose_filename;
   string image_dir;
-  if(!parse_arguments(argc, argv, parameters, filter_parameters, clouds_to_process, pose_filename, image_dir)) {
+  if(!parse_arguments(argc, argv, parameters, filter_parameters, ground_params, clouds_to_process, pose_filename, image_dir)) {
     return EXIT_FAILURE;
   }
 
@@ -729,23 +984,35 @@ int main(int argc, char** argv) {
     vector<float> prob_from_rings = groundSegmentationByRings(new_cloud);
     GroundProbabilityByDevInCell height_deviation_estimator;
     vector<float> prob_from_polar_grid = segmentationRegularPolarGrid(new_cloud, height_deviation_estimator);
-    ScatteredProbabilityInCell scatter_estimator;
+    /*ScatteredProbabilityInCell scatter_estimator;
     scatter_estimator.setRelativeMinIndex(0.001);
     scatter_estimator.setRelativeMaxIndex(0.999);
-    vector<float> scattered_prob = segmentationRegularPolarGrid(new_cloud, scatter_estimator);
-    PointCloud<PointXYZRGB>::Ptr vis_cloud(new PointCloud<PointXYZRGB>);
+    vector<float> scattered_prob = segmentationRegularPolarGrid(new_cloud, scatter_estimator);*/
+
+    vector<float> joined_prob;
+    joinProbabilities(prob_from_rings, prob_from_polar_grid, joined_prob);
+    createMatrix(new_cloud, joined_prob, ground_params.threshold);
+
     int pt_id = 0;
+    //PointCloud<PointXYZRGB>::Ptr vis_cloud(new PointCloud<PointXYZRGB>);
     for(VelodynePointCloud::iterator pt = new_cloud.begin(); pt < new_cloud.end(); pt++, pt_id++) {
-      PointXYZRGB pt_rgb;
+      /*PointXYZRGB pt_rgb;
       pt_rgb.x = pt->x;
       pt_rgb.y = pt->y;
-      pt_rgb.z = pt->z;
-//      Visualizer3D::colorizeIntensity(prob_from_rings[pt_id]*prob_from_polar_grid[pt_id], pt_rgb.r, pt_rgb.g, pt_rgb.b);
-      Visualizer3D::colorizeIntensity(scattered_prob[pt_id], pt_rgb.r, pt_rgb.g, pt_rgb.b);
-      vis_cloud->push_back(pt_rgb);
+      pt_rgb.z = pt->z;*/
+      float prob = joined_prob[pt_id];
+      /*pt_rgb.r = pt_rgb.g = pt_rgb.b = 0.0;
+      if(prob > ground_params.threshold) {
+        pt_rgb.r = 255;
+      } else {
+        pt_rgb.b = 255;
+      }*/
+//      Visualizer3D::colorizeIntensity(prob, pt_rgb.r, pt_rgb.g, pt_rgb.b);
+//      Visualizer3D::colorizeIntensity(scattered_prob[pt_id], pt_rgb.r, pt_rgb.g, pt_rgb.b);
+      //vis_cloud->push_back(pt_rgb);
     }
-    static Visualizer3D vis;
-    vis.keepOnlyClouds(0).addColorPointCloud(vis_cloud).show();
+    //static Visualizer3D vis;
+    //vis.keepOnlyClouds(0).addColorPointCloud(vis_cloud).show();
     continue;
 
     move_detection.run(new_cloud, last_transformation);
@@ -760,6 +1027,7 @@ int main(int argc, char** argv) {
 }
 
 bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameters, AngularCollarLinesFilter::Parameters &filter_parameters,
+                     GroundDetection::Parameters &ground_params,
                      vector<string> &clouds_to_process, string &pose_file, string &image_dir) {
   bool use_kalman = false;
   int linear_estimator = 3;
@@ -792,6 +1060,8 @@ bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameter
           "KITTI pose file")
       ("images", po::value<string>(&image_dir)->required(),
           "Directory of KITTI images for given sequence")
+      ("ground_thresh", po::value<float>(&ground_params.threshold)->default_value(ground_params.threshold),
+          "Threshold for ground detection")
    ;
 
     po::variables_map vm;

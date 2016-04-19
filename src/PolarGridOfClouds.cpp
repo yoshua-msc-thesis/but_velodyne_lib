@@ -103,6 +103,7 @@ PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
         centroid_ir.y = centroid(1);
         centroid_ir.z = centroid(2);
         centroid_ir.ring = ring;
+        centroid_ir.intensity = polar_grid[polar][ring].averageIntensity();
         sumarized->polar_grid[polar][ring].push_back(centroid_ir);
       }
     }

@@ -246,6 +246,18 @@ vector<float> VelodynePointCloud::getMaxOfRingRanges() const {
   return almost_maximums;
 }
 
+float VelodynePointCloud::averageIntensity() const {
+  float avg = 0.0;
+  int count = 0;
+  for(const_iterator p = begin(); p < end(); p++) {
+    float intensity = p->intensity;
+    if(!isnan(intensity) && !isinf(intensity)) {
+      avg += intensity;
+      count++;
+    }
+  }
+  return (count > 0) ? (avg/count) : 0;
+}
 
 }
 

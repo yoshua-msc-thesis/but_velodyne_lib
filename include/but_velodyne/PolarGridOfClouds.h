@@ -99,6 +99,10 @@ public:
     return polar_grid[cellId.polar][cellId.ring];
   }
 
+  VelodynePointCloud& at(const CellId &cellId) {
+    return polar_grid[cellId.polar][cellId.ring];
+  }
+
   /**!
    * Transforms the positions of points in the grid structure. Distribution of points
    * into the polar bins remains the same since only rigid transformation is assumed.
