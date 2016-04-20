@@ -104,6 +104,9 @@ target_link_libraries(sac-visual-registration but_velodyne)
 add_executable(move-detection src/apps/move-detection.cpp)
 target_link_libraries(move-detection but_velodyne)
 
+add_executable(ground-det-labeling src/apps/ground-det-labeling.cpp)
+target_link_libraries(ground-det-labeling but_velodyne)
+
 ########################## Installation: #####################################
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/but_velodyne-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/but_velodyne-config.cmake" IMMEDIATE @ONLY)

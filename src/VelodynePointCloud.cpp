@@ -39,6 +39,36 @@ using namespace cv;
 
 namespace but_velodyne {
 
+PointXYZIR operator +(const PointXYZIR &p1, const PointXYZIR &p2) {
+  PointXYZIR res;
+  res.x = p1.x + p2.x;
+  res.y = p1.y + p2.y;
+  res.z = p1.z + p2.z;
+  res.intensity = p1.intensity + p2.intensity;
+  return res;
+}
+
+PointXYZIR operator *(const PointXYZIR &p1, float s) {
+  PointXYZIR res;
+  res.x = p1.x * s;
+  res.y = p1.y * s;
+  res.z = p1.z * s;
+  res.intensity = p1.intensity * s;
+  return res;
+}
+
+PointXYZIR operator *(float s, const PointXYZIR &p1) {
+  return p1*s;
+}
+
+PointXYZIR operator -(const PointXYZIR &p1, const PointXYZIR &p2) {
+  return p1 + (p2 * (-1));
+}
+
+PointXYZIR operator /(const PointXYZIR &p1, float s) {
+  return p1 * (1/s);
+}
+
 void VelodynePointCloud::normalizeIntensity(float min_intensity, float max_intensity)
 {
   float min = 0.0;

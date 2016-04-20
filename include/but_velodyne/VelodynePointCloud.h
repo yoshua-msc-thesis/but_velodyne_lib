@@ -98,6 +98,21 @@ bool projectPoint(const velodyne_pointcloud::PointXYZIR &pt,
                   const cv::Rect &plane,
                   cv::Point2f &projected_pt);
 
+velodyne_pointcloud::PointXYZIR operator +(const velodyne_pointcloud::PointXYZIR &p1,
+                                           const velodyne_pointcloud::PointXYZIR &p2);
+
+velodyne_pointcloud::PointXYZIR operator *(const velodyne_pointcloud::PointXYZIR &p1,
+                                           float s);
+
+velodyne_pointcloud::PointXYZIR operator *(float s,
+                                           const velodyne_pointcloud::PointXYZIR &p1);
+
+velodyne_pointcloud::PointXYZIR operator -(const velodyne_pointcloud::PointXYZIR &p1,
+                                           const velodyne_pointcloud::PointXYZIR &p2);
+
+velodyne_pointcloud::PointXYZIR operator /(const velodyne_pointcloud::PointXYZIR &p1,
+                                           float s);
+
 /**!
  * Representation of the Velodyne LiDAR point cloud. The axis are arranged in following manner:
  *
