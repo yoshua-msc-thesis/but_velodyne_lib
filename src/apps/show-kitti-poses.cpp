@@ -51,7 +51,7 @@ void toColor(uchar i, uchar &r, uchar &g, uchar &b) {
   }
 }
 
-void addVelodynePcl(Visualizer3D &vis, const VelodynePointCloud &cloud, const Eigen::Affine3f &pose) {
+void addVelodynePcl(Visualizer3D &vis, const VelodynePointCloud &cloud) {
   PointCloud<PointXYZRGB>::Ptr rgb_cloud(new PointCloud<PointXYZRGB>());
 
   float min = cloud.getMinValuePt().intensity;
@@ -71,7 +71,7 @@ void addVelodynePcl(Visualizer3D &vis, const VelodynePointCloud &cloud, const Ei
     rgb_cloud->push_back(rgb_pt);
   }
 
-  vis.addColorPointCloud(rgb_cloud, pose.matrix());
+  vis.addColorPointCloud(rgb_cloud);
 }
 
 
@@ -86,6 +86,7 @@ int main(int argc, char** argv)
 
   Visualizer3D visualizer;
   VelodynePointCloud cloud;
+  VelodynePointCloud sum_cloud;
 
   PointXYZ senzor(0,0,0);
   for(int i = 0; i < argc-2; i++) {
@@ -98,9 +99,12 @@ int main(int argc, char** argv)
       VelodynePointCloud::fromKitti(kitti_scan, cloud);
     }
 
-    addVelodynePcl(visualizer, cloud, poses[i]);
+    transformPointCloud(cloud, cloud, poses[i]);
+    sum_cloud += cloud;
+    visualizer.keepOnlyClouds(0);
+    addVelodynePcl(visualizer, sum_cloud);
+    visualizer.show();
   }
-  visualizer.show();
 
   return EXIT_SUCCESS;
 }
