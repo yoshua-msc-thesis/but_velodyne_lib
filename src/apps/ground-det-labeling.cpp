@@ -487,11 +487,11 @@ public:
             case X:
               output.at<float>(r, c) = pt.x; break;
             case Y:
-              output.at<float>(r, c) = pt.y; break;
+              output.at<float>(r, c) = pt.y / 3; break;
             case Z:
               output.at<float>(r, c) = pt.z; break;
             case RANGE:
-              output.at<float>(r, c) = sqrt(pt.x*pt.x + pt.z*pt.z); break;
+              output.at<float>(r, c) = log10(pt.x*pt.x + pt.z*pt.z) / 2; break;	// log(sqrt(x^2 + z^2)) = 1/2 * log(x^2 + z^2)
             case INTENSITY:
               output.at<float>(r, c) = pt.intensity; break;
           }
@@ -630,15 +630,18 @@ int main(int argc, char** argv) {
                                                 boost::filesystem::path(*filename).stem().string(),
                                                 ground_params);
     map<string, Mat> data;
-    data["x"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::X);
+//    data["x"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::X);
     data["y"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Y);
-    data["z"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Z);
+//    data["z"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Z);
     data["range"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::RANGE);
     data["intensity"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::INTENSITY);
     data_generator.getGroundLabels(joined_prob, data["ground_prob"], data["ground_labels"]);
 
     for(map<string, Mat>::iterator m = data.begin(); m != data.end(); m++) {
-      data_generator.saveData(m->second, m->first);
+        data_generator.saveData(m->second, m->first);
+		/* if(m->first != "ground_labels" && m->first != "ground_prob") {
+			printHistogram(m->second, m->first);
+		}*/
     }
   }
   return EXIT_SUCCESS;
