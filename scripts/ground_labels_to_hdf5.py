@@ -14,21 +14,21 @@ if len(sys.argv) < 3:
 
 output_file = h5py.File(sys.argv[-1], 'w')
 data_files = sys.argv[1:-1]
-output_file.create_dataset('data', (len(data_files), 64, 360, 3), dtype='f8')
-output_file.create_dataset('label', (len(data_files), 64, 360, 1), dtype='f4')
+output_file.create_dataset('data', (len(data_files), 3, 64, 360), dtype='f8')
+output_file.create_dataset('labels', (len(data_files), 64, 360), dtype='f4')
 
 i = 0
 for data_file in data_files:
-    data = numpy.empty([64, 360, 3])
-    labels = numpy.empty([64, 360, 1])
+    data = numpy.empty([3, 64, 360])
+    labels = numpy.empty([64, 360])
     
-    data[..., 0] = load_from_yaml(data_file, 'range')
-    data[..., 1] = load_from_yaml(data_file, 'y')
-    data[..., 2] = load_from_yaml(data_file, 'intensity')
-    labels[..., 0] = load_from_yaml(data_file, 'ground_labels')
+    data[0] = load_from_yaml(data_file, 'range')
+    data[1] = load_from_yaml(data_file, 'y')
+    data[2] = load_from_yaml(data_file, 'intensity')
+    labels = load_from_yaml(data_file, 'ground_labels')
     
     output_file['data'][i] = data
-    output_file['label'][i] = labels
+    output_file['labels'][i] = labels
     i += 1
 
 output_file.close()
