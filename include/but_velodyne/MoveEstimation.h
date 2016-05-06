@@ -25,6 +25,7 @@
 #define MOVEESTIMATION_H_
 
 #include <cv.h>
+#include <opencv2/video/tracking.hpp>
 
 #include <pcl/common/eigen.h>
 #include <boost/circular_buffer.hpp>

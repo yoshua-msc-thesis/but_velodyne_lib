@@ -336,7 +336,7 @@ public:
    * @return *this instance with visual loops added for visualization
    */
   Visualizer3D& addPosesLoops(const vector<Eigen::Affine3f> &poses,
-                              cv::vector<cv::DMatch> matches = cv::vector<cv::DMatch>());
+                              std::vector<cv::DMatch> matches = std::vector<cv::DMatch>());
 
   /**!
    * Shows the interactive visualization of the all elements added.

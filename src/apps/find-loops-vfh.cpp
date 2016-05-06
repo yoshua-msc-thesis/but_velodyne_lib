@@ -32,6 +32,7 @@
 #include <but_velodyne/KittiUtils.h>
 
 #include <cv.h>
+#include <opencv2/imgproc.hpp>
 
 #include <pcl/common/distances.h>
 #include <pcl/common/eigen.h>

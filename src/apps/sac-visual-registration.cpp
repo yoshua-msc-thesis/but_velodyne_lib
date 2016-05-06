@@ -28,7 +28,10 @@
 #include <velodyne_pointcloud/point_types.h>
 
 #include <opencv/cv.h>
-#include <opencv/highgui.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/xfeatures2d.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/io/pcd_io.h>
@@ -48,6 +51,7 @@ using namespace std;
 using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace cv;
+using namespace cv::xfeatures2d;
 using namespace but_velodyne;
 
 // obtained via manual-calibration application (considered static camera-Velodyne setup)
@@ -57,18 +61,14 @@ std::vector<Correspondence2D> findImageCorrespondences(
     const cv::Mat &source_image,
     const cv::Mat &target_image)
 {
-  using namespace cv;
-  using namespace std;
-
-  ORB feat_detector;
+  Ptr<SURF> feat_detector_extractor = SURF::create();
   vector<KeyPoint> source_keypoints, target_keypoints;
-  feat_detector.detect(source_image, source_keypoints);
-  feat_detector.detect(target_image, target_keypoints);
+  feat_detector_extractor->detect(source_image, source_keypoints);
+  feat_detector_extractor->detect(target_image, target_keypoints);
 
-  Ptr<DescriptorExtractor> feat_extractor = DescriptorExtractor::create("ORB");
   Mat source_descriptors, target_descriptors;
-  feat_extractor->compute(source_image, source_keypoints, source_descriptors);
-  feat_extractor->compute(target_image, target_keypoints, target_descriptors);
+  feat_detector_extractor->compute(source_image, source_keypoints, source_descriptors);
+  feat_detector_extractor->compute(target_image, target_keypoints, target_descriptors);
 
   BFMatcher matcher;
   vector<DMatch> matches;

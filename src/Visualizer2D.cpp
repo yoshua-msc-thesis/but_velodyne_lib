@@ -26,7 +26,8 @@
 #include <pcl/visualization/cloud_viewer.h>
 
 #include <cv.h>
-#include <highgui.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <but_velodyne/Visualizer2D.h>
 

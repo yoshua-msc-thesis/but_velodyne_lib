@@ -42,8 +42,10 @@
 
 #include <boost/program_options.hpp>
 #include <boost/math/distributions/normal.hpp>
+
 #include <cv.h>
-#include <highgui.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/EigenUtils.h>
