@@ -55,7 +55,7 @@ add_library(but_velodyne SHARED src/CollarLinesRegistration.cpp src/CollarLinesR
 src/ImageLine.cpp src/KeypointsCorrespondenceProjector.cpp src/LineCloud.cpp src/MoveEstimation.cpp
 src/PointCloudLine.cpp src/PolarGridOfClouds.cpp src/PoseGraphEdge.cpp src/Termination.cpp
 src/VelodynePointCloud.cpp src/Visualizer2D.cpp src/Visualizer3D.cpp
-src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp)
+src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp src/GroundDetectionDataGenerator.cpp)
 target_include_directories(but_velodyne PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(but_velodyne ${PCL_LIBRARIES})
 target_link_libraries(but_velodyne ${OpenCV_LIBS})
@@ -106,6 +106,12 @@ target_link_libraries(move-detection but_velodyne)
 
 add_executable(ground-det-labeling src/apps/ground-det-labeling.cpp)
 target_link_libraries(ground-det-labeling but_velodyne)
+
+add_executable(ground-det-cnn src/apps/ground-det-cnn.cpp)
+target_link_libraries(ground-det-cnn but_velodyne)
+
+add_executable(ground-by-median src/apps/ground-by-median.cpp)
+target_link_libraries(ground-by-median but_velodyne)
 
 ########################## Installation: #####################################
 
