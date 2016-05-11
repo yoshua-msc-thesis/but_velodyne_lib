@@ -27,6 +27,7 @@
 #include <fstream>
 
 #include <pcl/point_cloud.h>
+#include <pcl/io/pcd_io.h>
 #include <velodyne_pointcloud/point_types.h>
 
 #include <cv.h>
@@ -241,6 +242,15 @@ public:
     out_cloud.setImageLikeAxisFromKitti();
 
     std::cerr << "Read KTTI point cloud " << infile << " with " << i << " points." << std::endl;
+  }
+
+  static void fromFile(const std::string &infile, VelodynePointCloud &out_cloud) {
+    std::cerr << "Processing KITTI file: " << infile << std::endl << std::flush;
+    if (infile.find(".pcd") != std::string::npos) {
+      pcl::io::loadPCDFile(infile, out_cloud);
+    } else {
+      VelodynePointCloud::fromKitti(infile, out_cloud);
+    }
   }
 
   std::vector<float> getMaxOfRingRanges() const;

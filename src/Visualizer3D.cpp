@@ -43,7 +43,8 @@ Visualizer3D::Visualizer3D() :
     rng(cv::theRNG()),
     viewer(new pcl::visualization::PCLVisualizer("3D Viewer")),
     identifier(0),
-    color_index(0)
+    color_index(0),
+    point_size(2)
 {
   viewer->setBackgroundColor(1.0, 1.0, 1.0);
   viewer->addCoordinateSystem(0.5);
@@ -67,7 +68,7 @@ Visualizer3D& Visualizer3D::addColorPointCloud(
   std::string id = getId("cloud");
   viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb_vis, id);
   viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE,
-                                           2, id);
+					   point_size, id);
   return *this;
 }
 
@@ -105,9 +106,9 @@ Visualizer3D& Visualizer3D::addLine(const PointCloudLine &line,
   viewer->addLine(line.getBeginPoint(), line.getEndPoint(),
                   r, g, b, getId("line"));
   PointXYZ text_pos(line.getBeginPoint().x, line.getBeginPoint().y - 0.2, line.getBeginPoint().z);
-  stringstream ss;
+  /*stringstream ss;
   ss << line.horizontalRangeDiff();
-  viewer->addText3D(ss.str(), text_pos, 0.1, 1.0, 0.0, 1.0, getId("text"));
+  viewer->addText3D(ss.str(), text_pos, 0.1, 1.0, 0.0, 1.0, getId("text"));*/
   return *this;
 }
 

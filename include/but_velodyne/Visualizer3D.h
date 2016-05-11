@@ -404,6 +404,14 @@ public:
 
   Visualizer3D& addRingColoredCloud(const VelodynePointCloud &cloud);
 
+  int getPointSize () const {
+    return point_size;
+  }
+
+  void setPointSize (int pointSize) {
+    point_size = pointSize;
+  }
+
 protected:
   std::string getId(const string &what);
 
@@ -418,6 +426,7 @@ protected:
   boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
   int identifier;
   vector<string> all_identifiers;
+  int point_size;
 
   static boost::shared_ptr<Visualizer3D> commonVisualizer;
 };

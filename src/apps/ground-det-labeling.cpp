@@ -28,7 +28,6 @@
 #include <libgen.h>
 
 #include <pcl/common/eigen.h>
-#include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/common/centroid.h>
 #include <pcl/filters/extract_indices.h>
@@ -387,12 +386,7 @@ int main(int argc, char** argv) {
 
   for(vector<string>::iterator filename = clouds_to_process.begin(); filename < clouds_to_process.end(); filename++) {
     VelodynePointCloud new_cloud;
-    log << "Processing KITTI file: " << *filename << endl << flush;
-    if (filename->find(".pcd") != string::npos) {
-      io::loadPCDFile(*filename, new_cloud);
-    } else {
-      VelodynePointCloud::fromKitti(*filename, new_cloud);
-    }
+    VelodynePointCloud::fromFile(*filename, new_cloud);
 
     vector<float> prob_from_rings = groundSegmentationByRings(new_cloud);
     GroundProbabilityByDevInCell height_deviation_estimator;

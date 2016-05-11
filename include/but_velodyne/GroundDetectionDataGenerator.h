@@ -105,14 +105,18 @@ public:
   } InputDataTypes;
 
   GroundDetectionDataGenerator(const VelodynePointCloud &cloud,
-                               const string &file_basename_,
-                               Parameters params_);
+                               const string &file_basename_ = "",
+                               Parameters params_ = Parameters());
 
   Mat getMatrixOf(const InputDataTypes &type);
 
   void getGroundLabels(const vector<float> &probabilities, Mat &out_probabilities, Mat &out_labels);
 
   void saveData(const Mat &matrix, const string &data_name);
+
+  const vector<CellId> &getIndices () const {
+    return indices;
+  }
 
 protected:
 
