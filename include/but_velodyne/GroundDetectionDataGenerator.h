@@ -112,22 +112,42 @@ public:
 
   void getGroundLabels(const vector<float> &probabilities, Mat &out_probabilities, Mat &out_labels);
 
+  void getGroundLabelsFromAnn(const vector<int> &annotations, Mat &out_labels);
+
   void saveData(const Mat &matrix, const string &data_name);
 
   const vector<CellId> &getIndices () const {
     return indices;
   }
 
+  const Mat& getOccupancy () const {
+    return occupancy;
+  }
+
 protected:
 
-  void fillMissing(Mat &data);
+  template <typename T>
+  void fillMissing(Mat &data) {
+    for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
+      FillingFM<T> fill_fm;
+      for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+        fill_fm.next(occupancy.at<uchar>(r, c) != 0, data.at<T>(r, c));
+        typename FillingFM<T>::FillData fill_data;
+        if(fill_fm.getFillData(fill_data)) {
+	  T delta = (fill_data.last_value - fill_data.first_value) / (fill_data.last_index - fill_data.first_index + 1);
+	  for(int i = 0; i <= (fill_data.last_index - fill_data.first_index); i++) {
+	    data.at<T>(fill_data.first_index + i, c) = delta*i + fill_data.first_value;
+	  }
+        }
+      }
+    }
+  }
 
   void fillMissing(PolarGridOfClouds &summarized_data);
 
   bool isValid(PointXYZIR pt);
 
   void summarizeProbabilities(const vector<float> &probabilities,
-                              const vector<CellId> &indices,
                               Mat &out_matrix);
 
   void prob_to_labels(const Mat &matrix_probabilities,

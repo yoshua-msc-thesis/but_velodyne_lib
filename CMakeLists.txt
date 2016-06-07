@@ -107,6 +107,9 @@ target_link_libraries(move-detection but_velodyne)
 add_executable(ground-det-labeling src/apps/ground-det-labeling.cpp)
 target_link_libraries(ground-det-labeling but_velodyne)
 
+add_executable(ground-det-kitti-ann src/apps/ground-det-kitti-ann.cpp)
+target_link_libraries(ground-det-kitti-ann but_velodyne)
+
 add_executable(ground-det-cnn src/apps/ground-det-cnn.cpp)
 target_link_libraries(ground-det-cnn but_velodyne)
 
