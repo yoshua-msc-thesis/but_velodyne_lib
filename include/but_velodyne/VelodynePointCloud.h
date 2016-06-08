@@ -50,6 +50,13 @@ inline float compute2DRange(const velodyne_pointcloud::PointXYZIR &pt)
   return sqrt(pt.x * pt.x + pt.z * pt.z);
 }
 
+template <typename T1, typename T2>
+void copyXYZ(const T1 &p1, T2 &p2) {
+  p2.x = p1.x;
+  p2.y = p1.y;
+  p2.z = p1.z;
+}
+
 /**!
  * Conversion from PCL point to Eigen::Vector3f
  *
@@ -257,8 +264,10 @@ public:
 
   float averageIntensity() const;
 
+  void getRings(std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > &rings,
+		std::vector< std::vector<int> > &indices) const;
+
 protected:
-  std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > getRings() const;
   VelodynePointCloud discartWeakPoints(float threshold);
 
 public:

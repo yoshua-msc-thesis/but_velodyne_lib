@@ -112,7 +112,9 @@ VelodynePointCloud VelodynePointCloud::resampleByRatio(float preserve_ratio) {
 
 VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
 {
-  vector< vector<PointXYZIR> > rings = getRings();
+  vector< vector<PointXYZIR> > rings;
+  vector< vector<int> > indices;
+  getRings(rings, indices);
   VelodynePointCloud edge_cloud;
 
   float max_difference = 0;
@@ -146,17 +148,22 @@ VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
   return edge_cloud;
 }
 
-vector< vector<PointXYZIR> > VelodynePointCloud::getRings() const
+void VelodynePointCloud::getRings(vector< vector<PointXYZIR> > &rings,
+				  vector< vector<int> > &indices) const
 {
-  vector< vector<PointXYZIR> > rings(VELODYNE_RINGS_COUNT);
+  rings.clear();
+  rings.resize(VELODYNE_RINGS_COUNT);
+  indices.clear();
+  indices.resize(VELODYNE_RINGS_COUNT);
+  int id = 0;
   for (PointCloud<PointXYZIR>::const_iterator pt = this->begin();
       pt < this->end();
-      pt++)
+      pt++, id++)
   {
     assert(pt->ring < VELODYNE_RINGS_COUNT);
     rings[pt->ring].push_back(*pt);
+    indices[pt->ring].push_back(id);
   }
-  return rings;
 }
 
 PointXYZIR VelodynePointCloud::getMinValuePt() const {
