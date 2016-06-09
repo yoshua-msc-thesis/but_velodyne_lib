@@ -39,12 +39,6 @@
 #include <but_velodyne/EigenUtils.h>
 #include <functional>
 
-
-#include <QVTKWidget.h>
-#include <qt4/QtCore/QObject>
-#include <qt4/QtGui/QtGui>
-#include <vtkRenderWindow.h>
-
 using namespace but_velodyne;
 using namespace pcl;
 using namespace std;
