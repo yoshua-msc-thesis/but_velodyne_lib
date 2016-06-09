@@ -196,6 +196,21 @@ public:
    */
   float distanceTo(const PointCloudLine &other, DISTANCE distance_type) const;
 
+  /**
+   * Distance of this line to the other 3D point x0
+   *
+   * |(x0-x1) x (x0-x2)|
+   * -------------------
+   *       |x2-x1|
+   */
+  template <typename PointType>
+  float distanceTo(const PointType &other_pt) const {
+    Eigen::Vector3f x1 = point;
+    Eigen::Vector3f x2 = point+orientation;
+    Eigen::Vector3f x0(other_pt.x, other_pt.y, other_pt.z);
+    return ((x0-x1).cross(x0-x2)).norm() / (x2-x1).norm();
+  }
+
   /**!
    * @return middle point of this line segment
    */

@@ -267,6 +267,8 @@ public:
   void getRings(std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > &rings,
 		std::vector< std::vector<int> > &indices) const;
 
+  std::vector<int> removeNanPoints();
+
 protected:
   VelodynePointCloud discartWeakPoints(float threshold);
 

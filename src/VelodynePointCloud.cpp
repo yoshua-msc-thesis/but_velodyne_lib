@@ -30,6 +30,8 @@
 #include <cv.h>
 #include <pcl/common/eigen.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/filter.h>
+
 #include <velodyne_pointcloud/point_types.h>
 
 using namespace pcl;
@@ -294,6 +296,17 @@ float VelodynePointCloud::averageIntensity() const {
     }
   }
   return (count > 0) ? (avg/count) : 0;
+}
+
+std::vector<int> VelodynePointCloud::removeNanPoints() {
+  vector<int> filtered_indices;
+  PointCloud<PointXYZ> dummy_filtered_out;
+  removeNaNFromPointCloud(*this->getXYZCloudPtr(), dummy_filtered_out, filtered_indices);
+  for(int i = 0; i < filtered_indices.size(); i++) {
+    this->at(i) = this->at(filtered_indices[i]);
+  }
+  this->resize(filtered_indices.size());
+  return filtered_indices;
 }
 
 }

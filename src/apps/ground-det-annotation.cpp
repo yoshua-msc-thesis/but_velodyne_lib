@@ -32,11 +32,18 @@
 #include <pcl/point_types.h>
 #include <pcl/common/centroid.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/Visualizer3D.h>
 #include <but_velodyne/EigenUtils.h>
 #include <functional>
+
+
+#include <QVTKWidget.h>
+#include <qt4/QtCore/QObject>
+#include <qt4/QtGui/QtGui>
+#include <vtkRenderWindow.h>
 
 using namespace but_velodyne;
 using namespace pcl;
@@ -49,9 +56,20 @@ class Interaction {
 public:
   class FillProperties {
   public:
-    float max_neighbour_height_diff = 0.02;
-    float max_neighbour_dist = 0.05;
-    float max_total_height_diff = 0.05;
+    FillProperties(
+	float max_neighbour_height_diff_ = 0.05,
+	float max_neighbour_dist_ = 0.1,
+	float max_total_height_diff_ = 0.1,
+	float max_dist_to_line_ = 0.1) :
+	  max_neighbour_height_diff(max_neighbour_height_diff_),
+	  max_neighbour_dist(max_neighbour_dist_),
+	  max_total_height_diff(max_total_height_diff_),
+	  max_dist_to_line(max_dist_to_line_) {
+    }
+    float max_neighbour_height_diff;
+    float max_neighbour_dist;
+    float max_total_height_diff;
+    float max_dist_to_line;
   } properties;
 
   Interaction(const VelodynePointCloud &_cloud) :
@@ -59,6 +77,7 @@ public:
     annotation(cloud.size(), 0),
     first_point_id(-1) {
     cloud.getRings(rings, ring_indices);
+    kdtree.setInputCloud(cloud.getXYZCloudPtr());
   }
 
   void run() {
@@ -74,13 +93,16 @@ public:
     }
   }
 
-  void pointPicked(PointXYZ pt, int id) {
+  void pointPicked(PointXYZ pt) {
     std::cerr << "Clicked point " << pt << std::endl;
+    vector<int> indices;
+    vector<float> distances;
+    kdtree.nearestKSearch(pt, 1, indices, distances);
 
     if(first_point_id < 0) {
-      first_point_id = id;
+      first_point_id = indices.front();
     } else {
-      fillRings(first_point_id, id);
+      fillRings(first_point_id, indices.front());
       first_point_id = -1;
       showAnnotation();
     }
@@ -95,13 +117,62 @@ protected:
     PointCloudLine lsegment(source, target);
     visualizer.addLine(lsegment, 1.0, 0, 0);
 
-    vector<int> closests_pts = getClosestPts(lsegment, source.ring, target.ring);
-    // TODO
+    int from_ring = MIN(source.ring, target.ring);
+    int to_ring = MAX(source.ring, target.ring);
+    vector<int> closests_pts = getClosestPts(lsegment, from_ring, to_ring);
+    for(int r = from_ring; r <= to_ring; r++) {
+      volatile int closest_index = closests_pts[r-from_ring];
+      vector<PointXYZIR> &ring = rings[r];
+      vector<int> &ring_ids = ring_indices[r];
+      if(closest_index >= 0) {
+	for(int i = closest_index-1; i >= 0; i--) {
+	  if(!checkAndFillNext(r, i, i+1, closest_index)) {
+	    break;
+	  }
+	}
+	for(int i = closest_index+1; i < ring.size(); i++) {
+	  if(!checkAndFillNext(r, i, i-1, closest_index)) {
+	    break;
+	  }
+	}
+      }
+    }
   }
 
-  vector<int> getClosestPts(const PointCloudLine &line, int source_ring, int target_ring) {
+  bool checkAndFillNext(int ring, int pt_id, int prev_id, int seed_id) {
+    PointXYZIR pt = rings[ring][pt_id];
+    PointXYZIR prev = rings[ring][prev_id];
+    PointXYZIR seed = rings[ring][seed_id];
+    if(pt.y-prev.y < properties.max_neighbour_height_diff &&
+	pt.y - seed.y < properties.max_total_height_diff &&
+	computeRange(pt - prev) < properties.max_neighbour_dist) {
+      annotation[ring_indices[ring][pt_id]] = 1;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  vector<int> getClosestPts(const PointCloudLine &line, int from_ring, int to_ring) {
     vector<int> closest_points;
-    // TODO
+    for(int r = from_ring; r <= to_ring; r++) {
+      vector<PointXYZIR> &ring = rings[r];
+      int min_id = -1;
+      float min_dist = INFINITY;
+      for(int i = 0; i < ring.size(); i++) {
+	float dist = line.distanceTo(ring[i]);
+	if(dist < min_dist) {
+	  min_dist = dist;
+	  min_id = i;
+	}
+      }
+      if(min_dist < properties.max_dist_to_line) {
+	closest_points.push_back(min_id);
+      } else {
+	closest_points.push_back(-1);
+      }
+    }
+    return closest_points;
   }
 
   void colorByAnnotation(PointCloud<PointXYZRGB>::Ptr cloud_colored) {
@@ -133,6 +204,7 @@ private:
   vector< vector<int> > ring_indices;
   vector<int> annotation;
   int first_point_id;
+  pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
 };
 
 void pointPickedCallback(const pcl::visualization::PointPickingEvent &event, void* cookie) {
@@ -140,9 +212,8 @@ void pointPickedCallback(const pcl::visualization::PointPickingEvent &event, voi
 
   float x, y, z;
   event.getPoint(x, y, z);
-  int id = event.getPointIndex();
 
-  interaction->pointPicked(PointXYZ(x, y, z), id);
+  interaction->pointPicked(PointXYZ(x, y, z));
 }
 
 int main(int argc, char *argv[]) {
