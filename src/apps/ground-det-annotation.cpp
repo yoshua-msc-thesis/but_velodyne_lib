@@ -70,7 +70,8 @@ public:
     cloud(_cloud),
     annotation(cloud.size(), 0),
     first_point_id(-1) {
-    cloud.getRings(rings, ring_indices);
+    vector<int> indices_to_rings;
+    cloud.getRings(rings, ring_indices, indices_to_rings);
     kdtree.setInputCloud(cloud.getXYZCloudPtr());
   }
 

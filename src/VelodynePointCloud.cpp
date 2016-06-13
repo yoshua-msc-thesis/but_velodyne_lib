@@ -116,7 +116,8 @@ VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
 {
   vector< vector<PointXYZIR> > rings;
   vector< vector<int> > indices;
-  getRings(rings, indices);
+  vector<int> indices_to_rings;
+  getRings(rings, indices, indices_to_rings);
   VelodynePointCloud edge_cloud;
 
   float max_difference = 0;
@@ -151,12 +152,13 @@ VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
 }
 
 void VelodynePointCloud::getRings(vector< vector<PointXYZIR> > &rings,
-				  vector< vector<int> > &indices) const
+				  vector< vector<int> > &to_cloud_indices,
+				  vector<int> &to_ring_indices) const
 {
   rings.clear();
   rings.resize(VELODYNE_RINGS_COUNT);
-  indices.clear();
-  indices.resize(VELODYNE_RINGS_COUNT);
+  to_cloud_indices.clear();
+  to_cloud_indices.resize(VELODYNE_RINGS_COUNT);
   int id = 0;
   for (PointCloud<PointXYZIR>::const_iterator pt = this->begin();
       pt < this->end();
@@ -164,7 +166,9 @@ void VelodynePointCloud::getRings(vector< vector<PointXYZIR> > &rings,
   {
     assert(pt->ring < VELODYNE_RINGS_COUNT);
     rings[pt->ring].push_back(*pt);
-    indices[pt->ring].push_back(id);
+    to_cloud_indices[pt->ring].push_back(id);
+    to_ring_indices.push_back((rings[pt->ring].size()-1)*VELODYNE_RINGS_COUNT +
+			      pt->ring);
   }
 }
 

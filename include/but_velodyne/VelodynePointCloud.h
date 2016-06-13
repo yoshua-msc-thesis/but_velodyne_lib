@@ -265,7 +265,8 @@ public:
   float averageIntensity() const;
 
   void getRings(std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > &rings,
-		std::vector< std::vector<int> > &indices) const;
+		std::vector< std::vector<int> > &to_cloud_indices,
+		std::vector<int> &to_ring_indices) const;
 
   std::vector<int> removeNanPoints();
 
