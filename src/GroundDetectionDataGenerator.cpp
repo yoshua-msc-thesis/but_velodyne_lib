@@ -107,6 +107,26 @@ void GroundDetectionDataGenerator::getGroundLabelsFromAnn(const vector<int> &ann
   fillMissing<uchar>(out_labels);
 }
 
+void GroundDetectionDataGenerator::getGroundLabelsFromBinaryAnn(const vector<int> &annotations, Mat &out_labels) {
+  out_labels = Mat::zeros(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_8UC1);
+  vector<int> counters(VelodyneSpecification::RINGS*PolarGridOfClouds::getPolarBins(), 0);
+  for(int i = 0; i < annotations.size() && i < indices.size(); i++) {
+    int ring = indices[i].ring;
+    int polar = indices[i].polar;
+    if(annotations[i] == 0) {
+      counters[ring*PolarGridOfClouds::getPolarBins() + polar]--;
+    } else {
+      counters[ring*PolarGridOfClouds::getPolarBins() + polar]++;
+    }
+  }
+  for(int r = 0; r < out_labels.rows; r++) {
+    for(int c = 0; c < out_labels.cols; c++) {
+      out_labels.at<uchar>(r, c) = (counters[r*PolarGridOfClouds::getPolarBins() + c] >= 0) ? 1 : 0;
+    }
+  }
+  fillMissing<uchar>(out_labels);
+}
+
 void GroundDetectionDataGenerator::saveData(const Mat &matrix, const string &data_name) {
   storage << data_name << matrix;
   Mat equalized;

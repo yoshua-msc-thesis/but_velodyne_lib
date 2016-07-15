@@ -56,6 +56,10 @@ using namespace but_velodyne;
 void read_lables(const string ann_filename,
 		 vector<int> &ann_labels) {
   ifstream ann_file(ann_filename.c_str());
+  if(!ann_file.is_open()) {
+    perror(ann_filename.c_str());
+    exit(1);
+  }
   int label;
   int labels_read = 0;
   while(ann_file >> label) {
@@ -71,11 +75,8 @@ PointCloud<PointXYZRGB>::Ptr color_by_labels(const VelodynePointCloud &cloud,
   for(int i = 0; i < cloud.size(); i++) {
     PointXYZRGB pt_color;
     switch(ann_labels[i]) {
-      case 3:
-      case 5:
+      case 1:
 	pt_color.r = 255; pt_color.g = pt_color.b = 0; break;
-      case 4:
-	pt_color.g = 255; pt_color.r = pt_color.b = 0; break;
       default:
 	pt_color.b = 255; pt_color.r = pt_color.g = 0;
     }
@@ -111,7 +112,7 @@ int main(int argc, char** argv) {
   data["y"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Y);
   data["range"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::RANGE);
   data["intensity"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::INTENSITY);
-  data_generator.getGroundLabelsFromAnn(ann_labels, data["ground_labels"]);
+  data_generator.getGroundLabelsFromBinaryAnn(ann_labels, data["ground_labels"]);
 
   FileStorage storage(out_yaml_file, FileStorage::WRITE);
   for(map<string, Mat>::iterator m = data.begin(); m != data.end(); m++) {

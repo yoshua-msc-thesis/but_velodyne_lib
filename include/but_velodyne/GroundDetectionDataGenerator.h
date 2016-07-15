@@ -114,6 +114,8 @@ public:
 
   void getGroundLabelsFromAnn(const vector<int> &annotations, Mat &out_labels);
 
+  void getGroundLabelsFromBinaryAnn(const vector<int> &annotations, Mat &out_labels);
+
   void saveData(const Mat &matrix, const string &data_name);
 
   const vector<CellId> &getIndices () const {
