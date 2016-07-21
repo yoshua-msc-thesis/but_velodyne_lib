@@ -32,4 +32,7 @@ for data_file in data_files:
     output_file['labels'][i] = labels
     i += 1
 
+    if i%1000 == 0:
+        print i, "/", len(data_files)
+
 output_file.close()

@@ -21,17 +21,23 @@ namespace po = boost::program_options;
 
 bool parse_arguments(int argc, char **argv,
                      string &proto_file, string &model_file,
+		     bool &visualize, ofstream &out_file,
                      vector<string> &files_to_process) {
+  string out_filename;
   po::options_description desc("Ground detection by pretrained CNN.\n"
       "======================================\n"
 //      " * Reference(s): Velas et al, ???? 201?\n"
       " * Allowed options");
   desc.add_options()
       ("help,h", "produce help message")
-      ("prototxt", po::value<string>(&proto_file)->required(),
+      ("prototxt,p", po::value<string>(&proto_file)->required(),
           "File of net prototype")
-      ("caffemodel", po::value<string>(&model_file)->required(),
+      ("caffemodel,m", po::value<string>(&model_file)->required(),
           "Pretrained caffe model")
+      ("visualize,v", po::bool_switch(&visualize),
+	  "Run visualization")
+      ("output,o", po::value<string>(&out_filename)->default_value(""),
+	  "Output file of ground probabilities")
   ;
 
   po::variables_map vm;
@@ -54,13 +60,23 @@ bool parse_arguments(int argc, char **argv,
     return false;
   }
 
+  if(!out_filename.empty()) {
+    out_file.open(out_filename.c_str());
+    if(!out_file.is_open()) {
+      perror(out_filename.c_str());
+      return false;
+    }
+  }
+
   return true;
 }
 
 int main (int argc, char **argv) {
   vector<string> files_to_process;
   string modelTxt, modelBin;
-  if(!parse_arguments(argc, argv, modelTxt, modelBin, files_to_process)) {
+  bool visualization;
+  ofstream out_file;
+  if(!parse_arguments(argc, argv, modelTxt, modelBin, visualization, out_file, files_to_process)) {
     return EXIT_FAILURE;
   }
 
@@ -81,7 +97,11 @@ int main (int argc, char **argv) {
   importer->populateNet (net);
   importer.release ();                     //We don't need importer anymore
 
-  Visualizer3D visualizer;
+  boost::shared_ptr<Visualizer3D> visualizer;
+  if(visualization) {
+    visualizer.reset(new Visualizer3D);
+  }
+
   for(vector<string>::iterator featFile = files_to_process.begin(); featFile < files_to_process.end(); featFile++) {
     VelodynePointCloud cloud;
     VelodynePointCloud::fromFile(*featFile, cloud);
@@ -107,20 +127,33 @@ int main (int argc, char **argv) {
 
     Mat probGround = (ones + probIsGround - probNotGround) * 0.5;
 
+    if(visualization) {
+      Mat probGroundEqualized;
+      normalize(probNotGround, probGroundEqualized, 0, 255, NORM_MINMAX);
+      imshow("Ground labels", probGroundEqualized);
+      waitKey(100);
+    }
+
     const vector<CellId> &indicies = data_generator.getIndices();
     PointCloud<PointXYZRGB>::Ptr colored_cloud(new PointCloud<PointXYZRGB>);
     for(int i = 0; i < cloud.size(); i++) {
       uchar r, g, b;
       CellId index = indicies[i];
-      Visualizer3D::colorizeIntensity(probGround.at<float>(index.ring, index.polar), r, g, b);
+      float prob = probGround.at<float>(index.ring, index.polar);
+      Visualizer3D::colorizeIntensity(prob, r, g, b);
       PointXYZIR pt = cloud[i];
       PointXYZRGB colored_pt(r, g, b);
       colored_pt.x = pt.x;
       colored_pt.y = pt.y;
       colored_pt.z = pt.z;
       colored_cloud->push_back(colored_pt);
+      if(out_file.is_open()) {
+	out_file << prob << endl;
+      }
     }
-    visualizer.keepOnlyClouds(0).addColorPointCloud(colored_cloud).show();
+    if(visualization) {
+      visualizer->keepOnlyClouds(0).addColorPointCloud(colored_cloud).show();
+    }
   }
 
   return EXIT_SUCCESS;
