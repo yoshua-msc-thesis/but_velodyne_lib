@@ -3,8 +3,8 @@
 POINTS=100
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-if [ $# -ne 3 ]; then
-	echo "Expected arguments: <out-files-list> <ann-files-list> <output-file>" >&2
+if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+	echo "Expected arguments: <out-files-list> <ann-files-list> <output-file> [point-mask-files-list]" >&2
 	exit 1
 fi
 
@@ -14,13 +14,21 @@ touch $pr_file
 
 out_ann=$(mktemp)
 
-paste -d" " $1 $2 | while read file_pair; do
+paste -d" " $1 $2 $4 | while read file_pair; do
 	out_file=$(echo $file_pair | cut -f1 -d" ")
 	ann_file=$(echo $file_pair | cut -f2 -d" ")
 	ann_count=$(($(wc -l < $ann_file) - 1))
 	ann_file_head=$(mktemp)
 	head -n $ann_count $ann_file > $ann_file_head
-	head -n $ann_count $out_file | paste - $ann_file_head
+	if [ "x$4" != "x" ]; then
+		mask_file=$(echo $file_pair | cut -f3 -d" ")
+		mask_file_head=$(mktemp)
+		head -n $ann_count $mask_file > $mask_file_head
+		head -n $ann_count $out_file | paste - $ann_file_head $mask_file_head | grep "1$" | cut -f1,2
+		rm $mask_file_head
+	else
+		head -n $ann_count $out_file | paste - $ann_file_head
+	fi
 	rm $ann_file_head
 done | sort -g | grep -v '^-1' > $out_ann
 
