@@ -29,6 +29,10 @@ for line in out_ann_file.readlines():
 
 precision = tp / (tp + fp)
 recall = tp / (tp + fn)
-fmeassure = 2 * precision * recall / (precision + recall)
+
+if precision+recall > 0:
+    fmeassure = 2 * precision * recall / (precision + recall)
+else:
+    fmeassure = "NaN"
 
 print tp, tn, fp, fn, precision, recall, fmeassure
