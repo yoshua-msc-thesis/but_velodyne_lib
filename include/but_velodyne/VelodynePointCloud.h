@@ -248,7 +248,7 @@ public:
     }
     out_cloud.setImageLikeAxisFromKitti();
 
-    std::cerr << "Read KTTI point cloud " << infile << " with " << i << " points." << std::endl;
+    std::cerr << "Read KTTI point cloud " << infile << " with " << i-1 << " points." << std::endl;
   }
 
   static void fromFile(const std::string &infile, VelodynePointCloud &out_cloud) {
