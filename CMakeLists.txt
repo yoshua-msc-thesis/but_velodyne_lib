@@ -113,6 +113,9 @@ target_link_libraries(ground-det-annotation but_velodyne)
 add_executable(ground-det-kitti-ann src/apps/ground-det-kitti-ann.cpp)
 target_link_libraries(ground-det-kitti-ann but_velodyne)
 
+add_executable(ground-det-get-warp src/apps/ground-det-get-warp.cpp)
+target_link_libraries(ground-det-get-warp but_velodyne)
+
 add_executable(ground-det-cnn src/apps/ground-det-cnn.cpp)
 target_link_libraries(ground-det-cnn but_velodyne)
 
