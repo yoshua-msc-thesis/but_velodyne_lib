@@ -152,7 +152,21 @@ int main (int argc, char **argv) {
       }
     }
     if(visualization) {
+      visualizer->getViewer()->setBackgroundColor(0,0,0);
+      visualization::Camera cam;
+      cam.clip[0] = 0.183189; cam.clip[1] = 183.189;
+      cam.focal[0] = -0.586755; cam.focal[1] = 1.96262; cam.focal[2] = 0.896533;
+      cam.fovy = 49.1311/180*M_PI;
+      cam.pos[0] = 0.603312; cam.pos[1] = -16.0206; cam.pos[2] = -26.5259;
+      cam.view[0] = -0.0253036; cam.view[1] = -0.836462; cam.view[2] = 0.547441;
+      cam.window_pos[0] = 0; cam.window_pos[1] = 52;
+      cam.window_size[0] = 1600; cam.window_size[1] = 1000;
+      visualizer->getViewer()->setCameraParameters(cam);
       visualizer->keepOnlyClouds(0).addColorPointCloud(colored_cloud).show();
+      /*static int i = 0;
+      stringstream ss;
+      ss << "snapshot_" << i++ << ".png";
+      visualizer->keepOnlyClouds(0).addColorPointCloud(colored_cloud).saveSnapshot(ss.str());*/
     }
   }
 
