@@ -90,6 +90,9 @@ int main(int argc, char** argv)
 
   PointXYZ senzor(0,0,0);
   for(int i = 0; i < argc-2; i++) {
+    /*if(i%10 != 0) {
+      continue;
+    }*/
     string kitti_scan = argv[i+2];
     cerr << "scan: " << kitti_scan << endl;
     //VelodynePointCloud::fromKitti(kitti_scan, cloud);
@@ -99,12 +102,12 @@ int main(int argc, char** argv)
       VelodynePointCloud::fromKitti(kitti_scan, cloud);
     }
 
-    transformPointCloud(cloud, cloud, poses[i]);
+    transformPointCloud(cloud, cloud, poses[0].inverse()*poses[i]);
     sum_cloud += cloud;
     visualizer.keepOnlyClouds(0);
     addVelodynePcl(visualizer, sum_cloud);
-    visualizer.show();
   }
+  visualizer.show();
 
   return EXIT_SUCCESS;
 }
