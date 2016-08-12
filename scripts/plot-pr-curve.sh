@@ -12,6 +12,7 @@ function get_title {
 		sed 's#run03-fake-pretrained/#(pretrained#' |
 		sed 's#evaluation-masked-output.txt#,masked)#' |
 		sed 's#evaluation-output.txt#)#' | 
+		sed 's#.*apriori-prob.*#Baseline#' |
 		sed "s/_/-/g"
 }
 
