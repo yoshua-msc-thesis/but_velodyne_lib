@@ -122,6 +122,9 @@ target_link_libraries(ground-det-cnn but_velodyne)
 add_executable(ground-by-median src/apps/ground-by-median.cpp)
 target_link_libraries(ground-by-median but_velodyne)
 
+add_executable(odometry-cnn src/apps/odometry-cnn.cpp)
+target_link_libraries(odometry-cnn but_velodyne)
+
 ########################## Installation: #####################################
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/but_velodyne-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/but_velodyne-config.cmake" IMMEDIATE @ONLY)
