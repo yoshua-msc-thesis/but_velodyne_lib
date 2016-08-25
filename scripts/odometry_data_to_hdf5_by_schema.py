@@ -84,16 +84,17 @@ def get_delta_odometry(odometries, mask):
     return output
             
 class OutputFiles:
-    def __init__(self, batch_size, frames_to_join, output_prefix, max_seq_len):
+    def __init__(self, batch_size, history_size, frames_to_join, features, output_prefix, max_seq_len):
         self.batchSize = batch_size
+        self.historySize = history_size
         self.framesToJoin = frames_to_join
+        self.features = features
         self.outputPrefix = output_prefix
         self.maxFramesPerFile = max_seq_len
         self.outFileSeqIndex = -1
     
-    def newSequence(self, frames_count):
-        self.framesCount = frames_count
-        self.framesToWriteCount = (frames_count - self.batchSize + 1)
+    def newSequence(self, frames_count, max_in_schema):
+        self.framesToWriteCount = (frames_count - max_in_schema)
         self.outFileSeqIndex += 1
         self.out_files = []
         out_files_count = self.framesToWriteCount/self.maxFramesPerFile + 1 if self.framesToWriteCount%self.maxFramesPerFile > 0 else 0
@@ -103,29 +104,69 @@ class OutputFiles:
             else:
                 frames_in_file = self.framesToWriteCount%self.maxFramesPerFile
             new_output_file = h5py.File(self.outputPrefix + "." + str(self.outFileSeqIndex) + "." + str(split_index) + ".hdf5", 'w')
-            new_output_file.create_dataset('data', (frames_in_file*self.batchSize, 3*self.framesToJoin, 64, 360), dtype='f8')
-            new_output_file.create_dataset('odometry', (frames_in_file, 6), dtype='f8')
+            new_output_file.create_dataset('data', (frames_in_file*self.historySize, self.features*self.framesToJoin, 64, 360), dtype='f4')
+            new_output_file.create_dataset('odometry', (frames_in_file, 6), dtype='f4')
             self.out_files.append(new_output_file)
     
-    def putData(self, db_name, index, data):
-        multiply = 1 if (db_name == 'odometry') else 5
-        file_index = index/(self.maxFramesPerFile*multiply)
-        self.out_files[file_index][db_name][index%(self.maxFramesPerFile*multiply)] = data
+    def putData(self, db_name, frame_i, ch_i, data):
+        if db_name == 'odometry':
+            multiply = 1 
+        else:
+            multiply = self.historySize
+        if frame_i < self.framesToWriteCount*multiply:
+            file_index = frame_i/(self.maxFramesPerFile*multiply)
+            self.out_files[file_index][db_name][frame_i%(self.maxFramesPerFile*multiply), ch_i] = data
+            #print file_index, db_name, frame_i%(self.maxFramesPerFile*multiply), ch_i
+        else:
+            sys.stderr.write("Warning: frame %s out of the scope\n"%frame_i)
 
     def close(self):
         for f in self.out_files:
             f.close()
 
-FRAMES_TO_JOIN=3
-BATCH_SIZE=5
-MIN_SKIP_PROB=0.0
-MAX_SKIP_PROB=0.01
-STEP_SKIP_PROB=0.9
-MAX_SPEED=60/3.6
-FILES_PER_HDF5=200
+def schema_to_dics(data_schema, odom_schema):
+    odom_dic = {i:[] for i in set(odom_schema)}
+    for frame_i in range(len(odom_schema)):
+        odom_dic[odom_schema[frame_i]].append(frame_i)
+    
+    data_dic = {i:{"slot":[], "frame":[]} for i in set(reduce(lambda x,y: x+y,data_schema))}
+    for frame_i in range(len(data_schema)):
+        for slot_i in range(len(data_schema[frame_i])):
+            data_dic[data_schema[frame_i][slot_i]]["slot"].append(slot_i)
+            data_dic[data_schema[frame_i][slot_i]]["frame"].append(frame_i)
 
-if len(sys.argv) < 2+FRAMES_TO_JOIN:
-    sys.stderr.write("Expected arguments: <pose-file> <out-file-prefix> <frames.yaml>^{%s+}\n"%FRAMES_TO_JOIN)
+    return data_dic, odom_dic
+
+BATCH_SCHEMA_DATA = [[3, 0],
+                     [4, 1],
+                     [5, 2],
+                     [6, 3],
+                     
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+                     [6, 4],
+                     
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+                     [6, 5]]
+BATCH_SCHEMA_ODOM = [3, 4, 5, 6]
+
+BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
+JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
+HISTORY_SIZE = len(BATCH_SCHEMA_DATA)/BATCH_SIZE
+FEATURES = 3
+max_in_schema = max(reduce(lambda x,y: x+y,BATCH_SCHEMA_DATA))
+
+MIN_SKIP_PROB = 0.0
+MAX_SKIP_PROB = 0.01
+STEP_SKIP_PROB = 0.9
+MAX_SPEED = 60/3.6
+FILES_PER_HDF5 = 200
+
+if len(sys.argv) < 2+max_in_schema+1:
+    sys.stderr.write("Expected arguments: <pose-file> <out-file-prefix> <frames.yaml>^{%s+}\n"%JOINED_FRAMES)
     sys.exit(1)
 
 poses_6dof = []
@@ -136,48 +177,45 @@ for line in open(sys.argv[1]).readlines():
 
 random.seed()
 skip_prob = MIN_SKIP_PROB
-out_files = OutputFiles(BATCH_SIZE, FRAMES_TO_JOIN, sys.argv[2], FILES_PER_HDF5)
+out_files = OutputFiles(BATCH_SIZE, HISTORY_SIZE, JOINED_FRAMES, FEATURES, sys.argv[2], FILES_PER_HDF5)
+data_dest_index, odom_dest_index = schema_to_dics(BATCH_SCHEMA_DATA, BATCH_SCHEMA_ODOM)
 while skip_prob < MAX_SKIP_PROB:
     mask = gen_preserve_mask(poses_6dof, skip_prob)
-    frames = sum(mask)-FRAMES_TO_JOIN+1
-    
-    print "skip_prob:", skip_prob, "frames:", frames, "of:", len(mask)
-    
     # TODO - maybe also duplication = no movement
-    
-    out_files.newSequence(frames)
 
+    frames = sum(mask)-JOINED_FRAMES+1
+    out_files.newSequence(frames, max_in_schema)
     files_to_use = mask_list(sys.argv[3:], mask)
     odometry_to_use = get_delta_odometry(poses_6dof, mask)
 
-    data_folded = [np.empty([9, 64, 360]) for i in range(FRAMES_TO_JOIN)]
     for i in range(len(files_to_use)):
         data_i = np.empty([3, 64, 360])
-        odometry = np.asarray(odometry_to_use[i].dof)
-        
-        odom_out_index = i - FRAMES_TO_JOIN - BATCH_SIZE + 2
-        if odom_out_index >= 0:
-            out_files.putData('odometry', odom_out_index, odometry)
-            
         data_i[0] = load_from_yaml(files_to_use[i], 'range')
         data_i[1] = load_from_yaml(files_to_use[i], 'y')
         data_i[2] = load_from_yaml(files_to_use[i], 'intensity')
+        odometry = np.asarray(odometry_to_use[i].dof)
         
-        for bias in range(FRAMES_TO_JOIN):
-            for slot in range(3):
-                data_folded[bias][bias*3+slot] = data_i[slot]
+        bias = 0
+        while i-bias >= 0:
+            #print "i", i, "bias", bias
+            schema_i = i-bias
+            # for feature data
+            if schema_i in data_dest_index:
+                slot_ids = data_dest_index[schema_i]["slot"]
+                frame_ids = data_dest_index[schema_i]["frame"]
+                for slot_i, frame_i in zip(slot_ids, frame_ids):
+                    for fi in range(FEATURES):
+                        out_files.putData('data', frame_i+bias*HISTORY_SIZE, slot_i*FEATURES+fi, data_i[fi])
+            # for odometry data
+            if schema_i in odom_dest_index:
+                frame_ids = odom_dest_index[schema_i]
+                for frame_i in frame_ids:
+                    for ch_i in range(len(odometry_to_use[i].dof)):
+                        out_files.putData('odometry', frame_i+bias, ch_i, odometry_to_use[i].dof[ch_i])
+            
+            bias += BATCH_SIZE
         
-        if i >= FRAMES_TO_JOIN-1:
-            for h in range(BATCH_SIZE):
-                out_index = ((i-FRAMES_TO_JOIN+1) - h)*BATCH_SIZE + h
-                if 0 <= out_index < (frames-BATCH_SIZE+1)*BATCH_SIZE:
-                    out_files.putData('data', out_index, data_folded[0])
-        for j in range(FRAMES_TO_JOIN-1):
-            data_folded[j] = np.copy(data_folded[j+1])
-
-        #sys.stderr.write(".")
         if i%FILES_PER_HDF5 == 0 and i > 0:
-            #sys.stderr.write("\n")
             print i, "/", len(files_to_use)
     
     skip_prob += STEP_SKIP_PROB

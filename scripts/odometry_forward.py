@@ -81,7 +81,7 @@ while firstFrameId + HISTORY_SIZE+JOINED_FRAMES-1 <= len(args.feature_file):
     prediction = net.forward()
     dof = [0]*6
     for i in range(6):
-        dof[i] = prediction["full_conv"][0][i][0][0]
+        dof[i] = prediction["out_odometry"][0][i]
     pose.move(dof)
     print pose
     firstFrameId += 1
