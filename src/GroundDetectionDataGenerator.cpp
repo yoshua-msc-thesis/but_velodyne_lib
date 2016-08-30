@@ -46,11 +46,13 @@ Mat GroundDetectionDataGenerator::getMatrixOf(const InputDataTypes &type) {
 	  case X:
 	    output.at<float>(r, c) = pt.x; break;
 	  case Y:
-	    output.at<float>(r, c) = pt.y / 3; break;
+	    output.at<float>(r, c) = pt.y; break;
+	    //output.at<float>(r, c) = pt.y / 3; break;
 	  case Z:
 	    output.at<float>(r, c) = pt.z; break;
 	  case RANGE:
-	    output.at<float>(r, c) = log10(pt.x*pt.x + pt.z*pt.z) / 2; break;	// log(sqrt(x^2 + z^2)) = 1/2 * log(x^2 + z^2)
+	    //output.at<float>(r, c) = log10(pt.x*pt.x + pt.z*pt.z) / 2; break;	// log(sqrt(x^2 + z^2)) = 1/2 * log(x^2 + z^2)
+	    output.at<float>(r, c) = sqrt(pt.x*pt.x + pt.z*pt.z); break;	// log(sqrt(x^2 + z^2)) = 1/2 * log(x^2 + z^2)
 	  case INTENSITY:
 	    output.at<float>(r, c) = pt.intensity; break;
 	}
