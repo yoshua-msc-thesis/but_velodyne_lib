@@ -51,17 +51,18 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 poses_6dof = []
-lines = open(sys.argv[1]).readlines()
-prev = Odometry()
-for line in lines:
-    kitti_pose = map(float, line.strip().split())
-    o = Odometry(kitti_pose)
-    poses_6dof.append(np.array((o-prev).dof))
-    prev = o
+for arg in sys.argv[1:]:
+    lines = open(arg).readlines()
+    prev = Odometry()
+    for line in lines:
+        kitti_pose = map(float, line.strip().split())
+        o = Odometry(kitti_pose)
+        poses_6dof.append(np.array((o-prev).dof))
+        prev = o
 
-average_pose = sum(poses_6dof)/len(lines)
+average_pose = sum(poses_6dof)/len(poses_6dof)
 poses_6dof_normalized = [pose - average_pose for pose in poses_6dof]
-print average_pose
+print "average_pose", average_pose
 
 print "euclidean loss: ", sum([np.linalg.norm(pose) for pose in poses_6dof_normalized])/len(poses_6dof_normalized)
 
@@ -79,7 +80,7 @@ for i in range(6):
 print "mahalanobis loss: ", sum([math.sqrt(np.dot(np.dot(pose, precision), pose)) for pose in poses_6dof_normalized])/len(poses_6dof_normalized)
 
 std_dev = [math.sqrt(covariance[i, i]) for i in range(6)]
-print std_dev
+print "std_dev", std_dev
 print pose
 for i in range(6):
     pose = np.copy(poses_6dof_normalized[0])

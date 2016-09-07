@@ -8,22 +8,66 @@ import cv_yaml
 import argparse
 import eulerangles
 
-HISTORY_SIZE = 5
-BATCH_SIZE = 5
-JOINED_FRAMES = 3
-FEATURES = 3
+from odometry_cnn_data import horizontal_split
 
-def create_blob(input_files):
-    blob = np.empty([25, 9, 64, 360])
+BATCH_SCHEMA_DATA = [[5, 0],
+                     [6, 1],
+                     [7, 2],
+                     [8, 3],
+
+                     [5, 1],
+                     [6, 2],
+                     [7, 3],
+                     [8, 4],
+                     
+                     [5, 2],
+                     [6, 3],
+                     [7, 4],
+                     [8, 5],
+
+                     [5, 3],
+                     [6, 4],
+                     [7, 5],
+                     [8, 6],
+
+                     [5, 4],
+                     [6, 5],
+                     [7, 6],
+                     [8, 7]]
+BATCH_SCHEMA_ODOM = [5, 6, 7, 8]
+BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
+HISTORY_SIZE = len(BATCH_SCHEMA_DATA)/BATCH_SIZE
+JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
+FEATURES = 3
+max_in_data_schema = max(reduce(lambda x,y: x+y,BATCH_SCHEMA_DATA))
+min_in_odom_schema = min(BATCH_SCHEMA_ODOM)
+
+ZNORM_MEAN = [0]*6
+ZNORM_STD_DEV = [1]*6
+
+HORIZONTAL_DIVISION = 1  # divide into the 4 cells
+HORIZONTAL_DIVISION_OVERLAY = 0  # 19deg    =>    128deg per divided frame
+CHANNELS = FEATURES * HORIZONTAL_DIVISION
+
+def schema_to_dic(data_schema):
+    data_dic = {i:[] for i in set(reduce(lambda x,y: x+y,data_schema))}
+    for frame_i in range(len(data_schema)):
+        for slot_i in range(len(data_schema[frame_i])):
+            data_dic[data_schema[frame_i][slot_i]].append({"slot":slot_i, "frame":frame_i})
+
+    return data_dic
+
+def create_blob(input_files, schema_dic):
+    blob = np.empty([BATCH_SIZE*HISTORY_SIZE, JOINED_FRAMES*CHANNELS, 64, 360 / HORIZONTAL_DIVISION + HORIZONTAL_DIVISION_OVERLAY * 2])
     for file_i in range(len(input_files)):
-        file_data = [cv_yaml.load(input_files[file_i], label) for label in ('range', 'y', 'intensity')]
-        for feature_i in range(JOINED_FRAMES):
-            history_i = file_i - feature_i
-            slot_i = JOINED_FRAMES-1-feature_i
-            if 0 <= history_i < HISTORY_SIZE and 0 <= slot_i < JOINED_FRAMES:
-                blob_i = history_i*HISTORY_SIZE
-                for ch_i in range(FEATURES):
-                    blob[blob_i][slot_i*FEATURES + ch_i] = file_data[ch_i]
+        file_data = np.empty([FEATURES, 64, 360])
+        file_data[0] = cv_yaml.load(input_files[file_i], 'range')
+        file_data[1] = cv_yaml.load(input_files[file_i], 'y')
+        file_data[2] = cv_yaml.load(input_files[file_i], 'intensity')
+        file_data = horizontal_split(file_data, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES)
+        for indices in schema_dic[file_i]:
+            for f in range(CHANNELS):
+                blob[indices["frame"]][indices["slot"]*CHANNELS + f] = file_data[f]
     return blob
 
 class Pose:
@@ -49,39 +93,53 @@ class Pose:
             output += str(self.m[i/4, i%4]) + " "
         return output[:-1]
 
+def compute_effective_batch_size(schema_dic, frames):
+    max_in_frames = map(max, BATCH_SCHEMA_DATA)
+    require_for_batch_dato = [-1]*BATCH_SIZE
+    for i in range(len(max_in_frames)):
+        require_for_batch_dato[i%BATCH_SIZE] = max(require_for_batch_dato[i%BATCH_SIZE], max_in_frames[i])
+    effect_bs = 0
+    while effect_bs < BATCH_SIZE:
+        if require_for_batch_dato[effect_bs] >= frames:
+            break
+        effect_bs += 1
+    return effect_bs
+
 parser = argparse.ArgumentParser(description="Forwarding CNN for odometry estimation")
 parser.add_argument("-p", "--prototxt", dest="prototxt", type=str, required=True)
 parser.add_argument("-m", "--caffemodel", dest="caffemodel", type=str, required=True)
-parser.add_argument("-i", "--init-poses", dest="init_poses", type=str)
+parser.add_argument("-i", "--init-poses", dest="init_poses", type=str, required=True)
 parser.add_argument("feature_file", nargs='+', help='feature file', type=str)
 args = parser.parse_args()
 
-if len(args.feature_file) < HISTORY_SIZE+JOINED_FRAMES-1:
-    sys.stderr.write("ERROR: need at least %s feature files to feed CNN!\n", HISTORY_SIZE+JOINED_FRAMES-1)
+if len(args.feature_file) < max_in_data_schema+1:
+    sys.stderr.write("ERROR: need at least %s feature files to feed CNN!\n", max_in_data_schema+1)
     sys.exit(1)
 
 caffe.set_mode_gpu()
 net = caffe.Net(args.prototxt, args.caffemodel, caffe.TRAIN)
 
-if hasattr(args, "init_poses"):
-    counter = 0
-    for line in open(args.init_poses).readlines():
-        pose = Pose(line.strip().split())
-        print pose
-        counter += 1
-        if counter >= HISTORY_SIZE+JOINED_FRAMES-2:
-            break
-else:
-    pose = Pose()
+pose_counter = 0
+for line in open(args.init_poses).readlines():
+    pose = Pose(line.strip().split())
+    print pose
+    pose_counter += 1
+    if pose_counter >= min_in_odom_schema:
+        break
+
+schema_dic = schema_to_dic(BATCH_SCHEMA_DATA)
 
 firstFrameId = 0
-while firstFrameId + HISTORY_SIZE+JOINED_FRAMES-1 <= len(args.feature_file):
-    blob = create_blob(args.feature_file[firstFrameId:firstFrameId+HISTORY_SIZE+JOINED_FRAMES-1])
+while firstFrameId < len(args.feature_file):
+    lastFrameId = min(firstFrameId + max_in_data_schema, len(args.feature_file)-1)
+    blob = create_blob(args.feature_file[firstFrameId:lastFrameId+1], schema_dic)
     net.blobs['data'].data[...] = blob
     prediction = net.forward()
     dof = [0]*6
-    for i in range(6):
-        dof[i] = prediction["out_odometry"][0][i]
-    pose.move(dof)
-    print pose
-    firstFrameId += 1
+    effective_batch_size = compute_effective_batch_size(schema_dic, lastFrameId-firstFrameId+1)
+    for b in range(effective_batch_size):
+        for i in range(6):
+            dof[i] = prediction["out_odometry"][b][i]*ZNORM_STD_DEV[i] + ZNORM_MEAN[i]
+        pose.move(dof)
+        print pose
+    firstFrameId += BATCH_SIZE
