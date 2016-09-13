@@ -10,9 +10,8 @@ import cv
 from __builtin__ import min
 from eulerangles import mat2eulerZYX, euler2matXYZ
 from odometry_cnn_data import horizontal_split
-
-def load_from_yaml(yaml_filename, node_name):
-    return np.asarray(cv.Load(yaml_filename, cv.CreateMemStorage(), node_name))
+from odometry_cnn_data import schema_to_dic
+import cv_yaml
 
 class Odometry:
     def __init__(self, kitti_pose=[1, 0, 0, 0,
@@ -89,10 +88,11 @@ def get_delta_odometry(odometries, mask):
     return output
             
 class OutputFiles:
-    def __init__(self, batch_size, history_size, frames_to_join, features, division, overlay, output_prefix, max_seq_len):
+    def __init__(self, batch_size, history_size, frames_to_join, odometries_to_join, features, division, overlay, output_prefix, max_seq_len):
         self.batchSize = batch_size
         self.historySize = history_size
         self.framesToJoin = frames_to_join
+        self.odometriesToJoin = odometries_to_join
         self.horizontalDivision = division
         self.horizontalOverlay = overlay
         self.features = features
@@ -115,7 +115,7 @@ class OutputFiles:
                                                     self.features * self.framesToJoin * self.horizontalDivision,
                                                     64,
                                                     360 / self.horizontalDivision + self.horizontalOverlay * 2), dtype='f4')
-            new_output_file.create_dataset('odometry', (frames_in_file, 6), dtype='f4')
+            new_output_file.create_dataset('odometry', (frames_in_file, 6*self.odometriesToJoin), dtype='f4')
             self.out_files.append(new_output_file)
     
     def putData(self, db_name, frame_i, ch_i, data):
@@ -134,72 +134,43 @@ class OutputFiles:
         for f in self.out_files:
             f.close()
 
-def schema_to_dics(data_schema, odom_schema):
-    odom_dic = {i:[] for i in set(odom_schema)}
-    for frame_i in range(len(odom_schema)):
-        odom_dic[odom_schema[frame_i]].append(frame_i)
-    
-    data_dic = {i:{"slot":[], "frame":[]} for i in set(reduce(lambda x, y: x + y, data_schema))}
-    for frame_i in range(len(data_schema)):
-        for slot_i in range(len(data_schema[frame_i])):
-            data_dic[data_schema[frame_i][slot_i]]["slot"].append(slot_i)
-            data_dic[data_schema[frame_i][slot_i]]["frame"].append(frame_i)
+BATCH_SCHEMA_DATA = [[3, 0],
+                     [4, 1],
+                     [5, 2],
+                     [6, 3],
 
-    return data_dic, odom_dic
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+                     [6, 4],
+                     
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+                     [6, 5],
 
-BATCH_SCHEMA_DATA = [[10, 0],
-                     [11, 1],
-                     [12, 2],
-                     [13, 3],
-                     
-                     [10, 1],
-                     [11, 2],
-                     [12, 3],
-                     [13, 4],
-                     
-                     [10, 2],
-                     [11, 3],
-                     [12, 4],
-                     [13, 5],
-                     
-                     [10, 3],
-                     [11, 4],
-                     [12, 5],
-                     [13, 6],
-                     
-                     [10, 4],
-                     [11, 5],
-                     [12, 6],
-                     [13, 7],
-                     
-                     [10, 5],
-                     [11, 6],
-                     [12, 7],
-                     [13, 8],
-                     
-                     [10, 6],
-                     [11, 7],
-                     [12, 8],
-                     [13, 9],
-                     
-                     [10, 7],
-                     [11, 8],
-                     [12, 9],
-                     [13, 10],
-                     
-                     [10, 8],
-                     [11, 9],
-                     [12, 10],
-                     [13, 11],
-                     
-                     [10, 9],
-                     [11, 10],
-                     [12, 11],
-                     [13, 12]]
-BATCH_SCHEMA_ODOM = [10, 11, 12, 13]
+                     [2, 0],
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+
+                     [2, 1],
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+
+                     [1, 0],
+                     [2, 1],
+                     [3, 2],
+                     [4, 3]]
+BATCH_SCHEMA_ODOM = [[3],
+                     [4],
+                     [5],
+                     [6]]
 
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
+JOINED_ODOMETRIES = len(BATCH_SCHEMA_ODOM[0])
 FEATURES = 3
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA) / BATCH_SIZE
 max_in_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
@@ -237,8 +208,9 @@ for line in open(sys.argv[1]).readlines():
 
 random.seed()
 skip_prob = MIN_SKIP_PROB
-out_files = OutputFiles(BATCH_SIZE, HISTORY_SIZE, JOINED_FRAMES, FEATURES, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, sys.argv[2], FILES_PER_HDF5)
-data_dest_index, odom_dest_index = schema_to_dics(BATCH_SCHEMA_DATA, BATCH_SCHEMA_ODOM)
+out_files = OutputFiles(BATCH_SIZE, HISTORY_SIZE, JOINED_FRAMES, JOINED_ODOMETRIES, FEATURES, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, sys.argv[2], FILES_PER_HDF5)
+data_dest_index = schema_to_dic(BATCH_SCHEMA_DATA)
+odom_dest_index = schema_to_dic(BATCH_SCHEMA_ODOM)
 while skip_prob < MAX_SKIP_PROB:
     mask = gen_preserve_mask(poses_6dof, skip_prob)
     # TODO - maybe also duplication = no movement
@@ -250,11 +222,11 @@ while skip_prob < MAX_SKIP_PROB:
 
     for i in range(len(files_to_use)):
         data_i = np.empty([FEATURES, 64, 360])
-        data_i[0] = load_from_yaml(files_to_use[i], 'range')
-        data_i[1] = load_from_yaml(files_to_use[i], 'y')
-        data_i[2] = load_from_yaml(files_to_use[i], 'intensity')
+        data_i[0] = cv_yaml.load(files_to_use[i], 'range')
+        data_i[1] = cv_yaml.load(files_to_use[i], 'y')
+        data_i[2] = cv_yaml.load(files_to_use[i], 'intensity')
         data_i = horizontal_split(data_i, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES)
-        odometry = np.asarray(odometry_to_use[i].dof)
+        odometry_i = np.asarray(odometry_to_use[i].dof)
         
         bias = 0
         while i - bias >= 0:
@@ -262,17 +234,21 @@ while skip_prob < MAX_SKIP_PROB:
             schema_i = i - bias
             # for feature data
             if schema_i in data_dest_index:
-                slot_ids = data_dest_index[schema_i]["slot"]
-                frame_ids = data_dest_index[schema_i]["frame"]
-                for slot_i, frame_i in zip(slot_ids, frame_ids):
+                for slot_frame_i in data_dest_index[schema_i]:
+                    slot_i = slot_frame_i["slot"]
+                    frame_i = slot_frame_i["frame"]
                     for fi in range(CHANNELS):
                         out_files.putData('data', frame_i + bias * HISTORY_SIZE, slot_i * CHANNELS + fi, data_i[fi])
             # for odometry data
             if schema_i in odom_dest_index:
-                frame_ids = odom_dest_index[schema_i]
-                for frame_i in frame_ids:
-                    for ch_i in range(len(odometry_to_use[i].dof)):
-                        out_files.putData('odometry', frame_i + bias, ch_i, odometry_to_use[i].dof[ch_i])
+                for slot_frame_i in odom_dest_index[schema_i]:
+                    slot_i = slot_frame_i["slot"]
+                    frame_i = slot_frame_i["frame"]
+                    for ch_i in range(len(odometry_i)):
+                        out_files.putData('odometry', frame_i + bias, slot_i * len(odometry_i) + ch_i, odometry_i[ch_i])
+#                        print i, frame_i, bias, slot_i, len(odometry_i), ch_i, odometry_i[ch_i]
+#                        print frame_i + bias, slot_i * len(odometry_i) + ch_i
+#                sys.exit(0)
             
             bias += BATCH_SIZE
         
