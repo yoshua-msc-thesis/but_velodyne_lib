@@ -9,47 +9,16 @@ import h5py
 import cv
 from __builtin__ import min
 from eulerangles import mat2eulerZYX, euler2matXYZ
+
 from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
+from odometry_cnn_data import odom_rad_to_deg
+from odometry_cnn_data import odom_deg_to_rad
+from odometry_cnn_data import Odometry
+from odometry_cnn_data import load_kitti_poses
+from odometry_cnn_data import get_delta_odometry
+
 import cv_yaml
-
-class Odometry:
-    def __init__(self, kitti_pose=[1, 0, 0, 0,
-                                     0, 1, 0, 0,
-                                     0, 0, 1, 0]):
-        assert len(kitti_pose) == 12
-        self.dof = [0] * 6
-        self.M = np.matrix([[0] * 4, [0] * 4, [0] * 4, [0, 0, 0, 1]], dtype=np.float64)
-        for i in range(12):
-            self.M[i / 4, i % 4] = kitti_pose[i]
-        self.setDofFromM()
-    
-    def setDofFromM(self):
-        R = self.M[:3, :3]
-        self.dof[0], self.dof[1], self.dof[2] = self.M[0, 3], self.M[1, 3], self.M[2, 3]
-        self.dof[5], self.dof[4], self.dof[3] = mat2eulerZYX(R)
-
-    def setMFromDof(self):
-        self.M[:3, :3] = euler2matXYZ(self.dof[3], self.dof[4], self.dof[5])
-        self.M[0, 3], self.M[1, 3], self.M[2, 3] = self.dof[0], self.dof[1], self.dof[2]
-  
-    def distanceTo(self, other):
-        sq_dist = 0
-        for i in range(3):
-            sq_dist += (self.dof[i] - other.dof[i]) ** 2
-        return math.sqrt(sq_dist)
-
-    def __mul__(self, other):
-        out = Odometry()
-        out.M = self.M * other.M
-        out.setDofFromM()
-        return out
-    
-    def __sub__(self, other):
-        out = Odometry()
-        out.M = np.linalg.inv(other.M) * self.M
-        out.setDofFromM()
-        return out
 
 def gen_preserve_mask(poses, skip_prob):
     mask = [1]
@@ -76,17 +45,6 @@ def mask_list(list, mask):
             output.append(list[i])
     return output
 
-def get_delta_odometry(odometries, mask):
-    if len(odometries) != len(mask):
-        sys.stderr.write("Number of poses (%s) and velodyne frames (%s) differ!\n" % (len(mask), len(odometries)))
-    output = [Odometry()]
-    last_i = 0
-    for i in range(1, min(len(mask), len(odometries))):
-        if mask[i] != 0:
-            output.append(odometries[i] - odometries[last_i])
-            last_i = i
-    return output
-            
 class OutputFiles:
     def __init__(self, batch_size, history_size, frames_to_join, odometries_to_join, features, division, overlay, output_prefix, max_seq_len):
         self.batchSize = batch_size
@@ -168,6 +126,10 @@ BATCH_SCHEMA_ODOM = [[3],
                      [5],
                      [6]]
 
+CUMMULATE_ODOMS = 3
+ODOMS_UNITS = "rad"
+DOF_WEIGHTS = [1.0] * 6
+
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
 JOINED_ODOMETRIES = len(BATCH_SCHEMA_ODOM[0])
@@ -196,15 +158,20 @@ def znorm_odom(odom):
     result.setMFromDof()
     return result
 
+def odom_cumulate(odometries, N):
+    cumulated = []
+    for dest_i in range(len(odometries)):
+        cum_odom = Odometry()
+        for cum_i in range(dest_i-N+1, dest_i+1):
+            cum_odom = cum_odom * odometries[cum_i]
+        cumulated.append(cum_odom)
+    return cumulated
+
 if len(sys.argv) < 2 + max_in_schema + 1:
     sys.stderr.write("Expected arguments: <pose-file> <out-file-prefix> <frames.yaml>^{%s+}\n" % JOINED_FRAMES)
     sys.exit(1)
 
-poses_6dof = []
-for line in open(sys.argv[1]).readlines():
-    kitti_pose = map(float, line.strip().split())
-    o = Odometry(kitti_pose)
-    poses_6dof.append(o)
+poses_6dof = load_kitti_poses(sys.argv[1])
 
 random.seed()
 skip_prob = MIN_SKIP_PROB
@@ -218,7 +185,9 @@ while skip_prob < MAX_SKIP_PROB:
     frames = sum(mask) - JOINED_FRAMES + 1
     out_files.newSequence(frames, max_in_schema)
     files_to_use = mask_list(sys.argv[3:], mask)
-    odometry_to_use = map(znorm_odom, get_delta_odometry(poses_6dof, mask))
+    odometry_to_use = get_delta_odometry(poses_6dof, mask)
+    odometry_to_use = odom_cumulate(odometry_to_use, CUMMULATE_ODOMS)
+    odometry_to_use = map(znorm_odom, odometry_to_use)
 
     for i in range(len(files_to_use)):
         data_i = np.empty([FEATURES, 64, 360])
@@ -226,8 +195,14 @@ while skip_prob < MAX_SKIP_PROB:
         data_i[1] = cv_yaml.load(files_to_use[i], 'y')
         data_i[2] = cv_yaml.load(files_to_use[i], 'intensity')
         data_i = horizontal_split(data_i, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES)
-        odometry_i = np.asarray(odometry_to_use[i].dof)
-        
+        if ODOMS_UNITS == "deg":
+            odometry_i = odom_rad_to_deg(odometry_to_use[i].dof)
+        elif ODOMS_UNITS == "rad":
+            odometry_i = odometry_to_use[i].dof
+        else:
+            raise ValueError("Unknown odometry units '%s'" % ODOMS_UNITS) 
+        odometry_i = np.asarray([odometry_i[j]*DOF_WEIGHTS[j] for j in range(len(odometry_i))])
+
         bias = 0
         while i - bias >= 0:
             # print "i", i, "bias", bias
@@ -246,9 +221,6 @@ while skip_prob < MAX_SKIP_PROB:
                     frame_i = slot_frame_i["frame"]
                     for ch_i in range(len(odometry_i)):
                         out_files.putData('odometry', frame_i + bias, slot_i * len(odometry_i) + ch_i, odometry_i[ch_i])
-#                        print i, frame_i, bias, slot_i, len(odometry_i), ch_i, odometry_i[ch_i]
-#                        print frame_i + bias, slot_i * len(odometry_i) + ch_i
-#                sys.exit(0)
             
             bias += BATCH_SIZE
         

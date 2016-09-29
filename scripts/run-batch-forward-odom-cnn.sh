@@ -1,8 +1,8 @@
 #! /bin/bash
 
-DEPLOY_PROTOTXT=~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_conv_only_div4_separated_deploy.prototxt
-TRAINED_MODEL=~/workspace/ivelas-git/sw/cnn-generator/NETS/odometry_conv_only_div4_separated/net_snapshot_iter_500000.caffemodel
-OUTPUT_DIR=/media/kitti/dataset_odometry_velodyne_odom_cnn_data/results/12-odometry_conv_only_div4_separated
+DEPLOY_PROTOTXT=~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_h3_j2_deploy.prototxt
+TRAINED_MODEL=~/workspace/ivelas-git/sw/cnn-generator/NETS/odometry_h3_wloss/net_snapshot_iter_500000.caffemodel
+OUTPUT_DIR=/media/kitti/dataset_odometry_velodyne_odom_cnn_data/results/25-odometry_h3_wloss
 
 DATA_DIR=/media/kitti/dataset_odometry_velodyne_ground_fake_ann/00-10/  
 POSES_DIR=/media/kitti/dataset_odometry_poses/poses

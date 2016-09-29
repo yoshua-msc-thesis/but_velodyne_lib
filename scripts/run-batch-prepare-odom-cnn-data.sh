@@ -1,6 +1,6 @@
 #! /bin/bash
 
-DATA_LABEL=joined2_hist3_batch4_skipped_and_succ_single_odom
+DATA_LABEL=joined2_hist3_batch4_skipped_and_succ_rad_cum3
 
 OUT_DIR=/media/kitti/dataset_odometry_velodyne_odom_cnn_data/$DATA_LABEL
 MATYLDA_OUT_DIR=/mnt/matylda1/ivelas/kitti/dataset_odometry_velodyne_odom_cnn_data/$DATA_LABEL

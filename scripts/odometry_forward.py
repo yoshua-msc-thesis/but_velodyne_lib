@@ -11,37 +11,23 @@ import os
 
 from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
+from odometry_cnn_data import odom_deg_to_rad
 
-BATCH_SCHEMA_DATA = [[2, 1, 0],
-                     [3, 2, 1],
-                     [4, 3, 2],
-                     [5, 4, 3],
-                     [6, 5, 4],
-
-                     [3, 2, 1],
-                     [4, 3, 2],
-                     [5, 4, 3],
-                     [6, 5, 4],
-                     [7, 6, 5],
+BATCH_SCHEMA_DATA = [[3, 0],
+                     [4, 1],
+                     [5, 2],
+                     [6, 3],
                      
-                     [4, 3, 2],
-                     [5, 4, 3],
-                     [6, 5, 4],
-                     [7, 6, 5],
-                     [8, 7, 6],
-
-                     [5, 4, 3],
-                     [6, 5, 4],
-                     [7, 6, 5],
-                     [8, 7, 6],
-                     [9, 8, 7],
-
-                     [6, 5, 4],
-                     [7, 6, 5],
-                     [8, 7, 6],
-                     [9, 8, 7],
-                     [10, 9, 8]]
-BATCH_SCHEMA_ODOM = [[6], [7], [8], [9], [10]]
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+                     [6, 4],
+                     
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+                     [6, 5]]
+BATCH_SCHEMA_ODOM = [[3], [4], [5], [6]]
 
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA)/BATCH_SIZE
@@ -53,10 +39,19 @@ first_in_odom_schema = max(BATCH_SCHEMA_ODOM[0])
 
 ZNORM_MEAN = [0]*6
 ZNORM_STD_DEV = [1]*6
+CUMMULATE_ODOMS = 1
+ODOMS_UNITS = "deg"
+DOF_WEIGHTS = [1.0] * 6
 
-HORIZONTAL_DIVISION = 4  # divide into the 4 cells
-HORIZONTAL_DIVISION_OVERLAY = 19  # 19deg    =>    128deg per divided frame
+HORIZONTAL_DIVISION = 1  # divide into the 4 cells
+HORIZONTAL_DIVISION_OVERLAY = 0  # 19deg    =>    128deg per divided frame
 CHANNELS = FEATURES * HORIZONTAL_DIVISION
+
+OUTPUT_LAYER_NAME = "out_odometry"
+
+DOF_REQUIRED = 6
+DOF_PREDICTED = 6
+DOF_PREDICTED_FIRST = 0
 
 def create_blob(input_files, schema_dic):
     blob = np.empty([BATCH_SIZE*HISTORY_SIZE, JOINED_FRAMES*CHANNELS, 64, 360 / HORIZONTAL_DIVISION + HORIZONTAL_DIVISION_OVERLAY * 2])
@@ -137,13 +132,23 @@ class Edge3D:
         output +=                                               "96.52170"
         return output
 
-def extract_single(multi_array):
+# returns 59 from [[[59]]] 
+def extract_single_number(multi_array):
     shape = np.shape(multi_array)
     assert len(shape) == sum(shape)
     output = multi_array
     for i in range(len(shape)):
         output = output[0]
     return output
+
+def extract_prediction(data_blobs, blob_i, slot_i):
+    dof = [0]*DOF_REQUIRED
+    for i in range(DOF_PREDICTED_FIRST, DOF_PREDICTED_FIRST+DOF_PREDICTED):
+        dof[i] = extract_single_number(data_blobs[OUTPUT_LAYER_NAME][blob_i][slot_i*DOF_PREDICTED + i - DOF_PREDICTED_FIRST])
+        dof[i] /= DOF_WEIGHTS[i]
+    if ODOMS_UNITS == "deg":
+        dof = odom_deg_to_rad(dof)
+    return [dof[i]*ZNORM_STD_DEV[i] + ZNORM_MEAN[i] for i in range(DOF_REQUIRED)]
 
 parser = argparse.ArgumentParser(description="Forwarding CNN for odometry estimation")
 parser.add_argument("-p", "--prototxt", dest="prototxt", type=str, required=True)
@@ -174,8 +179,6 @@ for line in open(args.init_poses).readlines():
 
 schema_dic = schema_to_dic(BATCH_SCHEMA_DATA)
 
-output_layer_name = "out_odometry"
-
 firstFrameId = 0
 while firstFrameId < len(args.feature_file):
     lastFrameId = min(firstFrameId + max_in_data_schema, len(args.feature_file)-1)
@@ -184,17 +187,13 @@ while firstFrameId < len(args.feature_file):
     prediction = net.forward()
     effective_batch_size = compute_effective_batch_size(schema_dic, lastFrameId-firstFrameId+1)
     for b in range(effective_batch_size):
-        dof = [0]*6
-        for i in range(6):
-            dof[i] = prediction[output_layer_name][b][i]*ZNORM_STD_DEV[i] + ZNORM_MEAN[i]
+        dof = extract_prediction(prediction, b, 0)
         pose.move(dof)
         print pose
         for slot in range(len(BATCH_SCHEMA_ODOM[b])):
             trg_vertex = firstFrameId + BATCH_SCHEMA_ODOM[b][slot]
-            src_vertex = trg_vertex - 1
-            dof = [0]*6
-            for i in range(6):
-                dof[i] = extract_single(prediction[output_layer_name][b][slot*6 + i])*ZNORM_STD_DEV[i] + ZNORM_MEAN[i]
+            src_vertex = trg_vertex - CUMMULATE_ODOMS
+            dof = extract_prediction(prediction, b, slot)
             pose_graph.append(Edge3D(src_vertex, trg_vertex, dof))
     firstFrameId += BATCH_SIZE
 
