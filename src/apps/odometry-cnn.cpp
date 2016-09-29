@@ -140,7 +140,7 @@ int main (int argc, char **argv) {
     Stopwatch stopwatch;
     Mat features;
     merge(feature_channels, features);
-    dnn::Blob inputBlob = dnn::Blob (features, FEATURES*JOINED_FRAMES);  //Convert Mat to dnn::Blob image batch
+    dnn::Blob inputBlob = dnn::Blob::fromImages(features, FEATURES*JOINED_FRAMES);  //Convert Mat to dnn::Blob image batch
     net.setBlob (".data", inputBlob);        //set the network input
     net.forward ();                          //compute output
     dnn::Blob probBlob = net.getBlob("full_conv");   //gather output of "prob" layer
