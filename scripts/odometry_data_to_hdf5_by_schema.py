@@ -8,7 +8,7 @@ from numpy import dtype
 import h5py
 import cv
 from __builtin__ import min
-from eulerangles import mat2eulerZYX, euler2matXYZ
+from eulerangles import mat2eulerZYX, euler2matXYZ, eulerXYZ2angle_axis
 
 from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
@@ -46,7 +46,8 @@ def mask_list(list, mask):
     return output
 
 class OutputFiles:
-    def __init__(self, batch_size, history_size, frames_to_join, odometries_to_join, features, division, overlay, output_prefix, max_seq_len):
+    def __init__(self, batch_size, history_size, frames_to_join, odometries_to_join, features, division, overlay, output_prefix, 
+                 max_seq_len, min_in_odom_schema):
         self.batchSize = batch_size
         self.historySize = history_size
         self.framesToJoin = frames_to_join
@@ -57,9 +58,11 @@ class OutputFiles:
         self.outputPrefix = output_prefix
         self.maxFramesPerFile = max_seq_len
         self.outFileSeqIndex = -1
+        self.minInOdomSchema = min_in_odom_schema
     
-    def newSequence(self, frames_count, max_in_schema):
-        self.framesToWriteCount = (frames_count - max_in_schema)
+    def newSequence(self, frames_count):
+        framesCountUnaligned = (frames_count - self.minInOdomSchema)
+        self.framesToWriteCount = framesCountUnaligned - (framesCountUnaligned % self.batchSize)
         self.outFileSeqIndex += 1
         self.out_files = []
         out_files_count = self.framesToWriteCount / self.maxFramesPerFile + 1 if self.framesToWriteCount % self.maxFramesPerFile > 0 else 0
@@ -81,7 +84,7 @@ class OutputFiles:
             multiply = 1 
         else:
             multiply = self.historySize
-        if frame_i < self.framesToWriteCount * multiply:
+        if frame_i < (self.framesToWriteCount) * multiply:
             file_index = frame_i / (self.maxFramesPerFile * multiply)
             self.out_files[file_index][db_name][frame_i % (self.maxFramesPerFile * multiply), ch_i] = data
             # print file_index, db_name, frame_i%(self.maxFramesPerFile*multiply), ch_i
@@ -126,8 +129,9 @@ BATCH_SCHEMA_ODOM = [[3],
                      [5],
                      [6]]
 
-CUMMULATE_ODOMS = 3
-ODOMS_UNITS = "rad"
+CUMMULATE_ODOMS = 1
+ODOMS_UNITS = "deg" # rad or deg
+ROT_TYPE = "euler"  # euler or "axis-angle"
 DOF_WEIGHTS = [1.0] * 6
 
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
@@ -135,13 +139,14 @@ JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
 JOINED_ODOMETRIES = len(BATCH_SCHEMA_ODOM[0])
 FEATURES = 3
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA) / BATCH_SIZE
-max_in_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
+max_in_data_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
+min_in_odom_schema = min(reduce(lambda x, y: x + y, BATCH_SCHEMA_ODOM))
 
 MIN_SKIP_PROB = 0.0
 MAX_SKIP_PROB = 0.01
 STEP_SKIP_PROB = 0.9
 MAX_SPEED = 60 / 3.6
-FILES_PER_HDF5 = 200
+FILES_PER_HDF5 = 240    # 3*5*16
 
 HORIZONTAL_DIVISION = 1  # divide into the 4 cells
 HORIZONTAL_DIVISION_OVERLAY = 0  # 19deg    =>    128deg per divided frame
@@ -167,7 +172,11 @@ def odom_cumulate(odometries, N):
         cumulated.append(cum_odom)
     return cumulated
 
-if len(sys.argv) < 2 + max_in_schema + 1:
+def euler_rad_to_axis_angle(dof):
+    aa = eulerXYZ2angle_axis(dof[3], dof[4], dof[5])
+    return dof[0:3] + (aa[1]*aa[0]).tolist()
+
+if len(sys.argv) < 2 + max_in_data_schema + 1:
     sys.stderr.write("Expected arguments: <pose-file> <out-file-prefix> <frames.yaml>^{%s+}\n" % JOINED_FRAMES)
     sys.exit(1)
 
@@ -175,15 +184,16 @@ poses_6dof = load_kitti_poses(sys.argv[1])
 
 random.seed()
 skip_prob = MIN_SKIP_PROB
-out_files = OutputFiles(BATCH_SIZE, HISTORY_SIZE, JOINED_FRAMES, JOINED_ODOMETRIES, FEATURES, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, sys.argv[2], FILES_PER_HDF5)
+out_files = OutputFiles(BATCH_SIZE, HISTORY_SIZE, JOINED_FRAMES, JOINED_ODOMETRIES, FEATURES, 
+                        HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, sys.argv[2], FILES_PER_HDF5,
+                        min_in_odom_schema)
 data_dest_index = schema_to_dic(BATCH_SCHEMA_DATA)
 odom_dest_index = schema_to_dic(BATCH_SCHEMA_ODOM)
 while skip_prob < MAX_SKIP_PROB:
     mask = gen_preserve_mask(poses_6dof, skip_prob)
     # TODO - maybe also duplication = no movement
 
-    frames = sum(mask) - JOINED_FRAMES + 1
-    out_files.newSequence(frames, max_in_schema)
+    out_files.newSequence(sum(mask))
     files_to_use = mask_list(sys.argv[3:], mask)
     odometry_to_use = get_delta_odometry(poses_6dof, mask)
     odometry_to_use = odom_cumulate(odometry_to_use, CUMMULATE_ODOMS)
@@ -195,12 +205,19 @@ while skip_prob < MAX_SKIP_PROB:
         data_i[1] = cv_yaml.load(files_to_use[i], 'y')
         data_i[2] = cv_yaml.load(files_to_use[i], 'intensity')
         data_i = horizontal_split(data_i, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES)
-        if ODOMS_UNITS == "deg":
-            odometry_i = odom_rad_to_deg(odometry_to_use[i].dof)
-        elif ODOMS_UNITS == "rad":
+
+        if ROT_TYPE == "axis-angle":
+            odometry_i = euler_rad_to_axis_angle(odometry_to_use[i].dof)
+        elif ROT_TYPE == "euler":
             odometry_i = odometry_to_use[i].dof
         else:
+            raise ValueError("Unknown rotation representaiton '%s'" % ROT_TYPE)
+
+        if ODOMS_UNITS == "deg":
+            odometry_i = odom_rad_to_deg(odometry_i)
+        elif ODOMS_UNITS != "rad":
             raise ValueError("Unknown odometry units '%s'" % ODOMS_UNITS) 
+
         odometry_i = np.asarray([odometry_i[j]*DOF_WEIGHTS[j] for j in range(len(odometry_i))])
 
         bias = 0

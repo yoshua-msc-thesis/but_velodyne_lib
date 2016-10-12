@@ -6,7 +6,7 @@ from odometry_cnn_data import get_delta_odometry
 from odometry_cnn_data import Odometry
 
 if len(sys.argv) != 3:
-    sys.stderr.write("Invalid arguments, expected: <translation.poses> <rotation.poses>")
+    sys.stderr.write("Invalid arguments, expected: <translation.poses> <rotation.poses>\n")
     sys.exit(1)
 
 t_poses = load_kitti_poses(sys.argv[1])
@@ -22,4 +22,4 @@ for i in range(len(t_odoms)):
     dof = t_odoms[i].dof[0:3] + r_odoms[i].dof[3:6]
     pose.move(dof)
     print pose
-    sys.stderr.write("%s\n" % r_odoms[i].dof[3:6])
+    sys.stderr.write("%s\n" % r_odoms[i].dof)

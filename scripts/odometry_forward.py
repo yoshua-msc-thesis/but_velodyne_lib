@@ -12,12 +12,13 @@ import os
 from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
 from odometry_cnn_data import odom_deg_to_rad
+from eulerangles import angle_axis_denorm2eulerXYZ
 
 BATCH_SCHEMA_DATA = [[3, 0],
                      [4, 1],
                      [5, 2],
                      [6, 3],
-                     
+
                      [3, 1],
                      [4, 2],
                      [5, 3],
@@ -26,8 +27,26 @@ BATCH_SCHEMA_DATA = [[3, 0],
                      [3, 2],
                      [4, 3],
                      [5, 4],
-                     [6, 5]]
-BATCH_SCHEMA_ODOM = [[3], [4], [5], [6]]
+                     [6, 5],
+
+                     [2, 0],
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+
+                     [2, 1],
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+
+                     [1, 0],
+                     [2, 1],
+                     [3, 2],
+                     [4, 3]]
+BATCH_SCHEMA_ODOM = [[3],
+                     [4],
+                     [5],
+                     [6]]
 
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA)/BATCH_SIZE
@@ -41,6 +60,7 @@ ZNORM_MEAN = [0]*6
 ZNORM_STD_DEV = [1]*6
 CUMMULATE_ODOMS = 1
 ODOMS_UNITS = "deg"
+ROT_TYPE = "euler"  # "euler" or "axis-angle"
 DOF_WEIGHTS = [1.0] * 6
 
 HORIZONTAL_DIVISION = 1  # divide into the 4 cells
@@ -50,8 +70,8 @@ CHANNELS = FEATURES * HORIZONTAL_DIVISION
 OUTPUT_LAYER_NAME = "out_odometry"
 
 DOF_REQUIRED = 6
-DOF_PREDICTED = 6
-DOF_PREDICTED_FIRST = 0
+DOF_PREDICTED = 3
+DOF_PREDICTED_FIRST = 3
 
 def create_blob(input_files, schema_dic):
     blob = np.empty([BATCH_SIZE*HISTORY_SIZE, JOINED_FRAMES*CHANNELS, 64, 360 / HORIZONTAL_DIVISION + HORIZONTAL_DIVISION_OVERLAY * 2])
@@ -141,6 +161,9 @@ def extract_single_number(multi_array):
         output = output[0]
     return output
 
+def axis_angle_to_euler_rad(dof):
+    return dof[0:3] + angle_axis_denorm2eulerXYZ(dof[3:6])
+
 def extract_prediction(data_blobs, blob_i, slot_i):
     dof = [0]*DOF_REQUIRED
     for i in range(DOF_PREDICTED_FIRST, DOF_PREDICTED_FIRST+DOF_PREDICTED):
@@ -148,6 +171,8 @@ def extract_prediction(data_blobs, blob_i, slot_i):
         dof[i] /= DOF_WEIGHTS[i]
     if ODOMS_UNITS == "deg":
         dof = odom_deg_to_rad(dof)
+    if ROT_TYPE == "axis-angle":
+        dof = axis_angle_to_euler_rad(dof)
     return [dof[i]*ZNORM_STD_DEV[i] + ZNORM_MEAN[i] for i in range(DOF_REQUIRED)]
 
 parser = argparse.ArgumentParser(description="Forwarding CNN for odometry estimation")

@@ -1,8 +1,8 @@
 #! /bin/bash
 
-DEPLOY_PROTOTXT=~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_h3_j2_deploy.prototxt
-TRAINED_MODEL=~/workspace/ivelas-git/sw/cnn-generator/NETS/odometry_h3_wloss/net_snapshot_iter_500000.caffemodel
-OUTPUT_DIR=/media/kitti/dataset_odometry_velodyne_odom_cnn_data/results/25-odometry_h3_wloss
+DEPLOY_PROTOTXT=~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_l335_h6_splitRt_deploy.prototxt
+TRAINED_MODEL=~/workspace/ivelas-git/sw/cnn-generator/NETS/odometry_l335_h6_rot_aligned_II/net_snapshot_iter_450000.caffemodel
+OUTPUT_DIR=/media/kitti/dataset_odometry_velodyne_odom_cnn_data/results/34-odometry_l335_h6_rot_deg_axisangle_it450k
 
 DATA_DIR=/media/kitti/dataset_odometry_velodyne_ground_fake_ann/00-10/  
 POSES_DIR=/media/kitti/dataset_odometry_poses/poses
@@ -16,4 +16,4 @@ do
 done
 
 cp $DEPLOY_PROTOTXT $TRAINED_MODEL $OUTPUT_DIR
-cp $SCRIPT_DIR/odometry_forward.py $OUTPUT_DIR/schema.txt
+cp $SCRIPT_DIR/odometry_forward.py $OUTPUT_DIR/schema.py

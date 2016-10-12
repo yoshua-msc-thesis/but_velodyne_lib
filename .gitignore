@@ -6,4 +6,4 @@ lib/
 .project
 .settings/
 .pydevproject
-
+*.pyc

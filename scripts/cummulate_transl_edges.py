@@ -35,7 +35,7 @@ class Edge:
         self.dof[0:3] = other.dof[0:3]
     
     def __str__(self):
-        return " ".join(map(str, [self.src_i, self.trg_i] + self.dof + self.precision))
+        return "EDGE3 " + " ".join(map(str, [self.src_i, self.trg_i] + self.dof + self.precision))
     
     def __repr__(self):
         return "<" + str(self) + ">"
@@ -70,7 +70,6 @@ def find_path(src_i, trg_i, edges):
 def split_first(edges):
     for e in edges:
         if e.trg_i - e.src_i > 1:
-            print e
             for c in find_connections_to(e.trg_i, edges):
                 if c.src_i > e.src_i:
                     edges.append(e - c)
@@ -82,7 +81,8 @@ def split_first(edges):
 translations = map(Edge.fromGraphLine, open(sys.argv[1]).readlines())
 translations = split_first(translations)
 
-for rot_edge in map(Edge.fromGraphLine, open(sys.argv[2]).readlines()):
+edges = map(Edge.fromGraphLine, open(sys.argv[2]).readlines())
+for rot_edge in edges:
     path = find_path(rot_edge.src_i, rot_edge.trg_i, translations)
     for i in range(1, len(path)):
         path[0] = path[0] + path[i]

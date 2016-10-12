@@ -90,15 +90,19 @@ class Odometry:
             output += str(self.M[i/4, i%4]) + " "
         return output[:-1]
 
-def load_kitti_poses(filename):
+def load_kitti_poses(file):
     poses = []
-    for line in open(filename).readlines():
+    if not hasattr(file, "readlines"):
+        file = open(file)
+    for line in file.readlines():
         kitti_pose = map(float, line.strip().split())
         o = Odometry(kitti_pose)
         poses.append(o)
     return poses
 
-def get_delta_odometry(odometries, mask):
+def get_delta_odometry(odometries, mask = None):
+    if mask == None:
+        mask = [1]*len(odometries)
     if len(odometries) != len(mask):
         sys.stderr.write("Number of poses (%s) and velodyne frames (%s) differ!\n" % (len(mask), len(odometries)))
     output = [Odometry()]
