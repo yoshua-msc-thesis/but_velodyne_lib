@@ -26,6 +26,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cassert>
+#include <numeric>
 
 #include <cv.h>
 #include <pcl/common/eigen.h>
@@ -229,6 +230,77 @@ void VelodynePointCloud::setImageLikeAxisFromKitti() {
 void VelodynePointCloud::setImageLikeAxisFromBut() {
   Eigen::Affine3f transformation = getTransformation(0, 0, 0, M_PI / 2, 0, 0);
   transformPointCloud(*this, *this, transformation);
+}
+
+void VelodynePointCloud::setRingsByPointCount() {
+	int ring = 0;
+	int ring_size = this->size() / VELODYNE_RINGS_COUNT;
+	for (int i = 0; i < this->size(); i++) {
+		if (i != 0 && (i % ring_size) == 0) {
+			ring++;
+		}
+
+		if (ring < VELODYNE_RINGS_COUNT) {
+			points[i].ring = ring;
+		} else {
+			this->erase(this->begin() + i, this->end());
+		}
+	}
+}
+
+void VelodynePointCloud::setRingsByHorizontalAngles() {
+  const float RAD_TO_DEG = 180.0f / float(CV_PI);
+  const float ANGLE_DIFF_THRESH = 60;
+  const int WIN_HALF_SIZE = 5;
+  int ring = 0;
+
+  vector<float> angles;
+  for(int i = 0; i < this->size(); i++) {
+  	int angle = std::atan2(points[i].z, points[i].x)*RAD_TO_DEG;		// 90..180;-180..0..90
+  	if(angle < 0) {
+  		angle += 360;																									// 90..180;180..359,0..90
+  	}
+  	angle = (angle+270)%360;																				// 0..90;90..269,270..359
+  	angles.push_back(angle);
+  }
+
+  /*
+   * Convolution with step function:
+   *  1.0  -------|
+   *              |
+   *              |
+   * -1.0         |-------
+   *
+   * ... and preserving only the indices over threshold
+   */
+  vector<float> possible_breakpoints;
+  for(int i = 0; i < angles.size(); i++) {
+  	if(WIN_HALF_SIZE < i && i < this->size()-WIN_HALF_SIZE) {
+  		float angle_diff = std::accumulate(angles.begin()+i-WIN_HALF_SIZE, angles.begin()+i, 0) -
+  										   std::accumulate(angles.begin()+i+1, angles.begin()+i+WIN_HALF_SIZE+1, 0);
+  		if(angle_diff > ANGLE_DIFF_THRESH) {
+  			possible_breakpoints.push_back(i);
+  		}
+  	}
+  }
+  cv::Mat possible_breakpoints_mat(possible_breakpoints);
+
+  const int K = VELODYNE_RINGS_COUNT-1;
+  Mat labels, centers;
+  cv::kmeans(possible_breakpoints_mat,
+  		K, labels,
+      cv::TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 50, 1.0),
+         3, KMEANS_PP_CENTERS, centers);
+  cv::sort(centers, centers, CV_SORT_EVERY_COLUMN);
+
+  cv::Mat breakpoints = Mat::ones(VELODYNE_RINGS_COUNT, 1, CV_32FC1)*INFINITY;
+  centers.copyTo(breakpoints.rowRange(0, VELODYNE_RINGS_COUNT-1));
+  int cloud_index = 0;
+  for(int ring = 0; ring < VELODYNE_RINGS_COUNT; ring++) {
+  	for(; cloud_index < breakpoints.at<float>(ring) && cloud_index < this->size(); cloud_index++) {
+  		points[cloud_index].ring = ring;
+  	}
+  }
 }
 
 //================// PointXYZIR //================//

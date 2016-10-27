@@ -199,6 +199,10 @@ public:
    */
   void setImageLikeAxisFromBut();
 
+  void setRingsByPointCount();
+
+  void setRingsByHorizontalAngles();
+
   /**!
    * Loads the Velodyne point cloud from the KITTI *.bin file. The ring ID is also
    * estimated.
@@ -228,25 +232,8 @@ public:
     }
     input.close();
 
-    int ring = 0;
-    int ring_size = out_cloud.size() / VELODYNE_RINGS_COUNT;
-    for (int i = 0; i < out_cloud.size(); i++)
-    {
-      if (i != 0 && (i % ring_size) == 0)
-      {
-        ring++;
-      }
-
-      if (ring < VELODYNE_RINGS_COUNT)
-      {
-        out_cloud[i].ring = ring;
-      }
-      else
-      {
-        out_cloud.erase(out_cloud.begin() + i, out_cloud.end());
-      }
-    }
     out_cloud.setImageLikeAxisFromKitti();
+    out_cloud.setRingsByHorizontalAngles();
 
     std::cerr << "Read KTTI point cloud " << infile << " with " << i-1 << " points." << std::endl;
   }
