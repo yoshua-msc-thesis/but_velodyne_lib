@@ -13,6 +13,7 @@ from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
 from odometry_cnn_data import odom_deg_to_rad
 from eulerangles import angle_axis_denorm2eulerXYZ
+import kitti_poses_rot_quantization
 
 BATCH_SCHEMA_DATA = [[3, 0],
                      [4, 1],
@@ -60,7 +61,7 @@ ZNORM_MEAN = [0]*6
 ZNORM_STD_DEV = [1]*6
 CUMMULATE_ODOMS = 1
 ODOMS_UNITS = "deg"
-ROT_TYPE = "euler"  # "euler" or "axis-angle"
+ROT_TYPE = "euler"  # "euler" or "axis-angle" or "classes"
 DOF_WEIGHTS = [1.0] * 6
 
 HORIZONTAL_DIVISION = 1  # divide into the 4 cells
@@ -165,6 +166,8 @@ def axis_angle_to_euler_rad(dof):
     return dof[0:3] + angle_axis_denorm2eulerXYZ(dof[3:6])
 
 def extract_prediction(data_blobs, blob_i, slot_i):
+    if ROT_TYPE == "classes":
+        return odom_deg_to_rad([0]*3 + kitti_poses_rot_quantization.classes_blob2angles(data_blobs, blob_i))
     dof = [0]*DOF_REQUIRED
     for i in range(DOF_PREDICTED_FIRST, DOF_PREDICTED_FIRST+DOF_PREDICTED):
         dof[i] = extract_single_number(data_blobs[OUTPUT_LAYER_NAME][blob_i][slot_i*DOF_PREDICTED + i - DOF_PREDICTED_FIRST])
@@ -188,6 +191,7 @@ if len(args.feature_file) < max_in_data_schema+1:
     sys.exit(1)
 
 caffe.set_mode_gpu()
+#caffe.set_mode_cpu()
 net = caffe.Net(args.prototxt, args.caffemodel, caffe.TRAIN)
 
 pose_graph = []

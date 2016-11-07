@@ -17,33 +17,10 @@ from odometry_cnn_data import odom_deg_to_rad
 from odometry_cnn_data import Odometry
 from odometry_cnn_data import load_kitti_poses
 from odometry_cnn_data import get_delta_odometry
+from odometry_cnn_data import gen_preserve_mask
+from odometry_cnn_data import mask_list
 
 import cv_yaml
-
-def gen_preserve_mask(poses, skip_prob):
-    mask = [1]
-    prev_pose = poses[0]
-    current_pose = poses[1]
-    for next_pose in poses[2:]:
-        distance = next_pose.distanceTo(prev_pose)
-        rndnum = random.random()
-        if (distance < MAX_SPEED * 0.1) and (rndnum < skip_prob):
-            mask.append(0)
-        else:
-            mask.append(1)
-            prev_pose = current_pose
-        current_pose = next_pose
-    mask.append(1)
-    return mask
-
-def mask_list(list, mask):
-    if len(list) != len(mask):
-        sys.stderr.write("Number of poses (%s) and velodyne frames (%s) differ!\n" % (len(mask), len(list)))
-    output = []
-    for i in range(min(len(mask), len(list))):
-        if mask[i] != 0:
-            output.append(list[i])
-    return output
 
 class OutputFiles:
     def __init__(self, batch_size, history_size, frames_to_join, odometries_to_join, features, division, overlay, output_prefix, 
@@ -143,8 +120,8 @@ max_in_data_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
 min_in_odom_schema = min(reduce(lambda x, y: x + y, BATCH_SCHEMA_ODOM))
 
 MIN_SKIP_PROB = 0.0
-MAX_SKIP_PROB = 0.01
-STEP_SKIP_PROB = 0.9
+MAX_SKIP_PROB = 0.09
+STEP_SKIP_PROB = 0.8
 MAX_SPEED = 60 / 3.6
 FILES_PER_HDF5 = 240    # 3*5*16
 
@@ -190,12 +167,12 @@ out_files = OutputFiles(BATCH_SIZE, HISTORY_SIZE, JOINED_FRAMES, JOINED_ODOMETRI
 data_dest_index = schema_to_dic(BATCH_SCHEMA_DATA)
 odom_dest_index = schema_to_dic(BATCH_SCHEMA_ODOM)
 while skip_prob < MAX_SKIP_PROB:
-    mask = gen_preserve_mask(poses_6dof, skip_prob)
+    mask = gen_preserve_mask(poses_6dof, skip_prob, MAX_SPEED)
     # TODO - maybe also duplication = no movement
 
     out_files.newSequence(sum(mask))
     files_to_use = mask_list(sys.argv[3:], mask)
-    odometry_to_use = get_delta_odometry(poses_6dof, mask)
+    odometry_to_use = get_delta_odometry(mask_list(poses_6dof, mask))
     odometry_to_use = odom_cumulate(odometry_to_use, CUMMULATE_ODOMS)
     odometry_to_use = map(znorm_odom, odometry_to_use)
 

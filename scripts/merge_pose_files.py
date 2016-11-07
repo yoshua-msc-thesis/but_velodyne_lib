@@ -12,8 +12,8 @@ if len(sys.argv) != 3:
 t_poses = load_kitti_poses(sys.argv[1])
 r_poses = load_kitti_poses(sys.argv[2])
 
-t_odoms = get_delta_odometry(t_poses, [1]*len(t_poses))
-r_odoms = get_delta_odometry(r_poses, [1]*len(r_poses))
+t_odoms = get_delta_odometry(t_poses)
+r_odoms = get_delta_odometry(r_poses)
 
 assert len(t_odoms) == len(r_odoms)
 

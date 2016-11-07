@@ -4,6 +4,7 @@ import numpy as np
 import math
 import sys
 import eulerangles
+import random
 
 def horizontal_split(data, division, overlay, features):
     output = np.empty([division * features, 64, 360 / division + overlay * 2])
@@ -100,15 +101,47 @@ def load_kitti_poses(file):
         poses.append(o)
     return poses
 
-def get_delta_odometry(odometries, mask = None):
-    if mask == None:
-        mask = [1]*len(odometries)
-    if len(odometries) != len(mask):
-        sys.stderr.write("Number of poses (%s) and velodyne frames (%s) differ!\n" % (len(mask), len(odometries)))
+def get_delta_odometry(odometries):
     output = [Odometry()]
-    last_i = 0
-    for i in range(1, min(len(mask), len(odometries))):
+    for i in range(1, len(odometries)):
+        output.append(odometries[i] - odometries[i-1])
+    return output
+
+def remove_ones_sequences(mask):
+    preserve = [1]*len(mask)
+    preserve[0] = 0 if (mask[0] == 1) and (mask[1] == 1) else 1
+    preserve[-1] = 0 if (mask[-2] == 1) and (mask[-1] == 1) else 1
+    for i in range(1, len(mask)-1):
+        if (mask[i-1] == 1) and (mask[i] == 1) and (mask[i+1] == 1):
+            preserve[i] = 0
+    return [mask[i]*preserve[i] for i in range(len(mask))]
+
+def gen_preserve_mask(poses, skip_prob, max_speed):
+    if skip_prob == 0:
+        return [1]*len(poses)
+    mask = [1]
+    prev_pose = poses[0]
+    current_pose = poses[1]
+    for next_pose in poses[2:]:
+        distance = next_pose.distanceTo(prev_pose)
+        rndnum = random.random()
+        if (distance < max_speed * 0.1) and (rndnum < skip_prob):
+            mask.append(0)
+        else:
+            mask.append(1)
+            prev_pose = current_pose
+        current_pose = next_pose
+    mask.append(1)
+#    print "original mask:", mask
+#    mask = remove_ones_sequences(mask)
+#    print "filtered mask:", mask
+    return mask
+
+def mask_list(list, mask):
+    if len(list) != len(mask):
+        sys.stderr.write("Number of poses (%s) and velodyne frames (%s) differ!\n" % (len(mask), len(list)))
+    output = []
+    for i in range(min(len(mask), len(list))):
         if mask[i] != 0:
-            output.append(odometries[i] - odometries[last_i])
-            last_i = i
+            output.append(list[i])
     return output

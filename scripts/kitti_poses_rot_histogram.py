@@ -48,7 +48,7 @@ def data_index_from_odom(odom_i, hist_size, batch_size, hist_i):
     return batch_i*batch_size*hist_size + slot_i + hist_i*batch_size
 
 
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 
 odometries = get_delta_odometry(load_kitti_poses(sys.stdin))
 
@@ -56,8 +56,8 @@ angles = [math.sqrt(sum(math.pow(o.dof[i]*180.0/math.pi, 2.0) for i in range(3,6
 angles.sort()
 angles = angles[0:int(0.999*len(angles))]
 
-#dupl = NoDuplication()
-dupl = Duplication(angles)
+dupl = NoDuplication()
+#dupl = Duplication(angles)
 #===============================================================================
 # import matplotlib.pyplot as plt
 # dupl_angles = []
