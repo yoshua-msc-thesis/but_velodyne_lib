@@ -137,6 +137,11 @@ class VelodynePointCloud : public pcl::PointCloud<velodyne_pointcloud::PointXYZI
 {
 public:
 
+	VelodynePointCloud() :
+		pcl::PointCloud<velodyne_pointcloud::PointXYZIR>(),
+		axis_correction(Eigen::Matrix4f::Identity()) {
+	}
+
   /**!
    * Normalization of the point intensities to interval [min_intensity, max_intensity]
    *
@@ -199,7 +204,18 @@ public:
    */
   void setImageLikeAxisFromBut();
 
+  void setImageLikeAxisFromDarpa();
+
   void setRingsByPointCount();
+
+	static float horizontalAngle(float to_front, float to_right) {
+		const float RAD_TO_DEG = 180.0f / float(CV_PI);
+		int angle = std::atan2(to_front, to_right) * RAD_TO_DEG;	// 90..180;-180..0..90
+		if (angle < 0) {
+			angle += 360;																						// 90..180;180..359,0..90
+		}
+		return (angle + 270) % 360;																// 0..90;90..269,270..359
+	}
 
   void setRingsByHorizontalAngles();
 
@@ -234,6 +250,7 @@ public:
 
     out_cloud.setImageLikeAxisFromKitti();
     out_cloud.setRingsByHorizontalAngles();
+    //out_cloud.setRingsByPointCount();
 
     std::cerr << "Read KTTI point cloud " << infile << " with " << i-1 << " points." << std::endl;
   }
@@ -257,8 +274,17 @@ public:
 
   std::vector<int> removeNanPoints();
 
+	Eigen::Matrix4f getAxisCorrection() const {
+		return axis_correction;
+	}
+
+	void addAxisCorrection(const Eigen::Matrix4f &correction);
+
 protected:
   VelodynePointCloud discartWeakPoints(float threshold);
+
+private:
+  Eigen::Matrix4f axis_correction;
 
 public:
   static const uint16_t VELODYNE_RINGS_COUNT = VelodyneSpecification::RINGS;      ///! Expected number of the rings in Velodyne point cloud

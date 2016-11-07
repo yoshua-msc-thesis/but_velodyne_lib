@@ -165,6 +165,27 @@ public:
     return this->addColorPointCloud(rgb_cloud, transformation);
   }
 
+  Visualizer3D& addCloudColoredByRing(const VelodynePointCloud &cloud, const Eigen::Matrix4f &transformation =
+                                            Eigen::Matrix4f::Identity()) {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    for (VelodynePointCloud::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
+      uchar r, g, b;
+      r = pt->ring / ((float) VelodyneSpecification::RINGS) * 255;
+      g = b = 0;
+
+      pcl::PointXYZRGB rgb_pt;
+      rgb_pt.x = pt->x;
+      rgb_pt.y = pt->y;
+      rgb_pt.z = pt->z;
+      rgb_pt.r = r;
+      rgb_pt.g = g;
+      rgb_pt.b = b;
+      rgb_cloud->push_back(rgb_pt);
+    }
+
+    return this->addColorPointCloud(rgb_cloud, transformation);
+  }
+
   /**!
    * Add new point cloud of XYZRGB point type into the visualization. Cloud
    * is optionally transformed. The original color of all points is preserved.

@@ -125,9 +125,9 @@ public:
    * @param index index of data frame in sequence
    * @return filename where LiDAR data (point cloud) is stored
    */
-  static std::string getKittiFrameName(const int index) {
+  static std::string getKittiFrameName(const int index, const std::string &suffix = ".bin") {
     std::stringstream ss;
-    ss << std::setfill('0') << std::setw(6) << index << ".bin";
+    ss << std::setfill('0') << std::setw(6) << index << suffix;
     return ss.str();
   }
 };

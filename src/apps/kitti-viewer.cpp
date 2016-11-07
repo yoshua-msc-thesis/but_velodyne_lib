@@ -62,7 +62,17 @@ int main(int argc, char** argv)
   VelodynePointCloud cloud;
   for(int i = 0; i < filenames.size(); i++) {
     cerr << "scan: " << filenames[i] << endl;
-    VelodynePointCloud::fromKitti(filenames[i], cloud);
+    VelodynePointCloud::fromFile(filenames[i], cloud);
+
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+		for(int i = 0; i < cloud.size(); i++) {
+			pcl::PointXYZRGB color_pt;
+			copyXYZ(cloud[i], color_pt);
+
+			color_pt.g = color_pt.b = color_pt.r = 0;
+			color_pt.r = (cloud[i].ring * 50) % 256;
+			color_cloud->push_back(color_pt);
+		}
 
     if(poses.empty()) {
       visualizer.addCloudColoredByHeight(cloud);

@@ -218,18 +218,27 @@ float VelodynePointCloud::getMedianRange() const {
 }
 
 void VelodynePointCloud::setImageLikeAxisFromKitti() {
-  Eigen::Matrix4f transformation;
-    transformation <<
+  axis_correction <<
         0, -1,  0,  0,
         0,  0, -1,  0,
         1,  0,  0,  0,
         0,  0,  0,  1;
-  transformPointCloud(*this, *this, transformation);
+  transformPointCloud(*this, *this, axis_correction);
 }
 
 void VelodynePointCloud::setImageLikeAxisFromBut() {
-  Eigen::Affine3f transformation = getTransformation(0, 0, 0, M_PI / 2, 0, 0);
-  transformPointCloud(*this, *this, transformation);
+	axis_correction = getTransformation(0, 0, 0, M_PI / 2, 0, 0).matrix();
+  transformPointCloud(*this, *this, axis_correction);
+}
+
+void VelodynePointCloud::setImageLikeAxisFromDarpa() {
+	axis_correction = pcl::getTransformation(0, 0, 0, M_PI/2, M_PI, 0).matrix();
+  transformPointCloud(*this, *this, axis_correction);
+}
+
+void VelodynePointCloud::addAxisCorrection(const Eigen::Matrix4f &correction) {
+	axis_correction = axis_correction * correction;
+  transformPointCloud(*this, *this, correction);
 }
 
 void VelodynePointCloud::setRingsByPointCount() {
@@ -249,19 +258,14 @@ void VelodynePointCloud::setRingsByPointCount() {
 }
 
 void VelodynePointCloud::setRingsByHorizontalAngles() {
-  const float RAD_TO_DEG = 180.0f / float(CV_PI);
   const float ANGLE_DIFF_THRESH = 60;
   const int WIN_HALF_SIZE = 5;
   int ring = 0;
 
   vector<float> angles;
   for(int i = 0; i < this->size(); i++) {
-  	int angle = std::atan2(points[i].z, points[i].x)*RAD_TO_DEG;		// 90..180;-180..0..90
-  	if(angle < 0) {
-  		angle += 360;																									// 90..180;180..359,0..90
-  	}
-  	angle = (angle+270)%360;																				// 0..90;90..269,270..359
-  	angles.push_back(angle);
+    float angle = horizontalAngle(points[i].z, points[i].x);
+    angles.push_back(angle);
   }
 
   /*

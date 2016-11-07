@@ -125,6 +125,16 @@ target_link_libraries(ground-by-median but_velodyne)
 add_executable(odometry-cnn src/apps/odometry-cnn.cpp)
 target_link_libraries(odometry-cnn but_velodyne)
 
+add_executable(to-kitti src/mit-dgc-data/c/to-kitti.cpp
+    src/mit-dgc-data/c/eventlog.c src/mit-dgc-data/c/lcmtypes_gps_to_local_t.c
+    src/mit-dgc-data/c/lcmtypes_pose_t.c src/mit-dgc-data/c/lcmtypes_image_t.c
+    src/mit-dgc-data/c/lcmtypes_velodyne_t.c src/mit-dgc-data/c/lcmtypes_laser_t.c
+    src/mit-dgc-data/c/config.c src/mit-dgc-data/c/rotations.c
+    src/mit-dgc-data/c/math_util.c src/mit-dgc-data/c/velodyne.c
+    src/mit-dgc-data/c/config_util.c src/mit-dgc-data/c/camtrans.c)
+target_link_libraries(to-kitti but_velodyne)
+target_include_directories(to-kitti PUBLIC ${PROJECT_SOURCE_DIR}/mit-dgc-data)
+
 ########################## Installation: #####################################
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/but_velodyne-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/but_velodyne-config.cmake" IMMEDIATE @ONLY)
