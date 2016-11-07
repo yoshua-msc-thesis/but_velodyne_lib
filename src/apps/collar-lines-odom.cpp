@@ -115,8 +115,9 @@ bool parse_arguments(int argc, char **argv,
                      CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
                      boost::shared_ptr<MoveEstimator> &estimator,
                      vector<string> &clouds_to_process) {
-  bool use_kalman = false;
-  int linear_estimator = 3;
+  bool use_kalman;
+  int linear_estimator;
+  string init_poses;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -150,9 +151,11 @@ bool parse_arguments(int argc, char **argv,
           "If standard deviation of error from last N=min_iterations iterations if below this value - registration is terminated")
       ("history_size,m", po::value<int>(&pipeline_parameters.historySize)->default_value(pipeline_parameters.historySize),
           "How many previous frames are used for registration (multi-view CLS-M approach described in the paper)")
-      ("linear_estimator", po::value<int>(&linear_estimator)->default_value(linear_estimator),
-          "Use last N frames for linear odometry prediction - can not be combined with kalman_estimator switch")
-      ("kalman_estimator", po::bool_switch(&use_kalman), "Use Kalman filter instead of linear predictor for estimation of odometry")
+			("linear_estimator", po::value<int>(&linear_estimator)->default_value(0),
+					"Use last N frames for linear odometry prediction - can not be combined with kalman_estimator switch or init_poses_estimator")
+			("init_poses_estimator", po::value<string>(&init_poses)->default_value(""),
+					"Use precomputed poses as a prediction - can not be combined with kalman_estimator switch or linear_estimator")
+      ("kalman_estimator", po::bool_switch(&use_kalman), "Use Kalman filter instead of linear predictor or precomputed poses for estimation of odometry")
    ;
 
     po::variables_map vm;
@@ -176,15 +179,16 @@ bool parse_arguments(int argc, char **argv,
         return false;
     }
 
-    if(use_kalman) {
-      if(linear_estimator > 0) {
-        std::cerr << "Unable to use both linear predictor and Kalman filter!" << std::endl;
+    if(use_kalman?1:0 + (linear_estimator > 0)?1:0 + init_poses.empty()?0:1 > 1) {
+        std::cerr << "Unable to use multiple predictors at the same time!" << std::endl;
         std::cerr << desc << std::endl;
         return false;
-      }
+    } else if(use_kalman) {
       estimator.reset(new KalmanMoveEstimator(1e-5, 1e-4, 1.0));
+    } else if(!init_poses.empty()) {
+      estimator.reset(new PosesToInitEstimator(init_poses));
     } else {
-      estimator.reset(new LinearMoveEstimator(linear_estimator));
+      estimator.reset(new LinearMoveEstimator(linear_estimator > 0 ? linear_estimator : 3));
     }
 
     return true;

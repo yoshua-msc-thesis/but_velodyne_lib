@@ -168,6 +168,16 @@ private:
   static const float TIME_DELTA;
 };
 
+class PosesToInitEstimator : public MoveEstimator {
+public:
+	PosesToInitEstimator(const std::string poses_filename);
+  virtual void addMeassurement(const MoveParameters &params);
+  virtual MoveParameters predict();
+private:
+  std::vector<Eigen::Affine3f> poses;
+  int pose_index;
+};
+
 /**!
  * Prediction of future odometry using existing estimator
  */

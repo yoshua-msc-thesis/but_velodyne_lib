@@ -22,6 +22,9 @@
  */
 
 #include <but_velodyne/MoveEstimation.h>
+#include <but_velodyne/KittiUtils.h>
+
+using namespace std;
 
 namespace but_velodyne
 {
@@ -215,6 +218,20 @@ const int KalmanMoveEstimator::STATES = 18;
 const int KalmanMoveEstimator::MEASSURES_STATES = 6;
 const int KalmanMoveEstimator::ACTION_CONTROLS = 0;
 const float KalmanMoveEstimator::TIME_DELTA = 0.1;         // 10fps
+
+PosesToInitEstimator::PosesToInitEstimator(const std::string poses_filename) {
+	poses = KittiUtils::load_kitti_poses(poses_filename);
+	pose_index = 1;
+}
+
+void PosesToInitEstimator::addMeassurement(const MoveParameters &to_ignore) {
+	pose_index++;
+}
+
+MoveParameters PosesToInitEstimator::predict() {
+	cerr << "Returning inv(pose[" << pose_index-1 << "])*pose[" << pose_index << "] as a prediction." << endl;
+	return MoveParameters(poses[pose_index-1].inverse() * poses[pose_index].matrix());
+}
 
 /* ******************************* MoveEstimation ******************************* */
 
