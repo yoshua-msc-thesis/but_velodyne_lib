@@ -208,13 +208,23 @@ public:
 
   void setRingsByPointCount();
 
+  /**
+   * Returns 0/360deg in front of LiDAR, 90deg in left, 180deg in back and 270deg in right
+   */
 	static float horizontalAngle(float to_front, float to_right) {
 		const float RAD_TO_DEG = 180.0f / float(CV_PI);
-		int angle = std::atan2(to_front, to_right) * RAD_TO_DEG;	// 90..180;-180..0..90
+		float angle = std::atan2(to_front, to_right) * RAD_TO_DEG;	// 90..180;-180..0..90
+
 		if (angle < 0) {
-			angle += 360;																						// 90..180;180..359,0..90
+			angle += 360;																							// 90..180;180..359,0..90
 		}
-		return (angle + 270) % 360;																// 0..90;90..269,270..359
+
+		angle += 270;
+		while (angle >= 360) {
+			angle -= 360;																							// 0..90;90..269,270..359
+		}
+
+		return angle;
 	}
 
   void setRingsByHorizontalAngles();

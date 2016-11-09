@@ -131,12 +131,6 @@ protected:
 
   void fill(const VelodynePointCloud &point_cloud, bool redistribute);
 
-  float getPolarAngle(float x, float y)
-  {
-    static const float rad_to_deg = 180.0f / float(CV_PI);
-    return std::atan2(y, x) * rad_to_deg;
-  }
-
   int getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point);
 
   int computeNewRingIndex(const velodyne_pointcloud::PointXYZIR &point,

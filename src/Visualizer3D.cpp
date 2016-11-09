@@ -72,6 +72,25 @@ Visualizer3D& Visualizer3D::addColorPointCloud(
   return *this;
 }
 
+Visualizer3D& Visualizer3D::addCloudColoredByRing(const VelodynePointCloud &cloud, const Eigen::Matrix4f &transformation) {
+
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+  for (VelodynePointCloud::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
+    uchar r, g, b;
+    r = pt->ring / ((float) VelodyneSpecification::RINGS) * 255;
+    g = b = 0;
+
+    pcl::PointXYZRGB rgb_pt;
+    copyXYZ(*pt, rgb_pt);
+    rgb_pt.r = r;
+    rgb_pt.g = g;
+    rgb_pt.b = b;
+    rgb_cloud->push_back(rgb_pt);
+  }
+
+  return this->addColorPointCloud(rgb_cloud, transformation);
+}
+
 Visualizer3D& Visualizer3D::addHeightMap(const Regular2DGrid<float> &height_map,
                                          const Regular2DGridGenerator::Parameters &params,
                                          const float min_height) {

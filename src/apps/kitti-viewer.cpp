@@ -65,19 +65,19 @@ int main(int argc, char** argv)
     VelodynePointCloud::fromFile(filenames[i], cloud);
 
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-		for(int i = 0; i < cloud.size(); i++) {
+		for(int pt_i = 0; pt_i < cloud.size(); pt_i++) {
 			pcl::PointXYZRGB color_pt;
-			copyXYZ(cloud[i], color_pt);
+			copyXYZ(cloud[pt_i], color_pt);
 
 			color_pt.g = color_pt.b = color_pt.r = 0;
-			color_pt.r = (cloud[i].ring * 50) % 256;
+			color_pt.r = (cloud[pt_i].ring * 50) % 256;
 			color_cloud->push_back(color_pt);
 		}
 
     if(poses.empty()) {
-      visualizer.addCloudColoredByHeight(cloud);
+      visualizer.addCloudColoredByAngle(cloud);
     } else {
-      visualizer.addCloudColoredByHeight(cloud, poses[i].matrix());
+      visualizer.addCloudColoredByAngle(cloud, poses[i].matrix());
     }
   }
   visualizer.show();
