@@ -388,12 +388,15 @@ int main(int argc, char** argv) {
     VelodynePointCloud new_cloud;
     VelodynePointCloud::fromFile(*filename, new_cloud);
 
+    /* Uncomment for fake ground annotation:
     vector<float> prob_from_rings = groundSegmentationByRings(new_cloud);
     GroundProbabilityByDevInCell height_deviation_estimator;
     vector<float> prob_from_polar_grid = segmentationRegularPolarGrid(new_cloud, height_deviation_estimator);
     vector<float> joined_prob;
-    joinProbabilities(prob_from_rings, prob_from_polar_grid, joined_prob);
-    /*ScatteredProbabilityInCell scatter_estimator;
+    joinProbabilities(prob_from_rings, prob_from_polar_grid, joined_prob);*/
+
+    /* Not used for fake ground annotation:
+    ScatteredProbabilityInCell scatter_estimator;
     scatter_estimator.setRelativeMinIndex(0.001);
     scatter_estimator.setRelativeMaxIndex(0.999);
     vector<float> scattered_prob = segmentationRegularPolarGrid(new_cloud, scatter_estimator);*/
@@ -402,12 +405,10 @@ int main(int argc, char** argv) {
                                                 boost::filesystem::path(*filename).stem().string(),
                                                 ground_params);
     map<string, Mat> data;
-//    data["x"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::X);
     data["y"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Y);
-//    data["z"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Z);
     data["range"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::RANGE);
     data["intensity"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::INTENSITY);
-    data_generator.getGroundLabels(joined_prob, data["ground_prob"], data["ground_labels"]);
+    //data_generator.getGroundLabels(joined_prob, data["ground_prob"], data["ground_labels"]);
 
     for(map<string, Mat>::iterator m = data.begin(); m != data.end(); m++) {
         data_generator.saveData(m->second, m->first);
