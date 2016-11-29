@@ -19,35 +19,119 @@ BATCH_SCHEMA_DATA = [[3, 0],
                      [4, 1],
                      [5, 2],
                      [6, 3],
+                     [7, 4],
+                     [8, 5],
+                     [9, 6],
+                     [10, 7],
+                     [11, 8],
+                     [12, 9],
+                     [13, 10],
+                     [14, 11],
+                     [15, 12],
+                     [16, 13],
+                     [17, 14],
+                     [18, 15],
 
                      [3, 1],
                      [4, 2],
                      [5, 3],
                      [6, 4],
-                     
+                     [7, 5],
+                     [8, 6],
+                     [9, 7],
+                     [10, 8],
+                     [11, 9],
+                     [12, 10],
+                     [13, 11],
+                     [14, 12],
+                     [15, 13],
+                     [16, 14],
+                     [17, 15],
+                     [18, 16],
+
                      [3, 2],
                      [4, 3],
                      [5, 4],
                      [6, 5],
+                     [7, 6],
+                     [8, 7],
+                     [9, 8],
+                     [10, 9],
+                     [11, 10],
+                     [12, 11],
+                     [13, 12],
+                     [14, 13],
+                     [15, 14],
+                     [16, 15],
+                     [17, 16],
+                     [18, 17],
 
                      [2, 0],
                      [3, 1],
                      [4, 2],
                      [5, 3],
+                     [6, 4],
+                     [7, 5],
+                     [8, 6],
+                     [9, 7],
+                     [10, 8],
+                     [11, 9],
+                     [12, 10],
+                     [13, 11],
+                     [14, 12],
+                     [15, 13],
+                     [16, 14],
+                     [17, 15],
 
                      [2, 1],
                      [3, 2],
                      [4, 3],
                      [5, 4],
+                     [6, 5],
+                     [7, 6],
+                     [8, 7],
+                     [9, 8],
+                     [10, 9],
+                     [11, 10],
+                     [12, 11],
+                     [13, 12],
+                     [14, 13],
+                     [15, 14],
+                     [16, 15],
+                     [17, 16],
 
                      [1, 0],
                      [2, 1],
                      [3, 2],
-                     [4, 3]]
+                     [4, 3],
+                     [5, 4],
+                     [6, 5],
+                     [7, 6],
+                     [8, 7],
+                     [9, 8],
+                     [10, 9],
+                     [11, 10],
+                     [12, 11],
+                     [13, 12],
+                     [14, 13],
+                     [15, 14],
+                     [16, 15]]
 BATCH_SCHEMA_ODOM = [[3],
                      [4],
                      [5],
-                     [6]]
+                     [6],
+                     [7],
+                     [8],
+                     [9],
+                     [10],
+                     [11],
+                     [12],
+                     [13],
+                     [14],
+                     [15],
+                     [16],
+                     [17],
+                     [18]]
 
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA)/BATCH_SIZE
@@ -61,7 +145,7 @@ ZNORM_MEAN = [0]*6
 ZNORM_STD_DEV = [1]*6
 CUMMULATE_ODOMS = 1
 ODOMS_UNITS = "deg"
-ROT_TYPE = "euler"  # "euler" or "axis-angle" or "classes"
+ROT_TYPE = "classes"  # "euler" or "axis-angle" or "classes"
 DOF_WEIGHTS = [1.0] * 6
 
 HORIZONTAL_DIVISION = 1  # divide into the 4 cells
@@ -81,7 +165,7 @@ def create_blob(input_files, schema_dic):
         file_data[0] = cv_yaml.load(input_files[file_i], 'range')
         file_data[1] = cv_yaml.load(input_files[file_i], 'y')
         file_data[2] = cv_yaml.load(input_files[file_i], 'intensity')
-        file_data = horizontal_split(file_data, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES)
+        file_data = horizontal_split(file_data, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES, 64, 360)
         for indices in schema_dic[file_i]:
             for f in range(CHANNELS):
                 blob[indices["frame"]][indices["slot"]*CHANNELS + f] = file_data[f]
@@ -190,8 +274,8 @@ if len(args.feature_file) < max_in_data_schema+1:
     sys.stderr.write("ERROR: need at least %s feature files to feed CNN!\n", max_in_data_schema+1)
     sys.exit(1)
 
-caffe.set_mode_gpu()
-#caffe.set_mode_cpu()
+#caffe.set_mode_gpu()
+caffe.set_mode_cpu()
 net = caffe.Net(args.prototxt, args.caffemodel, caffe.TRAIN)
 
 pose_graph = []

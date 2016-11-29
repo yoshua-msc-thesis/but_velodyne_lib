@@ -34,53 +34,51 @@
 
 #include <pcl/common/eigen.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/voxel_grid.h>
 
 using namespace std;
 using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 
-int main(int argc, char** argv)
-{
-  if(argc < 2) {
-    cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+";
-    return 1;
-  }
+int main(int argc, char** argv) {
+	if (argc < 2) {
+		cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+";
+		return 1;
+	}
 
-  vector<string> filenames;
-  vector<Eigen::Affine3f> poses;
-  for(int i = 1; i < argc; i++) {
-    if(strcmp(argv[i], "-p") == 0 && (i < argc-1)) {
-      i++;
-      poses = KittiUtils::load_kitti_poses(argv[i]);
-    } else {
-      filenames.push_back(string(argv[i]));
-    }
-  }
-
-  Visualizer3D visualizer;
-  VelodynePointCloud cloud;
-  for(int i = 0; i < filenames.size(); i++) {
-    cerr << "scan: " << filenames[i] << endl;
-    VelodynePointCloud::fromFile(filenames[i], cloud);
-
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-		for(int pt_i = 0; pt_i < cloud.size(); pt_i++) {
-			pcl::PointXYZRGB color_pt;
-			copyXYZ(cloud[pt_i], color_pt);
-
-			color_pt.g = color_pt.b = color_pt.r = 0;
-			color_pt.r = (cloud[pt_i].ring * 50) % 256;
-			color_cloud->push_back(color_pt);
+	vector<string> filenames;
+	vector<Eigen::Affine3f> poses;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-p") == 0 && (i < argc - 1)) {
+			i++;
+			poses = KittiUtils::load_kitti_poses(argv[i]);
+		} else {
+			filenames.push_back(string(argv[i]));
 		}
+	}
 
-    if(poses.empty()) {
-      visualizer.addCloudColoredByAngle(cloud);
-    } else {
-      visualizer.addCloudColoredByAngle(cloud, poses[i].matrix());
-    }
-  }
-  visualizer.show();
+	Visualizer3D visualizer;
+	VelodynePointCloud cloud;
+	PointCloud<PointXYZ> sum_cloud;
+	for (int i = 0; i < filenames.size(); i++) {
+		if (i % 10) {
+			continue;
+		}
+		cerr << "scan: " << filenames[i] << endl;
+		VelodynePointCloud::fromFile(filenames[i], cloud);
 
-  return EXIT_SUCCESS;
+		if (!poses.empty()) {
+			transformPointCloud(cloud, cloud, poses[i]);
+		}
+		sum_cloud += *(cloud.getXYZCloudPtr());
+
+		pcl::VoxelGrid<PointXYZ> grid;
+		grid.setLeafSize(0.2, 0.2, 0.2);
+		grid.setInputCloud(sum_cloud.makeShared());
+		grid.filter(sum_cloud);
+	}
+	visualizer.addCloudColoredByHeight(sum_cloud).show();
+
+	return EXIT_SUCCESS;
 }

@@ -42,7 +42,7 @@ class OutputFiles:
         self.framesToWriteCount = framesCountUnaligned - (framesCountUnaligned % self.batchSize)
         self.outFileSeqIndex += 1
         self.out_files = []
-        out_files_count = self.framesToWriteCount / self.maxFramesPerFile + 1 if self.framesToWriteCount % self.maxFramesPerFile > 0 else 0
+        out_files_count = self.framesToWriteCount / self.maxFramesPerFile + (1 if self.framesToWriteCount % self.maxFramesPerFile > 0 else 0)
         for split_index in range(out_files_count):
             if (split_index + 1) * self.maxFramesPerFile <= self.framesToWriteCount:
                 frames_in_file = self.maxFramesPerFile  
@@ -51,8 +51,8 @@ class OutputFiles:
             new_output_file = h5py.File(self.outputPrefix + "." + str(self.outFileSeqIndex) + "." + str(split_index) + ".hdf5", 'w')
             new_output_file.create_dataset('data', (frames_in_file * self.historySize,
                                                     self.features * self.framesToJoin * self.horizontalDivision,
-                                                    64,
-                                                    360 / self.horizontalDivision + self.horizontalOverlay * 2), dtype='f4')
+                                                    FRAME_HEIGHT,
+                                                    FRAME_WIDTH / self.horizontalDivision + self.horizontalOverlay * 2), dtype='f4')
             new_output_file.create_dataset('odometry', (frames_in_file, 6*self.odometriesToJoin), dtype='f4')
             self.out_files.append(new_output_file)
     
@@ -64,7 +64,6 @@ class OutputFiles:
         if frame_i < (self.framesToWriteCount) * multiply:
             file_index = frame_i / (self.maxFramesPerFile * multiply)
             self.out_files[file_index][db_name][frame_i % (self.maxFramesPerFile * multiply), ch_i] = data
-            # print file_index, db_name, frame_i%(self.maxFramesPerFile*multiply), ch_i
         else:
             sys.stderr.write("Warning: frame %s out of the scope\n" % frame_i)
 
@@ -72,39 +71,12 @@ class OutputFiles:
         for f in self.out_files:
             f.close()
 
-BATCH_SCHEMA_DATA = [[3, 0],
-                     [4, 1],
-                     [5, 2],
-                     [6, 3],
-
-                     [3, 1],
-                     [4, 2],
-                     [5, 3],
-                     [6, 4],
-                     
-                     [3, 2],
-                     [4, 3],
-                     [5, 4],
-                     [6, 5],
-
-                     [2, 0],
-                     [3, 1],
-                     [4, 2],
-                     [5, 3],
-
-                     [2, 1],
-                     [3, 2],
-                     [4, 3],
-                     [5, 4],
-
-                     [1, 0],
-                     [2, 1],
-                     [3, 2],
-                     [4, 3]]
-BATCH_SCHEMA_ODOM = [[3],
-                     [4],
-                     [5],
-                     [6]]
+BATCH_SCHEMA_DATA = [[0, 1],
+                     [1, 2],
+                     [2, 3]]
+BATCH_SCHEMA_ODOM = [[1],
+                     [2],
+                     [3]]
 
 CUMMULATE_ODOMS = 1
 ODOMS_UNITS = "deg" # rad or deg
@@ -115,6 +87,8 @@ BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
 JOINED_ODOMETRIES = len(BATCH_SCHEMA_ODOM[0])
 FEATURES = 3
+FRAME_HEIGHT=64
+FRAME_WIDTH=3600
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA) / BATCH_SIZE
 max_in_data_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
 min_in_odom_schema = min(reduce(lambda x, y: x + y, BATCH_SCHEMA_ODOM))
@@ -177,11 +151,11 @@ while skip_prob < MAX_SKIP_PROB:
     odometry_to_use = map(znorm_odom, odometry_to_use)
 
     for i in range(len(files_to_use)):
-        data_i = np.empty([FEATURES, 64, 360])
+        data_i = np.empty([FEATURES, FRAME_HEIGHT, FRAME_WIDTH])
         data_i[0] = cv_yaml.load(files_to_use[i], 'range')
         data_i[1] = cv_yaml.load(files_to_use[i], 'y')
         data_i[2] = cv_yaml.load(files_to_use[i], 'intensity')
-        data_i = horizontal_split(data_i, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES)
+        data_i = horizontal_split(data_i, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES, FRAME_HEIGHT, FRAME_WIDTH)
 
         if ROT_TYPE == "axis-angle":
             odometry_i = euler_rad_to_axis_angle(odometry_to_use[i].dof)

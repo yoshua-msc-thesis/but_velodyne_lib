@@ -19,6 +19,10 @@ from odometry_cnn_data import mask_list
 ROTATIONS_BINS = [20, 100, 20]
 MAX_ROTATIONS = [r * 180 / math.pi for r in [0.025, 0.1, 0.02]]  # deg
 
+# for yaw by comparison
+#ROTATIONS_BINS = [24, 96, 24]
+#MAX_ROTATIONS = [1.5, 6.0, 1.5]  # deg
+
 # for skipped frames
 # ROTATIONS_BINS = [20, 200, 20]
 # MAX_ROTATIONS = [r*180/math.pi for r in [0.02, 0.2, 0.02]]     # to deg
@@ -42,12 +46,14 @@ def display_histograms(odometries, bins):
         plt.clf()
 
 def round_angles(odom):
+    bin_sizes_rad = [bs/180.0*math.pi for bs in BIN_SIZES]
     for i in range(3):
-        odom.dof[i + 3] = round(odom.dof[i + 3] / BIN_SIZES[i]) * BIN_SIZES[i]
+        odom.dof[i + 3] = round(odom.dof[i + 3] / bin_sizes_rad[i]) * bin_sizes_rad[i]
     odom.setMFromDof()
     return odom
 
 def round_pose_files():
+    print MAX_ROTATIONS
     for file in sys.argv[1:]:
         odoms = map(round_angles, get_delta_odometry(load_kitti_poses(file)))
         with open(file + ".round", "w") as out_file:

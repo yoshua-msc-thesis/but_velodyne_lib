@@ -6,17 +6,17 @@ import sys
 import eulerangles
 import random
 
-def horizontal_split(data, division, overlay, features):
-    output = np.empty([division * features, 64, 360 / division + overlay * 2])
+def horizontal_split(data, division, overlay, features, height, width):
+    output = np.empty([division * features, height, width / division + overlay * 2])
     for d in range(division):
-        start = d * (360 / division) - (360 / division / 2 + overlay)
-        end = d * (360 / division) + (360 / division / 2 + overlay) - 1
-        start = (start + 360) % 360
-        end = (end + 360) % 360
+        start = d * (width / division) - (width / division / 2 + overlay)
+        end = d * (width / division) + (width / division / 2 + overlay) - 1
+        start = (start + width) % width
+        end = (end + width) % width
         for f in range(features):
             if start > end:
-                output[d * features + f, ..., (360 / division / 2 + overlay):] = data[f, ..., start:360]
-                output[d * features + f, ..., 0:(360 / division / 2 + overlay)] = data[f, ..., 0:end + 1]
+                output[d * features + f, ..., (width / division / 2 + overlay):] = data[f, ..., start:width]
+                output[d * features + f, ..., 0:(width / division / 2 + overlay)] = data[f, ..., 0:end + 1]
             else:
                 output[d * features + f, ..., ...] = data[f, ..., start:end + 1]
     return output

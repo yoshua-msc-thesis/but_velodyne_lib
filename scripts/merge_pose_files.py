@@ -22,4 +22,4 @@ for i in range(len(t_odoms)):
     dof = t_odoms[i].dof[0:3] + r_odoms[i].dof[3:6]
     pose.move(dof)
     print pose
-    sys.stderr.write("%s\n" % r_odoms[i].dof)
+    #sys.stderr.write("%s\n" % r_odoms[i].dof)
