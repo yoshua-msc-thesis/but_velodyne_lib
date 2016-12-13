@@ -129,10 +129,12 @@ void GroundDetectionDataGenerator::getGroundLabelsFromBinaryAnn(const vector<int
 
 void GroundDetectionDataGenerator::saveData(const Mat &matrix, const string &data_name) {
   storage << data_name << matrix;
-  Mat equalized;
-  normalize(matrix, equalized, 0.0, 255.0, NORM_MINMAX);
-  equalized.convertTo(equalized, CV_8UC1);
-  imwrite(params.labels_output + "/" + file_basename + "." + data_name + ".png", equalized);
+  if(params.save_visualization) {
+    Mat equalized;
+    normalize(matrix, equalized, 0.0, 255.0, NORM_MINMAX);
+    equalized.convertTo(equalized, CV_8UC1);
+    imwrite(params.labels_output + "/" + file_basename + "." + data_name + ".png", equalized);
+  }
 }
 
 void GroundDetectionDataGenerator::fillMissing(PolarGridOfClouds &summarized_data) {

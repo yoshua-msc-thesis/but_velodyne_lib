@@ -88,16 +88,19 @@ public:
     Parameters(
         float threshold_ = 0.5,
         int polar_bins_ = 360,
-        string labels_output_ = "."
+        string labels_output_ = ".",
+				bool save_visualization_ = true
         ) :
           threshold(threshold_),
           polar_bins(polar_bins_),
-          labels_output(labels_output_) {
+          labels_output(labels_output_),
+					save_visualization(save_visualization_) {
     }
 
     float threshold;
     int polar_bins;
     string labels_output;
+    bool save_visualization;
   } params;
 
   typedef enum {

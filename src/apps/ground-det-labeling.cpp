@@ -375,18 +375,21 @@ void joinProbabilities(const vector<float> &prob1, const vector<float> &prob2, v
 
 bool parse_arguments(int argc, char **argv,
                      GroundDetectionDataGenerator::Parameters &ground_params,
-                     vector<string> &clouds_to_process);
+                     vector<string> &clouds_to_process,
+										 Eigen::Affine3f &init_transform);
 
 int main(int argc, char** argv) {
   GroundDetectionDataGenerator::Parameters ground_params;
   vector<string> clouds_to_process;
-  if(!parse_arguments(argc, argv, ground_params, clouds_to_process)) {
+  Eigen::Affine3f init_transform;
+  if(!parse_arguments(argc, argv, ground_params, clouds_to_process, init_transform)) {
     return EXIT_FAILURE;
   }
 
   for(vector<string>::iterator filename = clouds_to_process.begin(); filename < clouds_to_process.end(); filename++) {
     VelodynePointCloud new_cloud;
     VelodynePointCloud::fromFile(*filename, new_cloud);
+    transformPointCloud(new_cloud, new_cloud, init_transform);
 
     /* Uncomment for fake ground annotation:
     vector<float> prob_from_rings = groundSegmentationByRings(new_cloud);
@@ -422,9 +425,12 @@ int main(int argc, char** argv) {
 
 bool parse_arguments(int argc, char **argv,
                      GroundDetectionDataGenerator::Parameters &ground_params,
-                     vector<string> &clouds_to_process) {
+                     vector<string> &clouds_to_process,
+										 Eigen::Affine3f &init_transform) {
   bool use_kalman = false;
   int linear_estimator = 3;
+
+  float rx, ry, rz;
 
   po::options_description desc("Data labeling for ground detection.\n"
       "======================================\n"
@@ -436,8 +442,13 @@ bool parse_arguments(int argc, char **argv,
           "Threshold for ground detection")
       ("polar_bins", po::value<int>(&ground_params.polar_bins)->default_value(ground_params.polar_bins),
           "Number of angular polar bins")
-      ("labels_output", po::value<string>(&ground_params.labels_output)->default_value(ground_params.labels_output),
-          "Output directory of labeled data")
+			("labels_output", po::value<string>(&ground_params.labels_output)->default_value(ground_params.labels_output),
+					"Output directory of labeled data")
+			("save_visualization", po::value<bool>(&ground_params.save_visualization)->default_value(ground_params.save_visualization),
+					"Output also images")
+			("rx", po::value<float>(&rx)->default_value(0.0), "Initial rotation around X axis [rad]")
+			("ry", po::value<float>(&ry)->default_value(0.0), "Initial rotation around Y axis [rad]")
+			("rz", po::value<float>(&rz)->default_value(0.0), "Initial rotation around Z axis [rad]")
    ;
 
     po::variables_map vm;
@@ -460,6 +471,8 @@ bool parse_arguments(int argc, char **argv,
         std::cerr << "Error: " << e.what() << std::endl << std::endl << desc << std::endl;
         return false;
     }
+
+    init_transform = getTransformation(0, 0, 0, rx, ry, rz);
 
     return true;
 }
