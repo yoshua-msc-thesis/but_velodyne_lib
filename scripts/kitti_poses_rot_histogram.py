@@ -72,8 +72,8 @@ dupl = NoDuplication()
 for filename in sys.argv[1:]:
     indices = []
     with h5py.File(filename, "r") as hf:
-        data = hf["data"][:]
-        odometry = hf["odometry"][:]
+        data = hf["data"]
+        odometry = hf["odometry"]
         odom_count = np.shape(odometry)[0]
         hsize = np.shape(data)[0]/odom_count
         for i in range(odom_count):
@@ -89,7 +89,7 @@ for filename in sys.argv[1:]:
         rot_classes = {}
         if OUT_LAYERS[0] in hf:
             for rot_layer in OUT_LAYERS:
-                output_file.create_dataset(rot_layer, (odom_count,), dtype='f4')
+                output_file.create_dataset(rot_layer, (len(indices),), dtype='f4')
                 rot_classes[rot_layer] = hf[rot_layer][:]
 
         #print indices, (len(indices)*hsize,) + np.shape(data)[1:]

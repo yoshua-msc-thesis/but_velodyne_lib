@@ -5,22 +5,22 @@ import numpy as np
 import h5py
 import os
 
-BATCH_SIZE=4
+BATCH_SIZE=3
 MAX_SIZE = 2*1000*1000*1000 # 2GB
 OUT_LAYERS = ['rot_class_x', 'rot_class_y', 'rot_class_z']
 
 for filename in sys.argv[1:]:
     split_times = os.stat(filename).st_size/(MAX_SIZE)
     with h5py.File(filename, "r") as hf:
-        data = hf["data"][:]
-        odometry = hf["odometry"][:]
+        data = hf["data"]
+        odometry = hf["odometry"]
         odom_count = np.shape(odometry)[0]
         hsize = np.shape(data)[0]/odom_count
 
         rot_classes = {}
         if OUT_LAYERS[0] in hf: 
             for rot_layer in OUT_LAYERS:
-                rot_classes[rot_layer] = hf[rot_layer][:]
+                rot_classes[rot_layer] = hf[rot_layer]
 
         batches_count=odom_count/BATCH_SIZE
         if odom_count%BATCH_SIZE > 0:
