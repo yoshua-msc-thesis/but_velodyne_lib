@@ -408,13 +408,13 @@ int main(int argc, char** argv) {
                                                 boost::filesystem::path(*filename).stem().string(),
                                                 ground_params);
     map<string, Mat> data;
-    data["y"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Y);
     data["range"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::RANGE);
+    data["y"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::Y);
     data["intensity"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::INTENSITY);
     //data_generator.getGroundLabels(joined_prob, data["ground_prob"], data["ground_labels"]);
 
     vector<string> labels;
-    labels.push_back("y"); labels.push_back("range"); labels.push_back("intensity");
+    labels.push_back("range"); labels.push_back("y"); labels.push_back("intensity");
     vector<Mat> matrices;
     for(vector<string>::iterator label = labels.begin(); label < labels.end(); label++) {
     	matrices.push_back(data[*label]);
