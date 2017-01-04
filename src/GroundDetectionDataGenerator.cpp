@@ -138,8 +138,7 @@ void GroundDetectionDataGenerator::saveData(const std::vector<cv::Mat> &matrices
 	  }
 	  label = label + data_names[i] + "-";
 	}
-	label.substr(0, label.size()-1);
-	storage << label << all_channels;
+	storage << label.substr(0, label.size()-1) << all_channels;
 }
 
 void GroundDetectionDataGenerator::saveDato(const Mat &matrix, const string &data_name) {
