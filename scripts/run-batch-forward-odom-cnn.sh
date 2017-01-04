@@ -1,17 +1,18 @@
 #! /bin/bash
 
-DEPLOY_PROTOTXT=~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_l335_h6_b16_rot_classes_deploy.prototxt
-TRAINED_MODEL=~/workspace/ivelas-git/sw/cnn-generator/NETS/odometry_l335_h6_b16_rot_classes_nostep/net_snapshot_iter_500000.caffemodel
-OUTPUT_DIR=/media/files/cnn_velodyne_data/results/04-odometry_l335_h6_b16_rot_classes_nostep_it500k
+DEPLOY_PROTOTXT=${1:-~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_l335_b1_shifts56_rcls_comp_deploy_fixshift.prototxt}
+NET_LABEL=${2:-odometry_l335_b1_shifts56_rcls_comp_fixshift}
+TRAINED_MODEL=/home/ivelas/workspace/ivelas-git/sw/cnn-generator/NETS/$NET_LABEL/net_snapshot_iter_200000.caffemodel
+OUTPUT_DIR=/media/files/cnn_velodyne_data/results/13-$NET_LABEL-it200k-window
 
 #DATA_DIR=/media/kitti/dataset_odometry_velodyne_ground_fake_ann/00-10/
-DATA_DIR=/media/files/cnn_velodyne_data/2dMat_seq
+DATA_DIR=/media/files/cnn_velodyne_data/2dMat_seq_3600deg
 POSES_DIR=/media/files/cnn_velodyne_data/poses
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 mkdir -p $OUTPUT_DIR
-#for i in $(ls $DATA_DIR)
-for i in d3
+
+for i in $(ls $DATA_DIR)
 do
 	echo $i
 	pushd $DATA_DIR/$i/velodyne

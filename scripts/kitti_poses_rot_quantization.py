@@ -16,27 +16,28 @@ from odometry_cnn_data import gen_preserve_mask
 from odometry_cnn_data import mask_list
 
 # for nomal data
-ROTATIONS_BINS = [20, 100, 20]
-MAX_ROTATIONS = [r * 180 / math.pi for r in [0.025, 0.1, 0.02]]  # deg
+# ROTATIONS_BINS = [20, 100, 20]
+# MAX_ROTATIONS = [r * 180 / math.pi for r in [0.025, 0.1, 0.02]]  # deg
 
 # for yaw by comparison
-#ROTATIONS_BINS = [24, 96, 24]
-#MAX_ROTATIONS = [1.5, 6.0, 1.5]  # deg
+ROTATIONS_BINS = [12, 56, 12]
+MAX_ROTATIONS = [1.5, 5.6, 1.5]  # deg
 
 # for skipped frames
 # ROTATIONS_BINS = [20, 200, 20]
 # MAX_ROTATIONS = [r*180/math.pi for r in [0.02, 0.2, 0.02]]     # to deg
 
-BIN_SIZES = [MAX_ROTATIONS[i] / ROTATIONS_BINS[i] for i in range(3)]
-
 OUT_LAYERS = ['rot_class_x', 'rot_class_y', 'rot_class_z']
+
+def get_bin_sizes(max_rotations, rotation_bins):
+    return [(max_rotations[i] / rotation_bins[i]) * 2.0 for i in range(3)]
 
 def display_histograms(odometries, bins):
     rotations = {}
     rotations["x"] = [abs(o.dof[3]) for o in odometries]
     rotations["y"] = [abs(o.dof[4]) for o in odometries]
     rotations["z"] = [abs(o.dof[5]) for o in odometries]
-    
+
     for key, rots in rotations.iteritems():
         rots.sort()
         rots = rots[0:int(0.99 * len(rots))]
@@ -46,14 +47,14 @@ def display_histograms(odometries, bins):
         plt.clf()
 
 def round_angles(odom):
-    bin_sizes_rad = [bs/180.0*math.pi for bs in BIN_SIZES]
+    bin_sizes_rad = [bs / 180.0 * math.pi for bs in BIN_SIZES]
     for i in range(3):
         odom.dof[i + 3] = round(odom.dof[i + 3] / bin_sizes_rad[i]) * bin_sizes_rad[i]
     odom.setMFromDof()
     return odom
 
 def round_pose_files():
-    print MAX_ROTATIONS
+    print MAX_ROTATIONS, BIN_SIZES
     for file in sys.argv[1:]:
         odoms = map(round_angles, get_delta_odometry(load_kitti_poses(file)))
         with open(file + ".round", "w") as out_file:
@@ -62,28 +63,62 @@ def round_pose_files():
                 pose.move(o.dof)
                 out_file.write("%s\n" % (pose))
 
-def angles2classes(angles):
+def angles2classes(angles, max_rotations=MAX_ROTATIONS, rotation_bins=ROTATIONS_BINS):
     classes = [0] * 3
+    bin_sizes = get_bin_sizes(max_rotations, rotation_bins)
     for i in range(3):
-        cls = round(angles[i] / (BIN_SIZES[i] * 2)) + ROTATIONS_BINS[i] / 2
-        cls = max(0, min(cls, ROTATIONS_BINS[i] - 1))
+        cls = round(angles[i] / (bin_sizes[i])) + rotation_bins[i] / 2
+        cls = max(0, min(cls, rotation_bins[i] - 1))
         classes[i] = cls
     return classes
 
-def class_i2angle(dimension_idx, class_idx):
-    return (class_idx - ROTATIONS_BINS[dimension_idx] / 2) * (BIN_SIZES[dimension_idx] * 2)
+def class_i2angle(dimension_idx, class_idx, max_rotations, rotation_bins):
+    bin_sizes = get_bin_sizes(max_rotations, rotation_bins)
+    return (class_idx - rotation_bins[dimension_idx] / 2) * (bin_sizes[dimension_idx])
 
-def classes_blob2angles(predicion_blob, blob_i):
+def get_best_prob_combination(probabilities):
+    COMB_SIZE = 7
+    best_start = -1
+    best_end = -1
+    best_prob = -1
+    for i in range(len(probabilities)):
+        start = max(0, i - COMB_SIZE / 2)
+        end = min(len(probabilities), i + COMB_SIZE / 2 + 1)
+        prob_slice = probabilities[start:end]
+        avg_prob = sum(prob_slice) / len(prob_slice)
+        if avg_prob > best_prob:
+            best_prob = avg_prob
+            best_start = start
+            best_end = end
+    mask = [0] * len(probabilities)
+    for i in range(best_start, best_end):
+        mask[i] = 1
+    return mask
+
+def weight_avg_angles(angles, probabilities):
+    assert len(angles) == len(probabilities)
+    angles_sum = 0
+    prob_sum = 0
+    mask = get_best_prob_combination(probabilities)
+    for i in range(len(angles)):
+        angles_sum += angles[i] * probabilities[i] * mask[i]
+        prob_sum += probabilities[i] * mask[i]
+    return angles_sum / prob_sum
+
+def classes_blob2angles(predicion_blob, blob_i, out_indexes=[0, 1, 2], layer_names=OUT_LAYERS,
+                        max_rotations=MAX_ROTATIONS, rotation_bins=ROTATIONS_BINS):
     rotations = [0] * 3
-    for dim_i in range(3):
-        classes = predicion_blob[OUT_LAYERS[dim_i]][blob_i]
-        angles_sum = 0
-        prob_sum = 0
-        for cls_i in range(ROTATIONS_BINS[dim_i]):
+    for i in range(len(out_indexes)):
+        classes = predicion_blob[layer_names[i]][blob_i]
+        dim_i = out_indexes[i]
+        probabilities = []
+        angles = []
+        for cls_i in range(rotation_bins[dim_i]):
             prob = classes[cls_i]
-            angles_sum += class_i2angle(dim_i, cls_i) * prob
-            prob_sum += prob
-        rotations[dim_i] = angles_sum / prob_sum
+            angle = class_i2angle(dim_i, cls_i, max_rotations, rotation_bins)
+            probabilities.append(prob)
+            angles.append(angle)
+        rotations[dim_i] = weight_avg_angles(angles, probabilities)
     return rotations
 
 if __name__ == "__main__":
@@ -96,6 +131,9 @@ if __name__ == "__main__":
 #             odometries += get_delta_odometry(mask_list(poses, mask))
 #     display_histograms(odometries, 100)
 #     sys.exit(0)
+
+    round_pose_files()
+    sys.exit()
 
     for filename in sys.argv[1:]:
         with h5py.File(filename, "r") as in_hf:

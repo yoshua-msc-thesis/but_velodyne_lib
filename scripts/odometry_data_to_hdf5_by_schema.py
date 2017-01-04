@@ -71,12 +71,8 @@ class OutputFiles:
         for f in self.out_files:
             f.close()
 
-BATCH_SCHEMA_DATA = [[0, 1],
-                     [1, 2],
-                     [2, 3]]
-BATCH_SCHEMA_ODOM = [[1],
-                     [2],
-                     [3]]
+BATCH_SCHEMA_DATA = [[i] for i in range(12)]
+BATCH_SCHEMA_ODOM = [[1]]
 
 CUMMULATE_ODOMS = 1
 ODOMS_UNITS = "deg" # rad or deg
