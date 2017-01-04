@@ -21,11 +21,6 @@
 #include <but_velodyne/PolarGridOfClouds.h>
 #include <but_velodyne/EigenUtils.h>
 
-using namespace std;
-using namespace cv;
-using namespace pcl;
-using namespace velodyne_pointcloud;
-
 namespace but_velodyne {
 
 template <typename T>
@@ -88,7 +83,7 @@ public:
     Parameters(
         float threshold_ = 0.5,
         int polar_bins_ = 360,
-        string labels_output_ = ".",
+        std::string labels_output_ = ".",
 				bool save_visualization_ = true
         ) :
           threshold(threshold_),
@@ -99,7 +94,7 @@ public:
 
     float threshold;
     int polar_bins;
-    string labels_output;
+    std::string labels_output;
     bool save_visualization;
   } params;
 
@@ -108,31 +103,35 @@ public:
   } InputDataTypes;
 
   GroundDetectionDataGenerator(const VelodynePointCloud &cloud,
-                               const string &file_basename_ = "",
+                               const std::string &file_basename_ = "",
                                Parameters params_ = Parameters());
 
-  Mat getMatrixOf(const InputDataTypes &type);
+  cv::Mat getMatrixOf(const InputDataTypes &type);
 
-  void getGroundLabels(const vector<float> &probabilities, Mat &out_probabilities, Mat &out_labels);
+  void getGroundLabels(const std::vector<float> &probabilities, cv::Mat &out_probabilities, cv::Mat &out_labels);
 
-  void getGroundLabelsFromAnn(const vector<int> &annotations, Mat &out_labels);
+  void getGroundLabelsFromAnn(const std::vector<int> &annotations, cv::Mat &out_labels);
 
-  void getGroundLabelsFromBinaryAnn(const vector<int> &annotations, Mat &out_labels);
+  void getGroundLabelsFromBinaryAnn(const std::vector<int> &annotations, cv::Mat &out_labels);
 
-  void saveData(const Mat &matrix, const string &data_name);
+  void saveDato(const cv::Mat &matrix, const std::string &data_name);
 
-  const vector<CellId> &getIndices () const {
+  void saveData(const std::vector<cv::Mat> &matrices, const std::vector<std::string> &data_names);
+
+  void saveAsImage(const cv::Mat &matrix, const std::string &data_name);
+
+  const std::vector<CellId> &getIndices () const {
     return indices;
   }
 
-  const Mat& getOccupancy () const {
+  const cv::Mat& getOccupancy () const {
     return occupancy;
   }
 
 protected:
 
   template <typename T>
-  void fillMissing(Mat &data) {
+  void fillMissing(cv::Mat &data) {
     for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
       FillingFM<T> fill_fm;
       for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
@@ -150,21 +149,21 @@ protected:
 
   void fillMissing(PolarGridOfClouds &summarized_data);
 
-  bool isValid(PointXYZIR pt);
+  bool isValid(velodyne_pointcloud::PointXYZIR pt);
 
-  void summarizeProbabilities(const vector<float> &probabilities,
-                              Mat &out_matrix);
+  void summarizeProbabilities(const std::vector<float> &probabilities,
+  		cv::Mat &out_matrix);
 
-  void prob_to_labels(const Mat &matrix_probabilities,
-                        Mat &matrix_ground_labels,
+  void prob_to_labels(const cv::Mat &matrix_probabilities,
+  		cv::Mat &matrix_ground_labels,
                         float prob_threshold);
 
 private:
   PolarGridOfClouds::Ptr summary;
-  vector<CellId> indices;
-  Mat occupancy;
-  string file_basename;
-  FileStorage storage;
+  std::vector<CellId> indices;
+  cv::Mat occupancy;
+  std::string file_basename;
+  cv::FileStorage storage;
 };
 
 } // namespace but_velodyne

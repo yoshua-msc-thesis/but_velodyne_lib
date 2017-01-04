@@ -127,14 +127,33 @@ void GroundDetectionDataGenerator::getGroundLabelsFromBinaryAnn(const vector<int
   fillMissing<uchar>(out_labels);
 }
 
-void GroundDetectionDataGenerator::saveData(const Mat &matrix, const string &data_name) {
+void GroundDetectionDataGenerator::saveData(const std::vector<cv::Mat> &matrices, const std::vector<std::string> &data_names) {
+	assert(matrices.size() == data_names.size());
+	Mat all_channels;
+	merge(matrices, all_channels);
+	string label;
+	for(int i = 0; i < matrices.size(); i++) {
+	  if(params.save_visualization) {
+	  	saveAsImage(matrices[i], data_names[i]);
+	  }
+	  label = label + data_names[i] + "-";
+	}
+	label.substr(0, label.size()-1);
+	storage << label << all_channels;
+}
+
+void GroundDetectionDataGenerator::saveDato(const Mat &matrix, const string &data_name) {
   storage << data_name << matrix;
   if(params.save_visualization) {
-    Mat equalized;
-    normalize(matrix, equalized, 0.0, 255.0, NORM_MINMAX);
-    equalized.convertTo(equalized, CV_8UC1);
-    imwrite(params.labels_output + "/" + file_basename + "." + data_name + ".png", equalized);
+  	saveAsImage(matrix, data_name);
   }
+}
+
+void GroundDetectionDataGenerator::saveAsImage(const Mat &matrix, const string &data_name) {
+  Mat equalized;
+  normalize(matrix, equalized, 0.0, 255.0, NORM_MINMAX);
+  equalized.convertTo(equalized, CV_8UC1);
+  imwrite(params.labels_output + "/" + file_basename + "." + data_name + ".png", equalized);
 }
 
 void GroundDetectionDataGenerator::fillMissing(PolarGridOfClouds &summarized_data) {

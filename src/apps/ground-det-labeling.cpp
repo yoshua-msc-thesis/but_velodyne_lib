@@ -413,12 +413,20 @@ int main(int argc, char** argv) {
     data["intensity"] = data_generator.getMatrixOf(GroundDetectionDataGenerator::INTENSITY);
     //data_generator.getGroundLabels(joined_prob, data["ground_prob"], data["ground_labels"]);
 
-    for(map<string, Mat>::iterator m = data.begin(); m != data.end(); m++) {
-        data_generator.saveData(m->second, m->first);
-		/* if(m->first != "ground_labels" && m->first != "ground_prob") {
-			printHistogram(m->second, m->first);
-		}*/
+    vector<string> labels;
+    labels.push_back("y"); labels.push_back("range"); labels.push_back("intensity");
+    vector<Mat> matrices;
+    for(vector<string>::iterator label = labels.begin(); label < labels.end(); label++) {
+    	matrices.push_back(data[*label]);
     }
+    data_generator.saveData(matrices, labels);
+
+    /*for(map<string, Mat>::iterator m = data.begin(); m != data.end(); m++) {
+        data_generator.saveData(m->second, m->first);
+        if(m->first != "ground_labels" && m->first != "ground_prob") {
+        	printHistogram(m->second, m->first);
+				}
+    }*/
   }
   return EXIT_SUCCESS;
 }

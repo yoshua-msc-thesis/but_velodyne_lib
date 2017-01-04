@@ -25,6 +25,7 @@
 
 namespace po = boost::program_options;
 using namespace std;
+using namespace cv;
 using namespace but_velodyne;
 
 class CellIndex {

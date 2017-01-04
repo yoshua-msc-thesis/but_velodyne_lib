@@ -16,7 +16,9 @@
 using namespace std;
 using namespace cv;
 using namespace cv::dnn;
+using namespace pcl;
 using namespace but_velodyne;
+using namespace velodyne_pointcloud;
 namespace po = boost::program_options;
 
 bool parse_arguments(int argc, char **argv,
