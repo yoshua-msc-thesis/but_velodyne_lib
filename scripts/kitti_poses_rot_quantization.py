@@ -4,7 +4,6 @@ import sys
 import matplotlib.pyplot as plt
 import math
 import numpy as np
-import h5py
 import numpy
 import random
 import itertools
@@ -131,6 +130,8 @@ if __name__ == "__main__":
 #             odometries += get_delta_odometry(mask_list(poses, mask))
 #     display_histograms(odometries, 100)
 #     sys.exit(0)
+
+    import h5py
 
     round_pose_files()
     sys.exit()
