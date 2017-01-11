@@ -46,7 +46,7 @@ Mat GroundDetectionDataGenerator::getMatrixOf(const InputDataTypes &type) {
 	  case X:
 	    output.at<float>(r, c) = pt.x; break;
 	  case Y:
-	    output.at<float>(r, c) = pt.y / 3; break;
+	    output.at<float>(r, c) = pt.y; break;
 	  case Z:
 	    output.at<float>(r, c) = pt.z; break;
 	  case RANGE:
