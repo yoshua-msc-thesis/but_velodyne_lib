@@ -10,7 +10,7 @@ from odometry_cnn_data import load_kitti_poses
 from odometry_cnn_data import Odometry
 from odometry_cnn_data import get_delta_odometry
 
-BATCH_SIZE = 1
+BATCH_SIZE = 16
 OUT_LAYERS = ['rot_class_x', 'rot_class_y', 'rot_class_z']
 
 class Line:
