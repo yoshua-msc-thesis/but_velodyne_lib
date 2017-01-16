@@ -5,11 +5,25 @@ import numpy as np
 import h5py
 import os
 
-BATCH_SIZE=3
-MAX_SIZE = 2*1000*1000*1000 # 2GB
+BATCH_SIZE=1
+MAX_SIZE = 1800*1000*1000 # 2GB
 OUT_LAYERS = ['rot_class_x', 'rot_class_y', 'rot_class_z']
 
-for filename in sys.argv[1:]:
+filenames = []
+fi = 1
+while fi < len(sys.argv):
+    if sys.argv[fi] == "-o":
+        out_filename = sys.argv[fi+1]
+        fi += 2
+    else:
+        filenames.append(sys.argv[fi])
+        fi += 1
+
+if len(out_filename) == 0 or len(filenames) == 0:
+    sys.stderr.write("Usage: %s -o <joined-output.hdf5> <input.hdf5>+\n", sys.argv[0])
+    sys.exit(1)
+
+for filename in filenames:
     split_times = os.stat(filename).st_size/(MAX_SIZE)
     with h5py.File(filename, "r") as hf:
         data = hf["data"]
@@ -22,18 +36,13 @@ for filename in sys.argv[1:]:
             for rot_layer in OUT_LAYERS:
                 rot_classes[rot_layer] = hf[rot_layer]
 
-        batches_count=odom_count/BATCH_SIZE
-        if odom_count%BATCH_SIZE > 0:
-            print "Warning: file", filename, "not batch aligned. Batch size:", BATCH_SIZE, "odom frames:", odom_count
-        while batches_count%split_times != 0:
-            split_times += 1
-        print filename, "will be split", split_times, "times"
+        print filename, "will be split", split_times-1, "times"
 
         max_new_odoms_count = odom_count / (split_times+1) + odom_count % (split_times+1)
         odoms_copied = 0
-        for s in range(split_times+1):
+        for s in range(split_times):
             new_odoms_count = min(max_new_odoms_count, odom_count-odoms_copied)
-            new_filename = filename + ".%s"%(s)
+            new_filename = out_filename + ".%s"%(s)
             print new_filename
             output_file = h5py.File(new_filename, 'w')
             output_file.create_dataset('data', (new_odoms_count*hsize,) + np.shape(data)[1:], dtype='f4')
