@@ -197,7 +197,8 @@ public:
    */
   Visualizer3D& addColorPointCloud(
       const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
-      const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity());
+      const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity(),
+      int viewport = 0);
 
   /**!
    * Add new point clouds of arbitrary point type into the visualization. The color for

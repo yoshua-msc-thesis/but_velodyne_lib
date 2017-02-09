@@ -41,7 +41,7 @@ boost::shared_ptr<Visualizer3D> Visualizer3D::commonVisualizer;
 
 Visualizer3D::Visualizer3D() :
     rng(cv::theRNG()),
-    viewer(new pcl::visualization::PCLVisualizer("3D Viewer")),
+    viewer(new pcl::visualization::PCLVisualizer()),
     identifier(0),
     color_index(0),
     point_size(2)
@@ -61,12 +61,12 @@ Visualizer3D::~Visualizer3D() {
 
 Visualizer3D& Visualizer3D::addColorPointCloud(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
-    const Eigen::Matrix4f &transformation) {
+    const Eigen::Matrix4f &transformation, int viewport) {
 
   pcl::transformPointCloud(*cloud, *cloud, transformation);
   pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb_vis(cloud);
   std::string id = getId("cloud");
-  viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb_vis, id);
+  viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb_vis, id, viewport);
   viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE,
 					   point_size, id);
   return *this;

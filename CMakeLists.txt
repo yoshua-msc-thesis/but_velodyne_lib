@@ -135,6 +135,9 @@ add_executable(to-kitti src/mit-dgc-data/c/to-kitti.cpp
 target_link_libraries(to-kitti but_velodyne)
 target_include_directories(to-kitti PUBLIC ${PROJECT_SOURCE_DIR}/mit-dgc-data)
 
+add_executable(ground-labels-viewer src/apps/ground-labels-viewer.cpp)
+target_link_libraries(ground-labels-viewer but_velodyne)
+
 ########################## Installation: #####################################
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/but_velodyne-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/but_velodyne-config.cmake" IMMEDIATE @ONLY)
