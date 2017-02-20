@@ -55,7 +55,7 @@ void loadLabels(const char *filename, vector<float> &labels) {
 void labelsByHeight(const VelodynePointCloud &cloud, float threshold, vector<float> &labels) {
   for (VelodynePointCloud::const_iterator p = cloud.begin(); p < cloud.end();
       p++) {
-    if (p->y < threshold) {
+    if (p->y > threshold) {
       labels.push_back(1);
     } else {
       labels.push_back(0);
@@ -72,10 +72,10 @@ void colorizeCloudByLabels(const VelodynePointCloud &cloud, const vector<float> 
     pt.r = pt.g = pt.b = 0;
     if(labels[i] < 0) {
       pt.r = pt.g = pt.b = 230;
-    } else if(labels[i] < 0.5) {
+    } else if(labels[i] > 0.5) {
       pt.r = 255;
     } else {
-      pt.g = 255;
+      pt.g = 200;
     }
   }
 }

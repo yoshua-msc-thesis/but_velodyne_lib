@@ -24,6 +24,7 @@
 #include <but_velodyne/CollarLinesRegistrationPipeline.h>
 #include <but_velodyne/PoseGraphEdge.h>
 #include <but_velodyne/CollarLinesFilter.h>
+#include <but_velodyne/KittiUtils.h>
 
 using namespace std;
 using namespace pcl;
@@ -154,11 +155,7 @@ Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(const VelodyneP
 
 void CollarLinesRegistrationPipeline::output(const Eigen::Matrix4f &transformation) {
   cumulated_transformation = cumulated_transformation * transformation;
-
-  Eigen::Matrix4f::Scalar *pose = cumulated_transformation.data();
-  std::cout << pose[0] << " " << pose[4] << " " << pose[8]  << " " << pose[12] <<
-        " " << pose[1] << " " << pose[5] << " " << pose[9]  << " " << pose[13] <<
-        " " << pose[2] << " " << pose[6] << " " << pose[10] << " " << pose[14] << std::endl;
+  KittiUtils::printPose(std::cout, cumulated_transformation);
 }
 
 Eigen::Matrix4f CollarLinesRegistrationPipeline::getPrediction() {

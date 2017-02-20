@@ -229,6 +229,31 @@ public:
 
   void setRingsByHorizontalAngles();
 
+  static void fromKittiRaw(const std::string &infile, VelodynePointCloud &out_cloud)
+  {
+      out_cloud.clear();
+      // load point cloud
+      std::fstream input(infile.c_str(), std::ios::in | std::ios::binary);
+      if (!input.good())
+      {
+        std::cerr << "Could not read file: " << infile << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      input.seekg(0, std::ios::beg);
+
+      int i;
+      for (i = 0; input.good() && !input.eof(); i++)
+      {
+        velodyne_pointcloud::PointXYZIR point;
+        input.read((char *)&point.x, 3 * sizeof(float));
+        input.read((char *)&point.intensity, sizeof(float));
+        out_cloud.push_back(point);
+      }
+      input.close();
+
+      std::cerr << "Read KTTI point cloud " << infile << " with " << i-1 << " points." << std::endl;
+  }
+
   /**!
    * Loads the Velodyne point cloud from the KITTI *.bin file. The ring ID is also
    * estimated.
@@ -238,31 +263,11 @@ public:
    */
   static void fromKitti(const std::string &infile, VelodynePointCloud &out_cloud)
   {
-    out_cloud.clear();
-    // load point cloud
-    std::fstream input(infile.c_str(), std::ios::in | std::ios::binary);
-    if (!input.good())
-    {
-      std::cerr << "Could not read file: " << infile << std::endl;
-      exit(EXIT_FAILURE);
-    }
-    input.seekg(0, std::ios::beg);
-
-    int i;
-    for (i = 0; input.good() && !input.eof(); i++)
-    {
-      velodyne_pointcloud::PointXYZIR point;
-      input.read((char *)&point.x, 3 * sizeof(float));
-      input.read((char *)&point.intensity, sizeof(float));
-      out_cloud.push_back(point);
-    }
-    input.close();
+  	fromKittiRaw(infile, out_cloud);
 
     out_cloud.setImageLikeAxisFromKitti();
     out_cloud.setRingsByHorizontalAngles();
     //out_cloud.setRingsByPointCount();
-
-    std::cerr << "Read KTTI point cloud " << infile << " with " << i-1 << " points." << std::endl;
   }
 
   static void fromFile(const std::string &infile, VelodynePointCloud &out_cloud) {

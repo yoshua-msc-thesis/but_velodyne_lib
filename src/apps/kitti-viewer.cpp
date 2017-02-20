@@ -35,6 +35,7 @@
 #include <pcl/common/eigen.h>
 #include <pcl/common/transforms.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/passthrough.h>
 
 using namespace std;
 using namespace pcl;
@@ -42,43 +43,48 @@ using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 
 int main(int argc, char** argv) {
-	if (argc < 2) {
-		cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+";
-		return 1;
-	}
+    if (argc < 2) {
+        cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+";
+        return 1;
+    }
 
-	vector<string> filenames;
-	vector<Eigen::Affine3f> poses;
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-p") == 0 && (i < argc - 1)) {
-			i++;
-			poses = KittiUtils::load_kitti_poses(argv[i]);
-		} else {
-			filenames.push_back(string(argv[i]));
-		}
-	}
+    vector<string> filenames;
+    vector<Eigen::Affine3f> poses;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-p") == 0 && (i < argc - 1)) {
+            i++;
+            poses = KittiUtils::load_kitti_poses(argv[i]);
+        } else {
+            filenames.push_back(string(argv[i]));
+        }
+    }
 
-	Visualizer3D visualizer;
-	VelodynePointCloud cloud;
-	PointCloud<PointXYZ> sum_cloud;
-	for (int i = 0; i < filenames.size(); i++) {
-		if (i % 10) {
-			continue;
-		}
-		cerr << "scan: " << filenames[i] << endl;
-		VelodynePointCloud::fromFile(filenames[i], cloud);
+    Visualizer3D visualizer;
+    VelodynePointCloud cloud;
+    PointCloud<PointXYZ> sum_cloud;
+    for (int i = 0; i < filenames.size(); i++) {
 
-		if (!poses.empty()) {
-			transformPointCloud(cloud, cloud, poses[i]);
-		}
-		sum_cloud += *(cloud.getXYZCloudPtr());
+        VelodynePointCloud::fromKitti(filenames[i], cloud);
 
-		pcl::VoxelGrid<PointXYZ> grid;
-		grid.setLeafSize(0.2, 0.2, 0.2);
-		grid.setInputCloud(sum_cloud.makeShared());
-		grid.filter(sum_cloud);
-	}
-	visualizer.addCloudColoredByHeight(sum_cloud).show();
+        if (!poses.empty()) {
+            transformPointCloud(cloud, cloud, poses[i]);
+            float x, y, z, rx, ry, rz;
+            getTranslationAndEulerAngles(poses[i], x, y, z, rx, ry, rz);
+            cout << "[" << x << ", " << y << ", " << z << ", " << rx << ", " << ry << ", " << rz << "]" << endl;
+        }
+        sum_cloud += *(cloud.getXYZCloudPtr());
 
-	return EXIT_SUCCESS;
+        pcl::VoxelGrid<PointXYZ> grid;
+        grid.setLeafSize(0.1, 0.1, 0.1);
+        grid.setInputCloud(sum_cloud.makeShared());
+        grid.filter(sum_cloud);
+    }
+  pcl::PassThrough<pcl::PointXYZ> pass;
+  pass.setInputCloud(sum_cloud.makeShared());
+  pass.setFilterFieldName("y");
+  pass.setFilterLimits(-10, 4);
+  pass.filter(sum_cloud);
+    visualizer.addCloudColoredByHeight(sum_cloud).show();
+
+    return EXIT_SUCCESS;
 }
