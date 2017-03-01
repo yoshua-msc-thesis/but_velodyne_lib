@@ -71,8 +71,123 @@ class OutputFiles:
         for f in self.out_files:
             f.close()
 
-BATCH_SCHEMA_DATA = [[i] for i in range(12)]
-BATCH_SCHEMA_ODOM = [[1]]
+BATCH_SCHEMA_DATA = [[3, 0],
+                     [4, 1],
+                     [5, 2],
+                     [6, 3],
+                     [7, 4],
+                     [8, 5],
+                     [9, 6],
+                     [10, 7],
+                     [11, 8],
+                     [12, 9],
+                     [13, 10],
+                     [14, 11],
+                     [15, 12],
+                     [16, 13],
+                     [17, 14],
+                     [18, 15],
+
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+                     [6, 4],
+                     [7, 5],
+                     [8, 6],
+                     [9, 7],
+                     [10, 8],
+                     [11, 9],
+                     [12, 10],
+                     [13, 11],
+                     [14, 12],
+                     [15, 13],
+                     [16, 14],
+                     [17, 15],
+                     [18, 16],
+
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+                     [6, 5],
+                     [7, 6],
+                     [8, 7],
+                     [9, 8],
+                     [10, 9],
+                     [11, 10],
+                     [12, 11],
+                     [13, 12],
+                     [14, 13],
+                     [15, 14],
+                     [16, 15],
+                     [17, 16],
+                     [18, 17],
+
+                     [2, 0],
+                     [3, 1],
+                     [4, 2],
+                     [5, 3],
+                     [6, 4],
+                     [7, 5],
+                     [8, 6],
+                     [9, 7],
+                     [10, 8],
+                     [11, 9],
+                     [12, 10],
+                     [13, 11],
+                     [14, 12],
+                     [15, 13],
+                     [16, 14],
+                     [17, 15],
+
+                     [2, 1],
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+                     [6, 5],
+                     [7, 6],
+                     [8, 7],
+                     [9, 8],
+                     [10, 9],
+                     [11, 10],
+                     [12, 11],
+                     [13, 12],
+                     [14, 13],
+                     [15, 14],
+                     [16, 15],
+                     [17, 16],
+
+                     [1, 0],
+                     [2, 1],
+                     [3, 2],
+                     [4, 3],
+                     [5, 4],
+                     [6, 5],
+                     [7, 6],
+                     [8, 7],
+                     [9, 8],
+                     [10, 9],
+                     [11, 10],
+                     [12, 11],
+                     [13, 12],
+                     [14, 13],
+                     [15, 14],
+                     [16, 15]]
+BATCH_SCHEMA_ODOM = [[3],
+                     [4],
+                     [5],
+                     [6],
+                     [7],
+                     [8],
+                     [9],
+                     [10],
+                     [11],
+                     [12],
+                     [13],
+                     [14],
+                     [15],
+                     [16],
+                     [17],
+                     [18]]
 
 CUMMULATE_ODOMS = 1
 ODOMS_UNITS = "deg" # rad or deg
@@ -82,9 +197,9 @@ DOF_WEIGHTS = [1.0] * 6
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
 JOINED_ODOMETRIES = len(BATCH_SCHEMA_ODOM[0])
-FEATURES = 3
+FEATURES = 4
 FRAME_HEIGHT=64
-FRAME_WIDTH=3600
+FRAME_WIDTH=1800
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA) / BATCH_SIZE
 max_in_data_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
 min_in_odom_schema = min(reduce(lambda x, y: x + y, BATCH_SCHEMA_ODOM))
@@ -93,7 +208,7 @@ MIN_SKIP_PROB = 0.0
 MAX_SKIP_PROB = 0.09
 STEP_SKIP_PROB = 0.8
 MAX_SPEED = 60 / 3.6
-FILES_PER_HDF5 = 240    # 3*5*16
+FILES_PER_HDF5 = 96    # 3*5*16
 
 HORIZONTAL_DIVISION = 1  # divide into the 4 cells
 HORIZONTAL_DIVISION_OVERLAY = 0  # 19deg    =>    128deg per divided frame
@@ -147,10 +262,11 @@ while skip_prob < MAX_SKIP_PROB:
     odometry_to_use = map(znorm_odom, odometry_to_use)
 
     for i in range(len(files_to_use)):
-        data_i = np.empty([FEATURES, FRAME_HEIGHT, FRAME_WIDTH])
-        data_i[0] = cv_yaml.load(files_to_use[i], 'range')
-        data_i[1] = cv_yaml.load(files_to_use[i], 'y')
-        data_i[2] = cv_yaml.load(files_to_use[i], 'intensity')
+        if files_to_use[i].endswith(".npy"):
+            data_i = np.load(files_to_use[i])
+        else:
+            data_i = cv_yaml.load(files_to_use[i], 'range-y-intensity')
+        data_i = np.moveaxis(data_i, [0, 1, 2], [1, 2, 0])
         data_i = horizontal_split(data_i, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES, FRAME_HEIGHT, FRAME_WIDTH)
 
         if ROT_TYPE == "axis-angle":
