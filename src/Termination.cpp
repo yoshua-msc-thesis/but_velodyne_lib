@@ -45,19 +45,31 @@ void Termination::addNewError(float new_error) {
 }
 
 bool Termination::operator()() {
+  bool terminate = false;
+  std::string reason;
+
   if(iterations >= max_iterations) {
-    return true;
+    terminate = true;
+    reason = "max_iterations";
+  } else if(stopwatch.elapsed() > max_time_spent) {
+    terminate = true;
+    reason = "max_time_spent";
+  } if(!err_deviation.isSignificant(min_err_deviation)) {
+    terminate = true;
+    reason = "min_err_deviation";
+  } if(last_error < min_error) {
+    terminate = true;
+    reason = "min_error";
   }
-  if(stopwatch.elapsed() > max_time_spent) {
-    return true;
+
+  if(terminate) {
+    std::cerr << "Termination after " << stopwatch.elapsed()
+        << "[sec], reason: " << reason <<". Iterations: " << iterations
+        << " err_deviation: " << err_deviation.getDeviation()
+        << " last_error" << last_error << std::endl;
   }
-  if(!err_deviation.isSignificant(min_err_deviation)) {
-    return true;
-  }
-  if(last_error < min_error) {
-    return true;
-  }
-  return false;
+
+  return terminate;
 }
 
 float ErrorDeviation::getDeviation() const {

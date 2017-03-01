@@ -53,6 +53,7 @@ namespace but_velodyne
  * Previously registered Velodyne frame. The position of each 3D point
  * with respect to the current sensor position is kept.
  */
+template<typename Meassurement>
 class HistoryRecord {
 public:
 
@@ -60,7 +61,7 @@ public:
    * @param grid_cloud LiDAR measurement in polar grid structure
    * @param index identifier of measurement
    */
-  HistoryRecord(PolarGridOfClouds::Ptr grid_cloud, const int index) :
+  HistoryRecord(boost::shared_ptr<Meassurement> grid_cloud, const int index) :
     grid_cloud(grid_cloud), transformation(Eigen::Matrix4f::Identity()),
     index(index) {
   }
@@ -79,7 +80,7 @@ public:
   /**!
    * @returns points in polar grid structure.
    */
-  const PolarGridOfClouds::Ptr& getGridCloud() const
+  const boost::shared_ptr<Meassurement>& getGridCloud() const
   {
     return grid_cloud;
   }
@@ -102,7 +103,7 @@ public:
   }
 
 private:
-  PolarGridOfClouds::Ptr grid_cloud;
+  boost::shared_ptr<Meassurement> grid_cloud;
   Eigen::Matrix4f transformation;
   int index;
 };
@@ -213,7 +214,7 @@ private:
   Eigen::Matrix4f cumulated_transformation;
   Stopwatch stopwatch;
 
-  boost::circular_buffer<HistoryRecord> history;
+  boost::circular_buffer< HistoryRecord<PolarGridOfClouds> > history;
 
   int pose_index;
   ostream &graph_file;

@@ -133,7 +133,7 @@ void CollarLinesRegistrationPipeline::updateHistory(const PolarGridOfClouds::Ptr
   for(int i = 0; i < history.size(); i++) {
     history[i].update(transformation);
   }
-  history.push_front(HistoryRecord(target_polar_grid, pose_index));
+  history.push_front(HistoryRecord<PolarGridOfClouds>(target_polar_grid, pose_index));
 }
 
 Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(const VelodynePointCloud &target_cloud,

@@ -43,6 +43,8 @@ class LineCloud
 {
 public:
 
+  typedef boost::shared_ptr<LineCloud> Ptr;
+
   /**!
    * Initialize empty line cloud.
    */
@@ -88,6 +90,12 @@ public:
 
   std::vector<PointCloudLine> line_cloud;       ///! collar line segments
   pcl::PointCloud<pcl::PointXYZ> line_middles;  ///! midpoints of line segments
+
+  inline LineCloud& operator +=(const LineCloud& other) {
+    this->line_cloud.insert(this->line_cloud.end(), other.line_cloud.begin(), other.line_cloud.end());
+    this->line_middles.insert(this->line_middles.end(), other.line_middles.begin(), other.line_middles.end());
+    return *this;
+  }
 
 protected:
   void generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
