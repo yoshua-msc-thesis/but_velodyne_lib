@@ -20,7 +20,10 @@ function handle_zero {
 	sed 's/^0 /0.0001 /'
 }
 
-plotline="plot"
+bp_pr_data=$(mktemp)
+grep '@ 1' $BP_EVAL_FILE | cut -d" " -f7-8 > $bp_pr_data
+plotline="plot '$bp_pr_data' using 1:2 with points pt 2 lc rgb \"red\" title '[Zhang15]',"
+
 for eval in "$@"; do
 	pr_data=$(mktemp --suffix=.pr)
 	pr_data_files="$pr_data $pr_data_files"
@@ -34,22 +37,19 @@ for eval in "$@"; do
 	plotline="$plotline '$pr_data' using 1:2 with lines title '$(get_title $eval)',"
 done
 
-bp_pr_data=$(mktemp)
-grep '@ 1' $BP_EVAL_FILE | cut -d" " -f7-8 > $bp_pr_data
-plotline="$plotline '$bp_pr_data' using 1:2 with points pt 2 title '[Zhang15]',"
-
 name="ground_pr_curve"
 esc_name=$(echo $name | sed "s/_/-/g")
 gnuplot <<< "set terminal postscript enhanced color  
              set output '$name.ps'
              set xrange [0.9:1]
              set yrange [0.9:1]
+             set xtics 0.02
+             set ytics 0.02
              set size ratio -1
              yoffset=5
-             set key outside top right
+             set key inside bottom left
              set xlabel 'Precision'
              set ylabel 'Recall'
-             set title 'Precision-Recall curve: $esc_name'
              $plotline"
 
 ps2pdf $name.ps $name.pdf
