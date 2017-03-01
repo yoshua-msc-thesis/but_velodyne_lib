@@ -128,6 +128,28 @@ public:
     return colorizeCloud(cloud, r, g, b);
   }
 
+  template<typename PointT>
+  static pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeCloud(const pcl::PointCloud<PointT> &cloud, bool grayscale = false) {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    for (typename pcl::PointCloud<PointT>::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
+      uchar r, g, b;
+
+      if(grayscale) {
+        r = g = b = 255*pt->intensity;
+      } else {
+        colorizeIntensity(pt->intensity, r, g, b);
+      }
+
+      pcl::PointXYZRGB rgb_pt;
+      copyXYZ(*pt, rgb_pt);
+      rgb_pt.r = r;
+      rgb_pt.g = g;
+      rgb_pt.b = b;
+      rgb_cloud->push_back(rgb_pt);
+    }
+    return rgb_cloud;
+  }
+
   /**!
    * Add new point cloud of arbitrary point type into the visualization. Cloud
    * is optionally transformed. The color of each point is estimated according to its height.
@@ -161,6 +183,12 @@ public:
     }
 
     return this->addColorPointCloud(rgb_cloud, transformation);
+  }
+
+  template<typename PointT>
+  Visualizer3D& addCloudColoredByIntensity(const pcl::PointCloud<PointT> &cloud, const Eigen::Matrix4f &transformation =
+                                            Eigen::Matrix4f::Identity()) {
+    return this->addColorPointCloud(colorizeCloud(cloud), transformation);
   }
 
 	Visualizer3D& addCloudColoredByRing(const VelodynePointCloud &cloud,

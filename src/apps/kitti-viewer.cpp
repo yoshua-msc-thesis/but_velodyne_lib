@@ -42,49 +42,100 @@ using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 
+inline PointCloud<PointXYZI>& operator += (PointCloud<PointXYZI> &this_cloud, const VelodynePointCloud& other)
+{
+  // Make the resultant point cloud take the newest stamp
+  if (other.header.stamp > this_cloud.header.stamp)
+    this_cloud.header.stamp = other.header.stamp;
+
+  size_t nr_points = this_cloud.points.size ();
+  this_cloud.points.resize (nr_points + other.points.size ());
+  for (size_t i = nr_points; i < this_cloud.points.size (); ++i) {
+    copyXYZ(other.points[i - nr_points], this_cloud.points[i]);
+    this_cloud.points[i].intensity = other.points[i - nr_points].intensity;
+  }
+
+  this_cloud.width    = static_cast<uint32_t>(this_cloud.points.size ());
+  this_cloud.height   = 1;
+  if (other.is_dense && this_cloud.is_dense)
+    this_cloud.is_dense = true;
+  else
+    this_cloud.is_dense = false;
+  return this_cloud;
+}
+
+void normalizeIntensity(const PointCloud<PointXYZI> &in, PointCloud<PointXYZI> &out) {
+  out.resize(in.size());
+  float mean = 0;
+  for(int i = 0; i < in.size(); i++) {
+    copyXYZ(in[i], out[i]);
+    mean += in[i].intensity;
+  }
+
+  mean /= in.size();
+
+  for(int i = 0; i < in.size(); i++) {
+    if(mean < 0.5) {
+      out[i].intensity = in[i].intensity/mean*0.5;
+    } else {
+      out[i].intensity = (in[i].intensity-mean)/(1-mean)*0.5 + 0.5;
+    }
+  }
+}
+
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+";
-        return 1;
+  if (argc < 2) {
+    cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+" << endl;
+    return 1;
+  }
+
+  vector<string> filenames;
+  vector<Eigen::Affine3f> poses;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-p") == 0 && (i < argc - 1)) {
+      i++;
+      poses = KittiUtils::load_kitti_poses(argv[i]);
+    } else {
+      filenames.push_back(string(argv[i]));
+    }
+  }
+
+  Visualizer3D visualizer;
+  VelodynePointCloud cloud;
+  PointCloud<PointXYZI> sum_cloud;
+  for (int i = 0; i < filenames.size(); i++) {
+
+    if(i%2 == 0) {
+      continue;
     }
 
-    vector<string> filenames;
-    vector<Eigen::Affine3f> poses;
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-p") == 0 && (i < argc - 1)) {
-            i++;
-            poses = KittiUtils::load_kitti_poses(argv[i]);
-        } else {
-            filenames.push_back(string(argv[i]));
-        }
+    std::cerr << "Processing KITTI file: " << filenames[i] << std::endl << std::flush;
+    if (filenames[i].find(".pcd") != std::string::npos) {
+      pcl::io::loadPCDFile(filenames[i], cloud);
+      cloud.setImageLikeAxisFromKitti();
+    } else {
+      VelodynePointCloud::fromKitti(filenames[i], cloud);
     }
 
-    Visualizer3D visualizer;
-    VelodynePointCloud cloud;
-    PointCloud<PointXYZ> sum_cloud;
-    for (int i = 0; i < filenames.size(); i++) {
-
-        VelodynePointCloud::fromKitti(filenames[i], cloud);
-
-        if (!poses.empty()) {
-            transformPointCloud(cloud, cloud, poses[i]);
-            float x, y, z, rx, ry, rz;
-            getTranslationAndEulerAngles(poses[i], x, y, z, rx, ry, rz);
-            cout << "[" << x << ", " << y << ", " << z << ", " << rx << ", " << ry << ", " << rz << "]" << endl;
-        }
-        sum_cloud += *(cloud.getXYZCloudPtr());
-
-        pcl::VoxelGrid<PointXYZ> grid;
-        grid.setLeafSize(0.1, 0.1, 0.1);
-        grid.setInputCloud(sum_cloud.makeShared());
-        grid.filter(sum_cloud);
+    if (!poses.empty()) {
+      transformPointCloud(cloud, cloud, poses[i]);
+      float x, y, z, rx, ry, rz;
+      getTranslationAndEulerAngles(poses[i], x, y, z, rx, ry, rz);
     }
-  pcl::PassThrough<pcl::PointXYZ> pass;
-  pass.setInputCloud(sum_cloud.makeShared());
-  pass.setFilterFieldName("y");
-  pass.setFilterLimits(-10, 4);
-  pass.filter(sum_cloud);
-    visualizer.addCloudColoredByHeight(sum_cloud).show();
+    sum_cloud += cloud;
 
-    return EXIT_SUCCESS;
+    if (i % 100 == 0) {
+      pcl::VoxelGrid<PointXYZI> grid;
+      grid.setLeafSize(0.5, 0.5, 0.5);
+      grid.setInputCloud(sum_cloud.makeShared());
+      grid.filter(sum_cloud);
+    }
+  }
+  normalizeIntensity(sum_cloud, sum_cloud);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud = Visualizer3D::colorizeCloud(sum_cloud, true);
+  visualizer.addColorPointCloud(rgb_cloud).show();
+
+  io::savePCDFileBinary("kitti_viewer_out.pcd", *rgb_cloud);
+
+  return EXIT_SUCCESS;
 }
