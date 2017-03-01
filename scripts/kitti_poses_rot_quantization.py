@@ -19,8 +19,11 @@ from odometry_cnn_data import mask_list
 # MAX_ROTATIONS = [r * 180 / math.pi for r in [0.025, 0.1, 0.02]]  # deg
 
 # for yaw by comparison
-ROTATIONS_BINS = [12, 56, 12]
-MAX_ROTATIONS = [1.5, 5.6, 1.5]  # deg
+#ROTATIONS_BINS = [12, 56, 12]
+#MAX_ROTATIONS = [1.5, 5.6, 1.5]  # deg
+
+ROTATIONS_BINS = [20,100,20]
+MAX_ROTATIONS = [1.5,6.0,1.5]  # deg
 
 # for skipped frames
 # ROTATIONS_BINS = [20, 200, 20]
@@ -33,13 +36,13 @@ def get_bin_sizes(max_rotations, rotation_bins):
 
 def display_histograms(odometries, bins):
     rotations = {}
-    rotations["x"] = [abs(o.dof[3]) for o in odometries]
-    rotations["y"] = [abs(o.dof[4]) for o in odometries]
-    rotations["z"] = [abs(o.dof[5]) for o in odometries]
+    rotations["x"] = [o.dof[3]*180.0/math.pi for o in odometries]
+    rotations["y"] = [o.dof[4]*180.0/math.pi for o in odometries]
+    rotations["z"] = [o.dof[5]*180.0/math.pi for o in odometries]
 
     for key, rots in rotations.iteritems():
         rots.sort()
-        rots = rots[0:int(0.99 * len(rots))]
+        rots = rots[int(0.01*len(rots)):int(0.99*len(rots))]
         plt.title("Histogram of angles %s" % (key))
         plt.hist(rots, bins=100)  # plt.hist passes it's arguments to np.histogram
         plt.show()
@@ -94,30 +97,36 @@ def get_best_prob_combination(probabilities):
         mask[i] = 1
     return mask
 
-def weight_avg_angles(angles, probabilities):
+def weight_avg_angles(angles, probabilities, do_find_prob_peak):
     assert len(angles) == len(probabilities)
     angles_sum = 0
     prob_sum = 0
-    mask = get_best_prob_combination(probabilities)
+    if do_find_prob_peak:
+        mask = get_best_prob_combination(probabilities)
+    else:
+        mask = [1]*len(probabilities)
     for i in range(len(angles)):
         angles_sum += angles[i] * probabilities[i] * mask[i]
         prob_sum += probabilities[i] * mask[i]
     return angles_sum / prob_sum
 
+def classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_bins, do_find_prob_peak):
+    probabilities = []
+    angles = []
+    for cls_i in range(rotation_bins[dim_i]):
+        prob = classes_probabilities[cls_i]
+        angle = class_i2angle(dim_i, cls_i, max_rotations, rotation_bins)
+        probabilities.append(prob)
+        angles.append(angle)
+    return weight_avg_angles(angles, probabilities, do_find_prob_peak)
+
 def classes_blob2angles(predicion_blob, blob_i, out_indexes=[0, 1, 2], layer_names=OUT_LAYERS,
-                        max_rotations=MAX_ROTATIONS, rotation_bins=ROTATIONS_BINS):
+                        max_rotations=MAX_ROTATIONS, rotation_bins=ROTATIONS_BINS, do_find_prob_peak=False):
     rotations = [0] * 3
     for i in range(len(out_indexes)):
-        classes = predicion_blob[layer_names[i]][blob_i]
+        classes_probabilities = predicion_blob[layer_names[i]][blob_i]
         dim_i = out_indexes[i]
-        probabilities = []
-        angles = []
-        for cls_i in range(rotation_bins[dim_i]):
-            prob = classes[cls_i]
-            angle = class_i2angle(dim_i, cls_i, max_rotations, rotation_bins)
-            probabilities.append(prob)
-            angles.append(angle)
-        rotations[dim_i] = weight_avg_angles(angles, probabilities)
+        rotations[dim_i] = classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_bins, do_find_prob_peak)
     return rotations
 
 if __name__ == "__main__":
