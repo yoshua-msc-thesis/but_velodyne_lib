@@ -114,10 +114,17 @@ int main(int argc, char** argv)
   LineCloud source_lines(source_polar, 2, filter);
   LineCloud target_lines(target_polar, 2, filter);
 
+  float axis_line_color[] = {.8, .8, .8};
+  float src_line_color[] = {.0, .5, .8};
+  float trg_line_color[] = {.8, .1, .1};
+  uchar src_cloud_color[] = {src_line_color[2]*255, src_line_color[1]*255, src_line_color[0]*255};
+  uchar trg_cloud_color[] = {trg_line_color[2]*255, trg_line_color[1]*255, trg_line_color[0]*255};
+
   Visualizer3D vis;
   vis.getViewer()->removeAllPointClouds();
   vis.getViewer()->removeAllShapes();
   vis.getViewer()->removeCoordinateSystem();
+  vis.getViewer()->setBackgroundColor(0, 0, 0);
   visualization::Camera camera;
   camera.clip[0] = 0.108209;
   camera.clip[1] = 3.13248;
@@ -138,10 +145,10 @@ int main(int argc, char** argv)
   PointXYZ edgeUp = corner; edgeUp.y -= 1;
   PointXYZ edgeLeft = corner; edgeLeft.x -= 1.5;
   PointXYZ edgeRight = corner; edgeRight.z -= 1.5;
-  vis.addLine(PointCloudLine(corner, edgeUp), 0, 0, 0);
-  vis.addLine(PointCloudLine(corner, edgeLeft), 0, 0, 0);
-  vis.addLine(PointCloudLine(corner, edgeRight), 0, 0, 0);
-  vis.setColor(255, 0, 0).addPointCloud(source).show();
+  vis.addLine(PointCloudLine(corner, edgeUp), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+  vis.addLine(PointCloudLine(corner, edgeLeft), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+  vis.addLine(PointCloudLine(corner, edgeRight), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+  vis.setColor(src_cloud_color[0], src_cloud_color[1], src_cloud_color[2]).addPointCloud(source).show();
 
   float dyaw = 0.05;
   float total_yaw = 0.0;
@@ -163,28 +170,28 @@ int main(int argc, char** argv)
 
     vis.getViewer()->removeAllPointClouds();
     vis.getViewer()->removeAllShapes();
-    vis.addLine(PointCloudLine(corner, edgeUp), 0, 0, 0);
-    vis.addLine(PointCloudLine(corner, edgeLeft), 0, 0, 0);
-    vis.addLine(PointCloudLine(corner, edgeRight), 0, 0, 0);
-    vis.setColor(255, 0, 0).addPointCloud(source_defile).saveSnapshot(nameGen.get());
+    vis.addLine(PointCloudLine(corner, edgeUp), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.addLine(PointCloudLine(corner, edgeLeft), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.addLine(PointCloudLine(corner, edgeRight), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.setColor(src_cloud_color[0], src_cloud_color[1], src_cloud_color[2]).addPointCloud(source_defile).saveSnapshot(nameGen.get());
   }
 
   vis.saveSnapshot(nameGen.get());
   vis.setPointSize(1);
   vis.getViewer()->removeAllPointClouds();
   vis.getViewer()->removeAllShapes();
-  vis.addLine(PointCloudLine(corner, edgeUp), 0, 0, 0);
-  vis.addLine(PointCloudLine(corner, edgeLeft), 0, 0, 0);
-  vis.addLine(PointCloudLine(corner, edgeRight), 0, 0, 0);
-  vis.setColor(255, 0, 0).addPointCloud(source).saveSnapshot(nameGen.get());
-  vis.addLines(source_lines.getLines(), 0, 0, 1.0).saveSnapshot(nameGen.get());
+  vis.addLine(PointCloudLine(corner, edgeUp), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+  vis.addLine(PointCloudLine(corner, edgeLeft), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+  vis.addLine(PointCloudLine(corner, edgeRight), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+  vis.setColor(src_cloud_color[0], src_cloud_color[1], src_cloud_color[2]).addPointCloud(source).saveSnapshot(nameGen.get());
+  vis.addLines(source_lines.getLines(), src_line_color[0], src_line_color[1], src_line_color[2]).saveSnapshot(nameGen.get());
   vis.setPointSize(2);
-  vis.setColor(0, 0, 255).addPointCloud(target).saveSnapshot(nameGen.get());
+  vis.setColor(trg_cloud_color[0], trg_cloud_color[1], trg_cloud_color[2]).addPointCloud(target).saveSnapshot(nameGen.get());
   vis.getViewer()->removeAllPointClouds();
   vis.setPointSize(1);
-  vis.setColor(255, 0, 0).addPointCloud(source);
-  vis.setColor(0, 0, 255).addPointCloud(target);
-  vis.addLines(target_lines.getLines(), 1.0, 0, 0).saveSnapshot(nameGen.get());
+  vis.setColor(src_cloud_color[0], src_cloud_color[1], src_cloud_color[2]).addPointCloud(source);
+  vis.setColor(trg_cloud_color[0], trg_cloud_color[1], trg_cloud_color[2]).addPointCloud(target);
+  vis.addLines(target_lines.getLines(), trg_line_color[0], trg_line_color[1], trg_line_color[2]).saveSnapshot(nameGen.get());
 
   Eigen::Matrix4f transformation = Eigen::Matrix4f::Identity();
   for(int i = 0; i < 15; i++) {
@@ -204,13 +211,13 @@ int main(int argc, char** argv)
 
     vis.getViewer()->removeAllPointClouds();
     vis.getViewer()->removeAllShapes();
-    vis.addLine(PointCloudLine(corner, edgeUp), 0, 0, 0);
-    vis.addLine(PointCloudLine(corner, edgeLeft), 0, 0, 0);
-    vis.addLine(PointCloudLine(corner, edgeRight), 0, 0, 0);
-    vis.setColor(255, 0, 0).addPointCloud(source)
-        .setColor(0, 0, 255).addPointCloud(target, transformation)
-        .addLines(source_lines.getLines(), 0, 0, 1.0)
-        .addLines(target_lines_transformed.getLines(), 1.0, 0, 0).saveSnapshot(nameGen.get());
+    vis.addLine(PointCloudLine(corner, edgeUp), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.addLine(PointCloudLine(corner, edgeLeft), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.addLine(PointCloudLine(corner, edgeRight), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.setColor(src_cloud_color[0], src_cloud_color[1], src_cloud_color[2]).addPointCloud(source)
+        .setColor(trg_cloud_color[0], trg_cloud_color[1], trg_cloud_color[2]).addPointCloud(target, transformation)
+        .addLines(source_lines.getLines(), src_line_color[0], src_line_color[1], src_line_color[2])
+        .addLines(target_lines_transformed.getLines(), trg_line_color[0], trg_line_color[1], trg_line_color[2]).saveSnapshot(nameGen.get());
   }
 
   transformPointCloud(target, target, transformation);
@@ -229,13 +236,13 @@ int main(int argc, char** argv)
 
     vis.getViewer()->removeAllPointClouds();
     vis.getViewer()->removeAllShapes();
-    vis.addLine(PointCloudLine(corner, edgeUp), 0, 0, 0);
-    vis.addLine(PointCloudLine(corner, edgeLeft), 0, 0, 0);
-    vis.addLine(PointCloudLine(corner, edgeRight), 0, 0, 0);
-    vis.setColor(255, 0, 0).addPointCloud(source)
-        .setColor(0, 0, 255).addPointCloud(target)
-        .addLines(source_lines.getLines(), 0, 0, 1.0)
-        .addLines(target_lines.getLines(), 1.0, 0, 0).saveSnapshot(nameGen.get());
+    vis.addLine(PointCloudLine(corner, edgeUp), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.addLine(PointCloudLine(corner, edgeLeft), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.addLine(PointCloudLine(corner, edgeRight), axis_line_color[0], axis_line_color[1], axis_line_color[2]);
+    vis.setColor(src_cloud_color[0], src_cloud_color[1], src_cloud_color[2]).addPointCloud(source)
+        .setColor(trg_cloud_color[0], trg_cloud_color[1], trg_cloud_color[2]).addPointCloud(target)
+        .addLines(source_lines.getLines(), src_line_color[0], src_line_color[1], src_line_color[2])
+        .addLines(target_lines.getLines(), trg_line_color[0], trg_line_color[1], trg_line_color[2]).saveSnapshot(nameGen.get());
   }
   return EXIT_SUCCESS;
 }

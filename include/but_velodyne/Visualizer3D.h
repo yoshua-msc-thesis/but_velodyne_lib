@@ -81,14 +81,15 @@ public:
    */
   template<typename PointT>
   Visualizer3D& addPointCloud(const pcl::PointCloud<PointT> &cloud,
-                              const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity()) {
+                              const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity(),
+                              const int viewport = 0) {
     pcl::PointCloud<PointT> cloud_transformed;
     transformPointCloud(cloud, cloud_transformed, transformation);
     if(!transformation.isIdentity()) {
       cerr << "Transformation:" << endl << transformation.matrix() << endl;
       printRT(transformation);
     }
-    return addColorPointCloud(colorizeCloud(cloud_transformed, rngU(), rngU(), rngU()));
+    return addColorPointCloud(colorizeCloud(cloud_transformed, rngU(), rngU(), rngU()), Eigen::Matrix4f::Identity(), viewport);
   }
 
   template<typename PointT>
@@ -377,7 +378,7 @@ public:
    * @param poses poses to visualize (sequence of 3D poses of sensor/vehicle expected)
    * @return *this instance with poses added for visualization
    */
-  Visualizer3D& addPosesDots(const vector<Eigen::Affine3f> &poses);
+  Visualizer3D& addPosesDots(const vector<Eigen::Affine3f> &poses, int viewport = 0);
 
   /**!
    * Add visualization of visual loops between 3D poses

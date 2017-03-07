@@ -221,12 +221,12 @@ Visualizer3D& Visualizer3D::addPosesLoops(const vector<Eigen::Affine3f> &poses,
   return *this;
 }
 
-Visualizer3D& Visualizer3D::addPosesDots(const vector<Eigen::Affine3f> &poses) {
+Visualizer3D& Visualizer3D::addPosesDots(const vector<Eigen::Affine3f> &poses, int viewport) {
   PointCloud<PointXYZ> poses_cloud;
   for(vector<Eigen::Affine3f>::const_iterator p = poses.begin(); p < poses.end(); p++) {
     poses_cloud.push_back(KittiUtils::positionFromPose(*p));
   }
-  return addPointCloud(poses_cloud);
+  return addPointCloud(poses_cloud, Eigen::Matrix4f::Identity(), viewport);
 }
 
 Visualizer3D& Visualizer3D::setColor(unsigned r, unsigned g, unsigned b) {

@@ -70,12 +70,14 @@ void colorizeCloudByLabels(const VelodynePointCloud &cloud, const vector<float> 
     PointXYZRGB &pt = cloud_colored->at(i);
     copyXYZ(cloud[i], pt);
     pt.r = pt.g = pt.b = 0;
-    if(labels[i] < 0) {
-      pt.r = pt.g = pt.b = 230;
-    } else if(labels[i] > 0.5) {
-      pt.r = 255;
+    float label = labels[i];
+    if(labels[i] < 0) {    // missing
+      pt.r = pt.g = pt.b = 0;
+    } else if(label > 0.5) {
+      pt.r = 140*label+100;
+      pt.g = pt.b = (1-label)*340+15;
     } else {
-      pt.g = 200;
+      pt.r = pt.g = pt.b = 140*label+115;
     }
   }
 }
