@@ -97,6 +97,9 @@ target_link_libraries(register-loops but_velodyne)
 add_executable(slampp-solution-to-poses src/apps/slampp-solution-to-poses.cpp)
 target_link_libraries(slampp-solution-to-poses but_velodyne)
 
+add_executable(gestalt-loops src/apps/gestalt-loops.cpp)
+target_link_libraries(gestalt-loops but_velodyne)
+
 ########################## RANSAC registration (visual features): ############
 
 add_executable(sac-visual-registration src/apps/sac-visual-registration.cpp)

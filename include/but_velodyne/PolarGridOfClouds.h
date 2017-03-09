@@ -125,13 +125,25 @@ public:
     return indices;
   }
 
+  template <typename PointT>
+  static int getPolarBinIndex(const PointT &point, int bins = getPolarBins()) {
+      float angle = VelodynePointCloud::horizontalAngle(point.z, point.x);
+
+      // we want 0deg to point to the back
+      angle += 180;
+      if(angle >= 360) {
+          angle -= 360;
+      }
+
+      float polar_bin_size = 360.0f / bins;
+    return floor(angle/polar_bin_size);
+  }
+
 protected:
 
   PolarGridOfClouds();
 
   void fill(const VelodynePointCloud &point_cloud, bool redistribute);
-
-  int getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point);
 
   int computeNewRingIndex(const velodyne_pointcloud::PointXYZIR &point,
                           const std::vector<float> &borders);

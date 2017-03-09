@@ -111,19 +111,6 @@ PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
   return sumarized;
 }
 
-int PolarGridOfClouds::getPolarBinIndex(const velodyne_pointcloud::PointXYZIR &point) {
-	float angle = VelodynePointCloud::horizontalAngle(point.z, point.x);
-
-	// we want 0deg to point to the back
-	angle += 180;
-	if(angle >= 360) {
-		angle -= 360;
-	}
-
-	float polar_bin_size = 360.0f / getPolarBins();
-  return floor(angle/polar_bin_size);
-}
-
 void PolarGridOfClouds::showColored() {
   static Visualizer3D visualizer;
   visualizer.keepOnlyClouds(0);
