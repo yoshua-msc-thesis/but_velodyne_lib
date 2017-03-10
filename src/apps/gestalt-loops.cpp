@@ -40,12 +40,16 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/kdtree/kdtree_flann.h>
 
+#include <boost/program_options.hpp>
+
 #include <Eigen/Eigenvalues>
 
 using namespace std;
 using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace but_velodyne;
+
+namespace po = boost::program_options;
 
 typedef PointXYZ Keypoint;
 typedef PointCloud<PointXYZ> Keypoints;
@@ -72,18 +76,24 @@ public:
 
   void getStatsFromBin(int ri, int ai, float &mean, float &variance) {
     vector<float> &bin = data[ai*radial_bins + ri];
-    mean = accumulate(bin.begin(), bin.end(), 0) / bin.size();
-    variance = 0;
-    for(vector<float>::iterator h = bin.begin(); h < bin.end(); h++) {
-      variance += pow(*h - mean, 2);
+    if(bin.size() < MIN_POINTS_PER_BIN) {
+      mean = variance = NAN;
+    } else {
+      mean = accumulate(bin.begin(), bin.end(), 0.0) / bin.size();
+      variance = 0;
+      for(vector<float>::iterator h = bin.begin(); h < bin.end(); h++) {
+        variance += pow(*h - mean, 2);
+      }
+      variance /= bin.size();
     }
-    variance /= bin.size();
   }
 
 private:
   int radial_bins;
   int angular_bins;
   vector< vector<float> > data;
+
+  static const int MIN_POINTS_PER_BIN = 3;
 };
 
 class KeypointFeatures {
@@ -110,9 +120,10 @@ public:
 
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
     Eigen::Vector3f l = solver.eigenvalues();
-    smallest_eigenvector = solver.eigenvectors().col(0);
     planarity = 2 * (l(1)-l(0)) / l.sum();
     cylindricality = (l(2)-l(1)) / l.sum();
+
+    smallest_eigenvector = solver.eigenvectors().col(0);
   }
 
   bool good() {
@@ -122,7 +133,7 @@ public:
     static const Eigen::Vector3f vertical(0, 1, 0);
     float angle_with_vertical = RAD2DEG(fabs(acos(vertical.dot(smallest_eigenvector))));
     while(angle_with_vertical > 90.0) {
-      angle_with_vertical -= 90.0;
+      angle_with_vertical = 180.0 - angle_with_vertical;
     }
     return angle_with_vertical > 10.0;
   }
@@ -153,7 +164,7 @@ public:
       }
     }
     raw_desc.at<float>(radial_bins*angular_bins*2) = planarity;
-    raw_desc.at<float>(radial_bins*angular_bins*2) = cylindricality;
+    raw_desc.at<float>(radial_bins*angular_bins*2 + 1) = cylindricality;
   }
 };
 
@@ -177,8 +188,8 @@ PointCloud<PointXYZ>::Ptr get_neighbourhood(const PointCloud<PointXYZ>::Ptr clou
   return neightbourhood;
 }
 
-void getKeypoints(PointCloud<PointXYZ>::Ptr cloud, Keypoints &keypoints,
-    float resolution, float downsampling, float radius, int radial_bins, int angular_bins) {
+void getSampledKeypoints(PointCloud<PointXYZ>::Ptr cloud, Keypoints &keypoints,
+    float resolution, float downsampling) {
   pcl::VoxelGrid<Keypoint> grid;
   grid.setLeafSize(resolution, resolution, resolution);
   grid.setInputCloud(cloud);
@@ -195,6 +206,11 @@ void getKeypoints(PointCloud<PointXYZ>::Ptr cloud, Keypoints &keypoints,
 
   random_shuffle(keypoints.begin(), keypoints.end());
   keypoints.resize(keypoints.size()*downsampling);
+}
+
+void getRawFeatures(PointCloud<PointXYZ>::Ptr cloud, Keypoints &keypoints, cv::Mat &descriptors,
+    float resolution, float downsampling, float radius, int radial_bins, int angular_bins) {
+  getSampledKeypoints(cloud, keypoints, resolution, downsampling);
 
   KdTreeFLANN<PointXYZ> index;
   PointCloud<PointXYZ>::Ptr flat_cloud = get_flatten(cloud);
@@ -210,9 +226,6 @@ void getKeypoints(PointCloud<PointXYZ>::Ptr cloud, Keypoints &keypoints,
   vector<KeypointFeatures>::iterator param = kpParams.begin();
   while(kp != keypoints.end()) {
     if(param->good()) {
-      cv::Mat raw_features(1, radial_bins*angular_bins*2+2, CV_32FC1);
-      param->getRawDescriptor(raw_features, radial_bins, radius, angular_bins);
-      cout << raw_features << endl;
       param++;
       kp++;
     } else {
@@ -220,41 +233,78 @@ void getKeypoints(PointCloud<PointXYZ>::Ptr cloud, Keypoints &keypoints,
       kp = keypoints.erase(kp);
     }
   }
+
+  descriptors = cv::Mat(kpParams.size(), radial_bins*angular_bins*2+2, CV_32FC1);
+  for(int i = 0; i < kpParams.size(); i++) {
+    cv::Mat row = descriptors.row(i);
+    kpParams[i].getRawDescriptor(row, radial_bins, radius, angular_bins);
+  }
+}
+
+bool parse_arguments(int argc, char **argv,
+    string &poses_file,
+    string &output_keypoints_file,
+    string &output_features_file,
+    vector<string> &clouds_to_process) {
+  po::options_description desc("3D gestalt features extraction\n"
+      "======================================\n"
+      " * Reference(s): ???\n"
+      " * Allowed options");
+  desc.add_options()
+      ("help,h", "produce help message")
+      ("poses,p", po::value<string>(&poses_file)->required(), "KITTI poses .txt file")
+      ("out_keypoints,k", po::value<string>(&output_keypoints_file)->required(), "Output .pcd file for keypoints")
+      ("out_descriptors,d", po::value<string>(&output_features_file)->required(), "Output .yaml file for descriptors")
+   ;
+
+    po::variables_map vm;
+    po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
+    po::store(parsed, vm);
+    clouds_to_process = po::collect_unrecognized(parsed.options, po::include_positional);
+
+    if (vm.count("help") || clouds_to_process.size() < 1) {
+        std::cerr << desc << std::endl;
+        return false;
+    }
+    try {
+        po::notify(vm);
+    } catch(std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl << std::endl << desc << std::endl;
+        return false;
+    }
+    return true;
 }
 
 int main(int argc, char** argv) {
-  if (argc < 2) {
-    cerr << "Insufficient arguments. Usage: " << argv[0] << " [-p <poses>] <point-cloud>+" << endl;
-    return 1;
-  }
-
+  string poses_file;
+  string output_keypoints_file;
+  string output_features_file;
   vector<string> filenames;
-  vector<Eigen::Affine3f> poses;
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-p") == 0 && (i < argc - 1)) {
-      i++;
-      poses = KittiUtils::load_kitti_poses(argv[i]);
-    } else {
-      filenames.push_back(string(argv[i]));
-    }
-  }
 
-  Visualizer3D visualizer;
+  parse_arguments(argc, argv, poses_file, output_keypoints_file, output_features_file, filenames);
+
+  srand(time(NULL));
+
+  vector<Eigen::Affine3f> poses = KittiUtils::load_kitti_poses(poses_file);
+
   VelodynePointCloud sum_cloud;
+  //Visualizer3D vis;
   for (int i = 0; i < filenames.size(); i++) {
-    std::cerr << "Processing KITTI file: " << filenames[i] << std::endl << std::flush;
     VelodynePointCloud cloud;
     VelodynePointCloud::fromFile(filenames[i], cloud);
     if (!poses.empty()) {
       transformPointCloud(cloud, cloud, poses[i]);
-      float x, y, z, rx, ry, rz;
-      getTranslationAndEulerAngles(poses[i], x, y, z, rx, ry, rz);
     }
     sum_cloud += cloud;
   }
   PointCloud<PointXYZ> keypoints;
-  getKeypoints(sum_cloud.getXYZCloudPtr(), keypoints, 0.4, 0.1, 1.0, 4, 8);
-  //visualizer.addPointCloud(keypoints).show();
+  cv::Mat descriptors;
+  getRawFeatures(sum_cloud.getXYZCloudPtr(), keypoints, descriptors, 0.4, 0.1, 1.0, 4, 8);
+  //vis.addPointCloud(keypoints).show();
+
+  io::savePCDFileBinary(output_keypoints_file, keypoints);
+  cv::FileStorage fs(output_features_file, cv::FileStorage::WRITE);
+  fs << "raw_gestalt_descriptors" << descriptors;
 
   return EXIT_SUCCESS;
 }
