@@ -293,7 +293,7 @@ int main(int argc, char** argv) {
     VelodynePointCloud cloud;
     VelodynePointCloud::fromFile(filenames[i], cloud);
     if (!poses.empty()) {
-      transformPointCloud(cloud, cloud, poses[i]);
+      transformPointCloud(cloud, cloud, poses.front().inverse()*poses[i]);
     }
     sum_cloud += cloud;
   }
