@@ -148,10 +148,10 @@ int main(int argc, char** argv) {
         keypoints_idx[m->trainIdx].frame_id << " " << keypoints_idx[m->trainIdx].pt_id << endl;
   }
 
-  Visualizer3D()
+  /*Visualizer3D()
     .setColor(200, 200, 200).addPointCloud(*sum_cloud)
     .addMatches(matches, *sum_cloud, *sum_cloud)
-    .show();
+    .show();*/
 
   return EXIT_SUCCESS;
 }
