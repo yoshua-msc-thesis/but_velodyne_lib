@@ -132,11 +132,15 @@ Visualizer3D& Visualizer3D::addLine(const PointCloudLine &line,
 }
 
 Visualizer3D& Visualizer3D::addArrow(const PointCloudLine &line) {
-  this->addLine(line);
-  viewer->addSphere(line.getEndPoint(), 0.2, rngF(), rngF(), rngF(), getId("sphere"));
-/*  viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
-                    rng(256), rng(256), rng(256), false, "arrow_" + getId());
-                    */
+  viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
+                    rng(256), rng(256), rng(256), false, getId("arrow"));
+  return *this;
+}
+
+Visualizer3D& Visualizer3D::addArrow(const PointCloudLine &line, string &id) {
+  id = getId("arrow");
+  viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
+                    rng(256), rng(256), rng(256), false, id);
   return *this;
 }
 

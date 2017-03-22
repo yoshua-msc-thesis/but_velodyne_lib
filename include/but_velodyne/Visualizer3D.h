@@ -340,6 +340,8 @@ public:
    */
   Visualizer3D& addArrow(const PointCloudLine &arrow);
 
+  Visualizer3D& addArrow(const PointCloudLine &line, string &id);
+
   /**!
    * Add the sensor representation into the visualization (currently the yellow sphere)
    *
