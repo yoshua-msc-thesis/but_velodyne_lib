@@ -270,10 +270,13 @@ public:
     //out_cloud.setRingsByPointCount();
   }
 
-  static void fromFile(const std::string &infile, VelodynePointCloud &out_cloud) {
+  static void fromFile(const std::string &infile, VelodynePointCloud &out_cloud, bool transform_pcd = false) {
     std::cerr << "Processing KITTI file: " << infile << std::endl << std::flush;
     if (infile.find(".pcd") != std::string::npos) {
       pcl::io::loadPCDFile(infile, out_cloud);
+      if(transform_pcd) {
+        out_cloud.setImageLikeAxisFromKitti();
+      }
     } else {
       VelodynePointCloud::fromKitti(infile, out_cloud);
     }
