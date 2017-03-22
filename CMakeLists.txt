@@ -80,6 +80,9 @@ target_link_libraries(show_correspondences but_velodyne)
 add_executable(kitti-viewer src/apps/kitti-viewer.cpp)
 target_link_libraries(kitti-viewer but_velodyne)
 
+add_executable(cloud-eraser src/apps/cloud-eraser.cpp)
+target_link_libraries(cloud-eraser but_velodyne)
+
 ########################## Loops detection/closure: ##########################
 
 add_executable(extract-vfh src/apps/extract-vfh.cpp)
