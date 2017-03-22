@@ -103,10 +103,16 @@ target_link_libraries(gestalt-loops but_velodyne)
 add_executable(keypoints-matches src/apps/keypoints-matches.cpp)
 target_link_libraries(keypoints-matches but_velodyne)
 
+add_executable(correct-velodyne-distortion src/apps/correct-velodyne-distortion.cpp)
+target_link_libraries(correct-velodyne-distortion but_velodyne)
+
 ########################## RANSAC registration (visual features): ############
 
 add_executable(sac-visual-registration src/apps/sac-visual-registration.cpp)
 target_link_libraries(sac-visual-registration but_velodyne)
+
+add_executable(manual-registration src/apps/manual-registration.cpp)
+target_link_libraries(manual-registration but_velodyne)
 
 ########################## Moving object detection: ##########################
 
