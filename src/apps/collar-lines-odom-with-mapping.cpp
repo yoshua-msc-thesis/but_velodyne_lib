@@ -183,12 +183,7 @@ int main(int argc, char** argv) {
 	for (int i = 0; i < clouds_to_process.size(); i++) {
 
 		string filename = clouds_to_process[i];
-		BUT_VELODYNE_LOG << "KITTI file: " << filename << endl << flush;
-		if (filename.find(".pcd") != string::npos) {
-			io::loadPCDFile(filename, target_cloud);
-		} else {
-			VelodynePointCloud::fromKitti(filename, target_cloud);
-		}
+		VelodynePointCloud::fromFile(filename, target_cloud, true);
 
 		Eigen::Matrix4f t = registration.runRegistration(target_cloud);
 		EigenUtils::saveMatrix(filename + string(".transform"), t);
