@@ -7,6 +7,6 @@ import math
 import cv_yaml
 
 for file in sys.argv[1:]:
-    mat = cv_yaml.load(file, "x-y-z-intensity")
+    mat = cv_yaml.load(file, "range-y-intensity")
     print file, mat.shape
     np.save(file + ".npy", mat)
