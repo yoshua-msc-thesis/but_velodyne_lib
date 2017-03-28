@@ -5,7 +5,6 @@ import sys
 import math
 import random
 import h5py
-import cv_yaml
 
 if len(sys.argv) != 1:
     sys.stderr.write("ERROR, arguments: [output-file.hdf5]\n")
