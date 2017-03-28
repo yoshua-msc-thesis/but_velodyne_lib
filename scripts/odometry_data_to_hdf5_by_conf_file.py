@@ -25,8 +25,6 @@ dato = np.load(data[0]["data"][0])
 rings, width, channels = dato.shape
 frames_per_odometry = len(data[0]["data"])
 
-print (len(data), channels*frames_per_odometry, rings, width)
-
 with h5py.File(sys.argv[1], 'w') as output_file:
     output_file.create_dataset('data', (len(data), channels*frames_per_odometry, rings, width), dtype='f4')
     output_file.create_dataset('odometry',    (len(data), 6), dtype='f4')
@@ -37,9 +35,7 @@ with h5py.File(sys.argv[1], 'w') as output_file:
     for di, dato in enumerate(data):
         for fi, file in enumerate(dato["data"]):
             frame = np.load(file)
-            print frame.shape
             frame = np.moveaxis(frame, [0, 1, 2], [1, 2, 0])
-            print frame.shape
             output_file["data"][di, fi*channels:(fi+1)*channels, ...] = frame
         output_file["odometry"][di, :] = np.array(dato["odometry"])
         output_file["rot_class_x"][di] = dato["rot_class_x"]
