@@ -69,6 +69,9 @@ target_link_libraries(collar-lines-odom but_velodyne)
 add_executable(collar-lines-odom-with-mapping src/apps/collar-lines-odom-with-mapping.cpp)
 target_link_libraries(collar-lines-odom-with-mapping but_velodyne)
 
+add_executable(translation-by-mean src/apps/translation-by-mean.cpp)
+target_link_libraries(translation-by-mean but_velodyne)
+
 ########################## Visualization apps: ###############################
 
 add_executable(show-kitti-poses src/apps/show-kitti-poses.cpp)
