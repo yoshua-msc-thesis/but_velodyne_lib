@@ -149,7 +149,7 @@ protected:
 
   void fillMissing(PolarGridOfClouds &summarized_data);
 
-  bool isValid(velodyne_pointcloud::PointXYZIR pt);
+  bool isValid(velodyne_pointcloud::VelodynePoint pt);
 
   void summarizeProbabilities(const std::vector<float> &probabilities,
   		cv::Mat &out_matrix);

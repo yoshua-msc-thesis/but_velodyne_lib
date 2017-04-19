@@ -35,7 +35,7 @@ float getArgument(PointXYZ from, PointXYZ dir, bool &isWithinCube) {
     return MIN(tx, MIN(ty, tz));
 }
 
-void noise(PointXYZIR &pt) {
+void noise(VelodynePoint &pt) {
   pt.x += cv::theRNG().gaussian(.2e-2);
   pt.y += cv::theRNG().gaussian(.2e-2);
   pt.z += cv::theRNG().gaussian(.2e-2);
@@ -59,7 +59,7 @@ void generate(PointXYZ origin, VelodynePointCloud &cloud) {
       bool isWithin;
       float t = getArgument(origin, dir, isWithin);
       if(isWithin) {
-        PointXYZIR pt;
+        VelodynePoint pt;
         pt.x = dir.x*t + origin.x;
         pt.z = dir.y*t + origin.y;        // y <-> z
         pt.y = dir.z*t + origin.z;

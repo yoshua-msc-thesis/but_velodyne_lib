@@ -48,7 +48,7 @@ bool PointCloudLine::exists() {
 
 ImageLine PointCloudLine::project(const cv::Mat &projection, const cv::Rect &frame) {
   cv::Point2f img_p1, img_p2;
-  velodyne_pointcloud::PointXYZIR pcl_p1, pcl_p2;
+  velodyne_pointcloud::VelodynePoint pcl_p1, pcl_p2;
 
   eigen2pcl(point, pcl_p1);
   eigen2pcl(point+orientation, pcl_p2);
@@ -59,14 +59,14 @@ ImageLine PointCloudLine::project(const cv::Mat &projection, const cv::Rect &fra
   return ImageLine(img_p1, img_p2);
 }
 
-velodyne_pointcloud::PointXYZIR PointCloudLine::getBeginPoint() const {
-  velodyne_pointcloud::PointXYZIR begin_point;
+velodyne_pointcloud::VelodynePoint PointCloudLine::getBeginPoint() const {
+  velodyne_pointcloud::VelodynePoint begin_point;
   eigen2pcl(point, begin_point);
   return begin_point;
 }
 
-velodyne_pointcloud::PointXYZIR PointCloudLine::getEndPoint() const {
-  velodyne_pointcloud::PointXYZIR end_point;
+velodyne_pointcloud::VelodynePoint PointCloudLine::getEndPoint() const {
+  velodyne_pointcloud::VelodynePoint end_point;
   eigen2pcl(point+orientation, end_point);
   return end_point;
 }

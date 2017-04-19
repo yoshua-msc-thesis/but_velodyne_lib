@@ -88,7 +88,7 @@ int main (int argc, char **argv) {
       CellId index = indicies[i];
       float prob = probGround.at<float>(index.ring, index.polar);
       Visualizer3D::colorizeIntensity(prob, r, g, b);
-      PointXYZIR pt = cloud[i];
+      VelodynePoint pt = cloud[i];
       PointXYZRGB colored_pt(r, g, b);
       colored_pt.x = pt.x;
       colored_pt.y = pt.y;

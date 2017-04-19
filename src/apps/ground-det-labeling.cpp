@@ -162,7 +162,7 @@ public:
         ranges_diff[ring] = NAN;
       }
       else {
-        velodyne_pointcloud::PointXYZIR pt = grid->at(CellId(polar_id, ring)).front();
+        velodyne_pointcloud::VelodynePoint pt = grid->at(CellId(polar_id, ring)).front();
         ranges_diff[ring] = pt.y;
       }
     }

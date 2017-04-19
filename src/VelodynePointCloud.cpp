@@ -42,8 +42,8 @@ using namespace cv;
 
 namespace but_velodyne {
 
-PointXYZIR operator +(const PointXYZIR &p1, const PointXYZIR &p2) {
-  PointXYZIR res;
+VelodynePoint operator +(const VelodynePoint &p1, const VelodynePoint &p2) {
+  VelodynePoint res;
   res.x = p1.x + p2.x;
   res.y = p1.y + p2.y;
   res.z = p1.z + p2.z;
@@ -51,8 +51,8 @@ PointXYZIR operator +(const PointXYZIR &p1, const PointXYZIR &p2) {
   return res;
 }
 
-PointXYZIR operator *(const PointXYZIR &p1, float s) {
-  PointXYZIR res;
+VelodynePoint operator *(const VelodynePoint &p1, float s) {
+  VelodynePoint res;
   res.x = p1.x * s;
   res.y = p1.y * s;
   res.z = p1.z * s;
@@ -60,15 +60,15 @@ PointXYZIR operator *(const PointXYZIR &p1, float s) {
   return res;
 }
 
-PointXYZIR operator *(float s, const PointXYZIR &p1) {
+VelodynePoint operator *(float s, const VelodynePoint &p1) {
   return p1*s;
 }
 
-PointXYZIR operator -(const PointXYZIR &p1, const PointXYZIR &p2) {
+VelodynePoint operator -(const VelodynePoint &p1, const VelodynePoint &p2) {
   return p1 + (p2 * (-1));
 }
 
-PointXYZIR operator /(const PointXYZIR &p1, float s) {
+VelodynePoint operator /(const VelodynePoint &p1, float s) {
   return p1 * (1/s);
 }
 
@@ -76,7 +76,7 @@ void VelodynePointCloud::normalizeIntensity(float min_intensity, float max_inten
 {
   float min = 0.0;
   float max = 1.0;
-  for (PointCloud<PointXYZIR>::iterator pt = this->begin(); pt < this->end(); pt++)
+  for (PointCloud<VelodynePoint>::iterator pt = this->begin(); pt < this->end(); pt++)
   {
     pt->intensity = (pt->intensity - min_intensity) /
                     (max_intensity - min_intensity) * (max - min) + min;
@@ -85,7 +85,7 @@ void VelodynePointCloud::normalizeIntensity(float min_intensity, float max_inten
 
 VelodynePointCloud VelodynePointCloud::discartWeakPoints(float threshold) {
   VelodynePointCloud output;
-  for(PointCloud<PointXYZIR>::const_iterator pt = this->begin();
+  for(PointCloud<VelodynePoint>::const_iterator pt = this->begin();
       pt < this->end();
       pt++) {
     if(pt->intensity > threshold) {
@@ -115,7 +115,7 @@ VelodynePointCloud VelodynePointCloud::resampleByRatio(float preserve_ratio) {
 
 VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
 {
-  vector< vector<PointXYZIR> > rings;
+  vector< vector<VelodynePoint> > rings;
   vector< vector<int> > indices;
   vector<int> indices_to_rings;
   getRings(rings, indices, indices_to_rings);
@@ -123,7 +123,7 @@ VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
 
   float max_difference = 0;
   float min_difference = INFINITY;
-  for (vector<vector<PointXYZIR> >::iterator ring = rings.begin(); ring < rings.end(); ring++)
+  for (vector<vector<VelodynePoint> >::iterator ring = rings.begin(); ring < rings.end(); ring++)
   {
     if(ring->size() < 2) {
       continue;
@@ -131,12 +131,12 @@ VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
     float previous_range, current_range, next_range;
     current_range = computeRange(ring->front());
     next_range = computeRange(*(ring->begin() + 1));
-    for (vector<PointXYZIR>::iterator pt = ring->begin() + 1; pt + 1 < ring->end(); pt++)
+    for (vector<VelodynePoint>::iterator pt = ring->begin() + 1; pt + 1 < ring->end(); pt++)
     {
       previous_range = current_range;
       current_range = next_range;
       next_range = computeRange(*(pt + 1));
-      PointXYZIR edge_pt;
+      VelodynePoint edge_pt;
       edge_pt.x = pt->x;
       edge_pt.y = pt->y;
       edge_pt.z = pt->z;
@@ -152,7 +152,7 @@ VelodynePointCloud VelodynePointCloud::computeEdges(float threshold) const
   return edge_cloud;
 }
 
-void VelodynePointCloud::getRings(vector< vector<PointXYZIR> > &rings,
+void VelodynePointCloud::getRings(vector< vector<VelodynePoint> > &rings,
 				  vector< vector<int> > &to_cloud_indices,
 				  vector<int> &to_ring_indices) const
 {
@@ -161,7 +161,7 @@ void VelodynePointCloud::getRings(vector< vector<PointXYZIR> > &rings,
   to_cloud_indices.clear();
   to_cloud_indices.resize(VELODYNE_RINGS_COUNT);
   int id = 0;
-  for (PointCloud<PointXYZIR>::const_iterator pt = this->begin();
+  for (PointCloud<VelodynePoint>::const_iterator pt = this->begin();
       pt < this->end();
       pt++, id++)
   {
@@ -173,8 +173,8 @@ void VelodynePointCloud::getRings(vector< vector<PointXYZIR> > &rings,
   }
 }
 
-PointXYZIR VelodynePointCloud::getMinValuePt() const {
-  PointXYZIR min;
+VelodynePoint VelodynePointCloud::getMinValuePt() const {
+  VelodynePoint min;
   min.x = min.y = min.z = min.ring = 0;
   min.intensity = INFINITY;
   for(VelodynePointCloud::const_iterator pt = this->begin(); pt < this->end(); pt++) {
@@ -185,8 +185,8 @@ PointXYZIR VelodynePointCloud::getMinValuePt() const {
   return min;
 }
 
-PointXYZIR VelodynePointCloud::getMaxValuePt() const {
-  PointXYZIR max;
+VelodynePoint VelodynePointCloud::getMaxValuePt() const {
+  VelodynePoint max;
   max.x = max.y = max.z = max.ring = 0;
   max.intensity = -INFINITY;
   for(VelodynePointCloud::const_iterator pt = this->begin(); pt < this->end(); pt++) {
@@ -200,7 +200,7 @@ PointXYZIR VelodynePointCloud::getMaxValuePt() const {
 PointCloud<PointXYZ>::Ptr VelodynePointCloud::getXYZCloudPtr() const {
   PointCloud<PointXYZ>::Ptr cloud_ptr(new PointCloud<PointXYZ>());
   for(VelodynePointCloud::const_iterator pt = begin(); pt < end(); pt++) {
-    cloud_ptr->push_back(PointXYZIRtoPointXYZ(*pt));
+    cloud_ptr->push_back(VelodynePointToPointXYZ(*pt));
   }
   return cloud_ptr;
 }
@@ -307,9 +307,9 @@ void VelodynePointCloud::setRingsByHorizontalAngles() {
   }
 }
 
-//================// PointXYZIR //================//
+//================// VelodynePoint //================//
 
-PointXYZ PointXYZIRtoPointXYZ(const PointXYZIR &in)
+PointXYZ VelodynePointToPointXYZ(const VelodynePoint &in)
 {
   PointXYZ out;
   out.x = in.x;
@@ -322,7 +322,7 @@ PointXYZ PointXYZIRtoPointXYZ(const PointXYZIR &in)
  *  Returns false (invalid result) if the point is behind the camera or
  *  it would be projected outside the projection plane.
  */
-bool projectPoint(const PointXYZIR &pt,
+bool projectPoint(const VelodynePoint &pt,
                   const cv::Mat &projection_matrix,
                   const Rect &plane,
                   Point2f &projected_pt)

@@ -145,7 +145,7 @@ protected:
 
   void fill(const VelodynePointCloud &point_cloud, bool redistribute);
 
-  int computeNewRingIndex(const velodyne_pointcloud::PointXYZIR &point,
+  int computeNewRingIndex(const velodyne_pointcloud::VelodynePoint &point,
                           const std::vector<float> &borders);
 
   std::vector<

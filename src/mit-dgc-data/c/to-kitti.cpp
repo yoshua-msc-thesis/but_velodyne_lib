@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 					continue;
 				}
 
-				PointXYZIR point;
+				VelodynePoint point;
 				point.x = vsample.xyz[0];
 				point.y = vsample.xyz[1];
 				point.z = vsample.xyz[2];

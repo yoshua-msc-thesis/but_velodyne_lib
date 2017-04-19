@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
       CellId cellId(p, r);
       const VelodynePointCloud &cell = source_polar_grid->at(cellId);
       if(!cell.empty()) {
-	PointXYZ pt = PointXYZIRtoPointXYZ(cell.front());
+	PointXYZ pt = VelodynePointToPointXYZ(cell.front());
 	source_summarized->push_back(pt);
 	index.push_back(cellId);
       }
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
       if(!cell.empty()) {
 	std::vector<int> pointIdx(1);
 	std::vector<float> pointDist(1);
-	PointXYZ pt = PointXYZIRtoPointXYZ(cell.front());
+	PointXYZ pt = VelodynePointToPointXYZ(cell.front());
 	int found = kdtree.nearestKSearch(pt, 1, pointIdx, pointDist);
 	if(pointIdx.front() < index.size()) {
 	  CellId source_cell = index[pointIdx.front()];

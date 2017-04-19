@@ -97,8 +97,8 @@ void splitCorrespondences(const vector<Correspondence3D> &correnspondences,
   for(vector<Correspondence3D>::const_iterator correnspondence = correnspondences.begin();
       correnspondence < correnspondences.end();
       correnspondence++, i++) {
-    source->push_back(PointXYZIRtoPointXYZ(correnspondence->source));
-    target->push_back(PointXYZIRtoPointXYZ(correnspondence->target));
+    source->push_back(VelodynePointToPointXYZ(correnspondence->source));
+    target->push_back(VelodynePointToPointXYZ(correnspondence->target));
     index_corrensp->push_back(pcl::Correspondence(i, i, 1/correnspondence->quality));
   }
 }

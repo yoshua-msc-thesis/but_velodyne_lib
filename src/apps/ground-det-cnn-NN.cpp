@@ -143,7 +143,7 @@ int main (int argc, char **argv) {
 	CellId index(p, r);
 	const VelodynePointCloud &cell = grid_summary->at(index);
 	if(!cell.empty()) {
-	  const PointXYZIR &cell_pt = cell.front();
+	  const VelodynePoint &cell_pt = cell.front();
 	  PointXYZI pt_classified;
 	  copyXYZ(cell_pt, pt_classified);
 	  pt_classified.intensity = probGround.at<float>(r, p);

@@ -41,7 +41,7 @@ Mat GroundDetectionDataGenerator::getMatrixOf(const InputDataTypes &type) {
       const int c = p;
       const CellId cell_id(p, r);
       if(occupancy.at<uchar>(r, p) != 0) {
-	PointXYZIR pt = summary->at(cell_id).front();
+	VelodynePoint pt = summary->at(cell_id).front();
 	switch(type) {
 	  case X:
 	    output.at<float>(r, c) = pt.x; break;
@@ -157,17 +157,17 @@ void GroundDetectionDataGenerator::saveAsImage(const Mat &matrix, const string &
 
 void GroundDetectionDataGenerator::fillMissing(PolarGridOfClouds &summarized_data) {
   for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
-    FillingFM<PointXYZIR> fill_fm;
+    FillingFM<VelodynePoint> fill_fm;
     for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
       bool occupied = !summarized_data.at(CellId(c, r)).empty();
-      PointXYZIR pt;
+      VelodynePoint pt;
       if(occupied) {
 	pt = summarized_data.at(CellId(c, r)).front();
       }
       fill_fm.next(occupied, pt);
-      FillingFM<PointXYZIR>::FillData fill_data;
+      FillingFM<VelodynePoint>::FillData fill_data;
       if(fill_fm.getFillData(fill_data)) {
-	PointXYZIR delta = (fill_data.last_value - fill_data.first_value) / (fill_data.last_index - fill_data.first_index + 1);
+	VelodynePoint delta = (fill_data.last_value - fill_data.first_value) / (fill_data.last_index - fill_data.first_index + 1);
 	for(int i = 0; i <= (fill_data.last_index - fill_data.first_index); i++) {
 	  summarized_data.at(CellId(c, fill_data.first_index + i)).push_back(delta*i + fill_data.first_value);
 	}
@@ -176,7 +176,7 @@ void GroundDetectionDataGenerator::fillMissing(PolarGridOfClouds &summarized_dat
   }
 }
 
-bool GroundDetectionDataGenerator::isValid(PointXYZIR pt) {
+bool GroundDetectionDataGenerator::isValid(VelodynePoint pt) {
   return EigenUtils::allFinite(pt.getVector4fMap()) &&
       !isnan(pt.intensity) && !isinf(pt.intensity) &&
       pt.y < 5 && pt.y > -5;

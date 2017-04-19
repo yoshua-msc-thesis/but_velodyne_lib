@@ -79,7 +79,7 @@ void PolarGridOfClouds::fill(
   }
 }
 
-int PolarGridOfClouds::computeNewRingIndex(const velodyne_pointcloud::PointXYZIR &point,
+int PolarGridOfClouds::computeNewRingIndex(const velodyne_pointcloud::VelodynePoint &point,
                                            const std::vector<float> &borders) {
   float range = compute2DRange(point);
   int new_ring_id;
@@ -98,7 +98,7 @@ PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
       if(!polar_grid[polar][ring].empty()) {
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(polar_grid[polar][ring], centroid);
-        velodyne_pointcloud::PointXYZIR centroid_ir;
+        velodyne_pointcloud::VelodynePoint centroid_ir;
         centroid_ir.x = centroid(0);
         centroid_ir.y = centroid(1);
         centroid_ir.z = centroid(2);

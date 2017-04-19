@@ -58,12 +58,12 @@ public:
 typedef Correspondence<cv::Point2f, cv::Point2f> Correspondence2D;
 
 ///! correspondence between point cloud element and image point
-typedef Correspondence<velodyne_pointcloud::PointXYZIR,
+typedef Correspondence<velodyne_pointcloud::VelodynePoint,
                       cv::Point2f> Correspondence3D2D;
 
 ///! correspondence in point cloud(s)
-typedef Correspondence<velodyne_pointcloud::PointXYZIR,
-                      velodyne_pointcloud::PointXYZIR> Correspondence3D;
+typedef Correspondence<velodyne_pointcloud::VelodynePoint,
+                      velodyne_pointcloud::VelodynePoint> Correspondence3D;
 
 }
 

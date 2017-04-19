@@ -107,8 +107,8 @@ protected:
 
   void fillRings(int source_id, int target_id) {
     annotation[source_id] = annotation[target_id] = 1;
-    PointXYZIR source = cloud[source_id];
-    PointXYZIR target = cloud[target_id];
+    VelodynePoint source = cloud[source_id];
+    VelodynePoint target = cloud[target_id];
     PointCloudLine lsegment(source, target);
     visualizer.addLine(lsegment, 1.0, 0, 0);
 
@@ -117,7 +117,7 @@ protected:
     vector<int> closests_pts = getClosestPts(lsegment, from_ring, to_ring);
     for(int r = from_ring; r <= to_ring; r++) {
       volatile int closest_index = closests_pts[r-from_ring];
-      vector<PointXYZIR> &ring = rings[r];
+      vector<VelodynePoint> &ring = rings[r];
       vector<int> &ring_ids = ring_indices[r];
       if(closest_index >= 0) {
 	for(int i = closest_index-1; i >= 0; i--) {
@@ -135,9 +135,9 @@ protected:
   }
 
   bool checkAndFillNext(int ring, int pt_id, int prev_id, int seed_id) {
-    PointXYZIR pt = rings[ring][pt_id];
-    PointXYZIR prev = rings[ring][prev_id];
-    PointXYZIR seed = rings[ring][seed_id];
+    VelodynePoint pt = rings[ring][pt_id];
+    VelodynePoint prev = rings[ring][prev_id];
+    VelodynePoint seed = rings[ring][seed_id];
     if(pt.y-prev.y < properties.max_neighbour_height_diff &&
 	pt.y - seed.y < properties.max_total_height_diff &&
 	computeRange(pt - prev) < properties.max_neighbour_dist) {
@@ -151,7 +151,7 @@ protected:
   vector<int> getClosestPts(const PointCloudLine &line, int from_ring, int to_ring) {
     vector<int> closest_points;
     for(int r = from_ring; r <= to_ring; r++) {
-      vector<PointXYZIR> &ring = rings[r];
+      vector<VelodynePoint> &ring = rings[r];
       int min_id = -1;
       float min_dist = INFINITY;
       for(int i = 0; i < ring.size(); i++) {
@@ -195,7 +195,7 @@ protected:
 private:
   Visualizer3D visualizer;
   const VelodynePointCloud &cloud;
-  vector< vector<PointXYZIR> > rings;
+  vector< vector<VelodynePoint> > rings;
   vector< vector<int> > ring_indices;
   vector<int> annotation;
   int first_point_id;

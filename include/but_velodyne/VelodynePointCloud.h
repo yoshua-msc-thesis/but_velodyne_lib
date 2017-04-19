@@ -40,12 +40,12 @@ namespace but_velodyne {
  * @param pt Velodyne 3D point
  * @returns the distance of the point from sensor
  */
-inline float computeRange(const velodyne_pointcloud::PointXYZIR &pt)
+inline float computeRange(const velodyne_pointcloud::VelodynePoint &pt)
 {
   return sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
 }
 
-inline float compute2DRange(const velodyne_pointcloud::PointXYZIR &pt)
+inline float compute2DRange(const velodyne_pointcloud::VelodynePoint &pt)
 {
   return sqrt(pt.x * pt.x + pt.z * pt.z);
 }
@@ -69,14 +69,14 @@ inline Eigen::Vector3f pclPointToVector3f(const PclPointT &pt) {
 }
 
 /**!
- * Conversion from PCL PointXYZ to PointXYZIR
+ * Conversion from PCL PointXYZ to VelodynePoint
  *
  * @param pt 3D point
  * @return PCL representation of Velodyne 3D point
  */
-inline velodyne_pointcloud::PointXYZIR PointXYZ2PointXYZIR(const pcl::PointXYZ &pt)
+inline velodyne_pointcloud::VelodynePoint PointXYZ2VelodynePoint(const pcl::PointXYZ &pt)
 {
-  velodyne_pointcloud::PointXYZIR pt_ir;
+  velodyne_pointcloud::VelodynePoint pt_ir;
   pt_ir.x = pt.x;
   pt_ir.y = pt.y;
   pt_ir.z = pt.z;
@@ -85,12 +85,12 @@ inline velodyne_pointcloud::PointXYZIR PointXYZ2PointXYZIR(const pcl::PointXYZ &
   return pt_ir;
 }
 /**!
- * Conversion from PCL PointXYZIR to PointXYZ
+ * Conversion from PCL VelodynePoint to PointXYZ
  *
  * @param pt Velodyne 3D point
  * @return PCL 3D point
  */
-pcl::PointXYZ PointXYZIRtoPointXYZ(const velodyne_pointcloud::PointXYZIR &in);
+pcl::PointXYZ VelodynePointToPointXYZ(const velodyne_pointcloud::VelodynePoint &in);
 
 /**!
  * Projects the Velodyne 3D point to the image plane
@@ -101,24 +101,24 @@ pcl::PointXYZ PointXYZIRtoPointXYZ(const velodyne_pointcloud::PointXYZIR &in);
  * @param projected_pt [output] projected 2D point
  * @return true iff the 3D point is projected within the image dimensions
  */
-bool projectPoint(const velodyne_pointcloud::PointXYZIR &pt,
+bool projectPoint(const velodyne_pointcloud::VelodynePoint &pt,
                   const cv::Mat &projection_matrix,
                   const cv::Rect &plane,
                   cv::Point2f &projected_pt);
 
-velodyne_pointcloud::PointXYZIR operator +(const velodyne_pointcloud::PointXYZIR &p1,
-                                           const velodyne_pointcloud::PointXYZIR &p2);
+velodyne_pointcloud::VelodynePoint operator +(const velodyne_pointcloud::VelodynePoint &p1,
+                                           const velodyne_pointcloud::VelodynePoint &p2);
 
-velodyne_pointcloud::PointXYZIR operator *(const velodyne_pointcloud::PointXYZIR &p1,
+velodyne_pointcloud::VelodynePoint operator *(const velodyne_pointcloud::VelodynePoint &p1,
                                            float s);
 
-velodyne_pointcloud::PointXYZIR operator *(float s,
-                                           const velodyne_pointcloud::PointXYZIR &p1);
+velodyne_pointcloud::VelodynePoint operator *(float s,
+                                           const velodyne_pointcloud::VelodynePoint &p1);
 
-velodyne_pointcloud::PointXYZIR operator -(const velodyne_pointcloud::PointXYZIR &p1,
-                                           const velodyne_pointcloud::PointXYZIR &p2);
+velodyne_pointcloud::VelodynePoint operator -(const velodyne_pointcloud::VelodynePoint &p1,
+                                           const velodyne_pointcloud::VelodynePoint &p2);
 
-velodyne_pointcloud::PointXYZIR operator /(const velodyne_pointcloud::PointXYZIR &p1,
+velodyne_pointcloud::VelodynePoint operator /(const velodyne_pointcloud::VelodynePoint &p1,
                                            float s);
 
 /**!
@@ -133,12 +133,12 @@ velodyne_pointcloud::PointXYZIR operator /(const velodyne_pointcloud::PointXYZIR
  * |
  * V Y-axis
  */
-class VelodynePointCloud : public pcl::PointCloud<velodyne_pointcloud::PointXYZIR>
+class VelodynePointCloud : public pcl::PointCloud<velodyne_pointcloud::VelodynePoint>
 {
 public:
 
 	VelodynePointCloud() :
-		pcl::PointCloud<velodyne_pointcloud::PointXYZIR>(),
+		pcl::PointCloud<velodyne_pointcloud::VelodynePoint>(),
 		axis_correction(Eigen::Matrix4f::Identity()) {
 	}
 
@@ -161,12 +161,12 @@ public:
   /**!
    * @return the point with minimal intensity value
    */
-  velodyne_pointcloud::PointXYZIR getMinValuePt() const;
+  velodyne_pointcloud::VelodynePoint getMinValuePt() const;
 
   /**!
    * @return the point with maximal intensity value
    */
-  velodyne_pointcloud::PointXYZIR getMaxValuePt() const;
+  velodyne_pointcloud::VelodynePoint getMaxValuePt() const;
 
   /**!
    * Regularly resamples the point cloud.
@@ -244,7 +244,7 @@ public:
       int i;
       for (i = 0; input.good() && !input.eof(); i++)
       {
-        velodyne_pointcloud::PointXYZIR point;
+        velodyne_pointcloud::VelodynePoint point;
         input.read((char *)&point.x, 3 * sizeof(float));
         input.read((char *)&point.intensity, sizeof(float));
         out_cloud.push_back(point);
@@ -286,7 +286,7 @@ public:
 
   float averageIntensity() const;
 
-  void getRings(std::vector< std::vector<velodyne_pointcloud::PointXYZIR> > &rings,
+  void getRings(std::vector< std::vector<velodyne_pointcloud::VelodynePoint> > &rings,
 		std::vector< std::vector<int> > &to_cloud_indices,
 		std::vector<int> &to_ring_indices) const;
 

@@ -120,7 +120,7 @@ public:
   ImageLine project(const cv::Mat &projection, const cv::Rect &frame);
 
   static void eigen2pcl(const Eigen::Vector3f &eigen,
-                        velodyne_pointcloud::PointXYZIR &pcl) {
+                        velodyne_pointcloud::VelodynePoint &pcl) {
     pcl.x = eigen[0];
     pcl.y = eigen[1];
     pcl.z = eigen[2];
@@ -129,12 +129,12 @@ public:
   /**!
    * @return first endpoint of the line segment as a PCL 3D point of Velodyne LiDAR
    */
-  velodyne_pointcloud::PointXYZIR getBeginPoint() const;
+  velodyne_pointcloud::VelodynePoint getBeginPoint() const;
 
   /**!
    * @return second endpoint of the line segment as a PCL 3D point of Velodyne LiDAR
    */
-  velodyne_pointcloud::PointXYZIR getEndPoint() const;
+  velodyne_pointcloud::VelodynePoint getEndPoint() const;
 
   /**!
    * Method switches the endpoints of line segment (AB -> BA)
