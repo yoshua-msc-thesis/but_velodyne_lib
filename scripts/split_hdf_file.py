@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 import os
 
-BATCH_SIZE=1
+BATCH_SIZE=16
 MAX_SIZE = 1800*1000*1000 # 2GB
 OUT_LAYERS = ['rot_class_x', 'rot_class_y', 'rot_class_z']
 
@@ -20,7 +20,7 @@ while fi < len(sys.argv):
         fi += 1
 
 if len(out_filename) == 0 or len(filenames) == 0:
-    sys.stderr.write("Usage: %s -o <joined-output.hdf5> <input.hdf5>+\n", sys.argv[0])
+    sys.stderr.write("Usage: %s -o <part-output.hdf5> <input.hdf5>+\n", sys.argv[0])
     sys.exit(1)
 
 for filename in filenames:

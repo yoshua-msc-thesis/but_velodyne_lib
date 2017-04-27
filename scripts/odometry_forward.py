@@ -6,13 +6,13 @@ import math
 import caffe
 import cv_yaml
 import argparse
-import eulerangles
 import os
 
 from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
 from odometry_cnn_data import odom_deg_to_rad
-from eulerangles import angle_axis_denorm2eulerXYZ
+from odometry_cnn_data import dof2matrix, matrix2dof
+from eulerangles_lib import angle_axis_denorm2eulerXYZ
 from kitti_poses_rot_quantization import classes_blob2angles 
 
 BATCH_SCHEMA_DATA = [[0, 1]]
@@ -73,16 +73,11 @@ class Pose:
 
     def move(self, dof):
         assert len(dof) == 6
-        Rt = np.eye(4, 4)
-        Rt[:3, :3] = eulerangles.euler2matXYZ(dof[3], dof[4], dof[5])
-        for row in range(3):
-            Rt[row, 3] = dof[row]
+        Rt = dof2matrix(dof)
         self.m = np.dot(self.m, Rt)
 
     def getDof(self):
-        output = [self.m[i, 3] for i in range(3)] + eulerangles.mat2eulerXYZ(self.m[:3, :3])
-        assert len(output) == 6
-        return output
+        return matrix2dof(self.m)
 
     def __str__(self):
         output = ""

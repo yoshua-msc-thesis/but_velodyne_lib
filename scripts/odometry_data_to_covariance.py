@@ -8,44 +8,10 @@ from numpy import dtype
 import h5py
 import cv
 from __builtin__ import min
-from eulerangles import mat2eulerZYX
+from odometry_cnn_data import Odometry
 
 np.set_printoptions(linewidth=200)
 
-class Odometry:
-    def __init__(self, kitti_pose = [1, 0, 0, 0, 
-                                     0, 1, 0, 0, 
-                                     0, 0, 1, 0]):
-        assert len(kitti_pose) == 12
-        self.dof = [0]*6
-        self.M = np.matrix([[0]*4, [0]*4, [0]*4, [0, 0, 0, 1]], dtype=np.float64)
-        for i in range(12):
-            self.M[i/4, i%4] = kitti_pose[i]
-        self.setDofFromM()
-    
-    def setDofFromM(self):
-        R = self.M[:3, :3]
-        self.dof[0], self.dof[1], self.dof[2] = self.M[0, 3], self.M[1, 3], self.M[2, 3]
-        self.dof[5], self.dof[4], self.dof[3] = mat2eulerZYX(R)
-  
-    def distanceTo(self, other):
-        sq_dist = 0
-        for i in range(3):
-            sq_dist += (self.dof[i]-other.dof[i])**2
-        return math.sqrt(sq_dist)
-
-    def __mul__(self, other):
-        out = Odometry()
-        out.M = self.M * other.M
-        out.setDofFromM()
-        return out
-    
-    def __sub__(self, other):
-        out = Odometry()
-        out.M = np.linalg.inv(other.M) * self.M
-        out.setDofFromM()
-        return out
-    
 if len(sys.argv) < 2:
     sys.stderr.write("Expected arguments: <pose-file>+\n")
     sys.exit(1)

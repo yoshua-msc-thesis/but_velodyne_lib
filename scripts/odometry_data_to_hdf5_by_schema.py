@@ -8,7 +8,7 @@ from numpy import dtype
 import h5py
 import cv
 from __builtin__ import min
-from eulerangles import mat2eulerZYX, euler2matXYZ, eulerXYZ2angle_axis
+from eulerangles_lib import eulerXYZ2angle_axis
 
 from odometry_cnn_data import horizontal_split
 from odometry_cnn_data import schema_to_dic
@@ -197,9 +197,9 @@ DOF_WEIGHTS = [1.0] * 6
 BATCH_SIZE = len(BATCH_SCHEMA_ODOM)
 JOINED_FRAMES = len(BATCH_SCHEMA_DATA[0])
 JOINED_ODOMETRIES = len(BATCH_SCHEMA_ODOM[0])
-FEATURES = 4
+FEATURES = 3
 FRAME_HEIGHT=64
-FRAME_WIDTH=1800
+FRAME_WIDTH=360
 HISTORY_SIZE = len(BATCH_SCHEMA_DATA) / BATCH_SIZE
 max_in_data_schema = max(reduce(lambda x, y: x + y, BATCH_SCHEMA_DATA))
 min_in_odom_schema = min(reduce(lambda x, y: x + y, BATCH_SCHEMA_ODOM))
@@ -281,7 +281,7 @@ while skip_prob < MAX_SKIP_PROB:
         elif ODOMS_UNITS != "rad":
             raise ValueError("Unknown odometry units '%s'" % ODOMS_UNITS) 
 
-        odometry_i = np.asarray([odometry_i[j]*DOF_WEIGHTS[j] for j in range(len(odometry_i))])
+        odometry_i = [odometry_i[j]*DOF_WEIGHTS[j] for j in range(len(odometry_i))]
 
         bias = 0
         while i - bias >= 0:

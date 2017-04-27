@@ -5,7 +5,8 @@ import numpy as np
 import h5py
 import os
 
-OUT_LAYERS = [] #['rot_class_x', 'rot_class_y', 'rot_class_z']
+OUT_LAYERS = []
+#OUT_LAYERS = ['rot_class_x', 'rot_class_y', 'rot_class_z']
 
 filenames = []
 fi = 1

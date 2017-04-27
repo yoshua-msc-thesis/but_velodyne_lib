@@ -3,7 +3,7 @@
 import numpy as np
 import math
 import sys
-import eulerangles
+import eulerangles_lib
 import random
 
 def horizontal_split(data, division, overlay, features, height, width):
@@ -35,6 +35,19 @@ def odom_rad_to_deg(odom):
 def odom_deg_to_rad(odom):
     return odom[0:3] + [odom[i]*math.pi/180.0 for i in range(3, 6)]
 
+def dof2matrix(dof):
+    M = np.zeros((4, 4))
+    M[:3, :3] = np.transpose(eulerangles_lib.euler2matXYZ(-dof[3], -dof[4], -dof[5]))
+    M[0, 3], M[1, 3], M[2, 3] = dof[0], dof[1], dof[2]
+    return M
+
+def matrix2dof(M):
+    R = np.transpose(M[:3, :3])
+    dof = [0]*6
+    dof[0], dof[1], dof[2] = M[0, 3], M[1, 3], M[2, 3]
+    dof[5], dof[4], dof[3] = map(lambda x: -x, eulerangles_lib.mat2eulerZYX(R))
+    return dof
+
 class Odometry:
     def __init__(self, kitti_pose=[1, 0, 0, 0,
                                      0, 1, 0, 0,
@@ -47,13 +60,10 @@ class Odometry:
         self.setDofFromM()
 
     def setDofFromM(self):
-        R = self.M[:3, :3]
-        self.dof[0], self.dof[1], self.dof[2] = self.M[0, 3], self.M[1, 3], self.M[2, 3]
-        self.dof[5], self.dof[4], self.dof[3] = eulerangles.mat2eulerZYX(R)
+        self.dof = np.array(matrix2dof(self.M))
 
     def setMFromDof(self):
-        self.M[:3, :3] = eulerangles.euler2matXYZ(self.dof[3], self.dof[4], self.dof[5])
-        self.M[0, 3], self.M[1, 3], self.M[2, 3] = self.dof[0], self.dof[1], self.dof[2]
+        self.M = dof2matrix(self.dof)
 
     def distanceTo(self, other):
         sq_dist = 0
@@ -63,10 +73,7 @@ class Odometry:
 
     def move(self, dof, inverse = False):
         assert len(dof) == 6
-        Rt = np.eye(4, 4)
-        Rt[:3, :3] = eulerangles.euler2matXYZ(dof[3], dof[4], dof[5])
-        for row in range(3):
-            Rt[row, 3] = dof[row]
+        Rt = dof2matrix(dof)
         if inverse:
             Rt = np.linalg.inv(Rt)
         self.M = np.dot(self.M, Rt)
@@ -145,3 +152,11 @@ def mask_list(list, mask):
         if mask[i] != 0:
             output.append(list[i])
     return output
+
+if __name__ == "__main__":
+    dof = [1, 2, 3, -4.807891009/57.3, -20.324063515/57.3, -5.047515356/57.3]
+    print dof
+    M = dof2matrix(dof)
+    print M
+    dof = matrix2dof(M)
+    print dof
