@@ -56,6 +56,11 @@ public:
     estimated_transform(init_transform_) {
 
     src_cloud = Visualizer3D::colorizeCloud(src_cloud_, 255, 0, 0);
+    for(int i = 0; i < src_cloud->size(); i++) {
+      src_cloud->at(i).r = 1.0/src_cloud->size()*i*255;
+      cerr << (int)src_cloud->at(i).r << endl;
+      src_cloud->at(i).g = src_cloud->at(i).b = 0;
+    }
     trg_cloud = Visualizer3D::colorizeCloud(trg_cloud_, 0, 0, 255);
 
     vector<int> indices;
@@ -64,7 +69,7 @@ public:
     removeNaNFromPointCloud(*trg_cloud, *trg_cloud, indices);
 
     PolarGridOfClouds src_polar(src_cloud_);
-    PolarGridOfClouds trg_polar(src_cloud_);
+    PolarGridOfClouds trg_polar(trg_cloud_);
 
     CollarLinesFilter filter(params.linesPerCellPreserved);
     src_lines = LineCloud::Ptr(new LineCloud(src_polar, params.linesPerCellGenerated, filter));
@@ -124,6 +129,8 @@ protected:
     pclVis->removeAllShapes();
     pclVis->removeAllPointClouds();
     visualizer.addColorPointCloud(sum_cloud);
+//    visualizer.setColor(255, 0, 0).addLines(*src_lines);
+//    visualizer.setColor(0, 0, 255).addLines(*trg_lines);
     for(int i = 0; i < src_indices.size(); i++) {
       visualizer.addArrow(PointCloudLine(src_cloud->at(src_indices[i]),
                                          trg_cloud_transformed[trg_indices[i]]));
@@ -136,13 +143,13 @@ protected:
   void keyCallback(const pcl::visualization::KeyboardEvent &event, void*) {
     if(event.keyDown()) {
       if(event.getKeySym() == "s") {
-        PCL_INFO("Running transformation estimation using SVD ...\n");
+        PCL_DEBUG("Running transformation estimation using SVD ...\n");
         estimateTransform();
         setDataToVisualizer();
       } else if(event.getKeySym() == "u") {
-        if(src_indices.size() < trg_indices.size()) {
+        if(src_indices.size() < trg_indices.size() && !trg_indices.empty()) {
           trg_indices.pop_back();
-        } else {
+        } else if(!src_indices.empty()) {
           src_indices.pop_back();
         }
         setDataToVisualizer();
@@ -165,7 +172,7 @@ protected:
   }
 
   void runAutomaticRegistration() {
-    PCL_INFO("Running automatic transformation estimation using CLS ...\n");
+    PCL_DEBUG("Running automatic transformation estimation using CLS ...\n");
 
     Termination termination(params.minIterations, params.maxIterations, params.maxTimeSpent,
                             params.significantErrorDeviation, params.targetError);
@@ -193,22 +200,60 @@ private:
   CollarLinesRegistration::Parameters registration_params;
 };
 
-int main(int argc, char** argv) {
-
+bool parse_arguments(int argc, char **argv,
+                     VelodynePointCloud &src_cloud,
+                     VelodynePointCloud &trg_cloud,
+                     Eigen::Affine3f &init_transform) {
+  string pose_filename;
   string src_filename, trg_filename;
 
-  if(argc != 4) {
-    cerr << "ERROR, expected arguments: [src_cloud.pcd] [target_cloud.pcd] [init_poses.txt]" << endl;
+  po::options_description desc("Collar Lines Registration of Velodyne scans\n"
+      "======================================\n"
+      " * Reference(s): Velas et al, ...\n"
+      " * Allowed options");
+  desc.add_options()
+      ("help,h", "produce help message")
+      ("pose_file,p", po::value<string>(&pose_filename)->default_value(""), "Init poses file.")
+      ("src_cloud,s", po::value<string>(&src_filename)->required(),  "Source point cloud.")
+      ("trg_cloud,t", po::value<string>(&trg_filename)->required(),  "Target point cloud.")
+  ;
+  po::variables_map vm;
+  po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
+  po::store(parsed, vm);
+
+  if (vm.count("help")) {
+      std::cerr << desc << std::endl;
+      return false;
+  }
+  try {
+      po::notify(vm);
+  } catch(std::exception& e) {
+      std::cerr << "Error: " << e.what() << std::endl << std::endl << desc << std::endl;
+      return false;
+  }
+
+  if(!pose_filename.empty()) {
+    vector<Eigen::Affine3f> poses = KittiUtils::load_kitti_poses(pose_filename);
+    init_transform = poses[0].inverse()*poses[1];
+  } else {
+    init_transform = Eigen::Affine3f::Identity();
+  }
+
+  VelodynePointCloud::fromFile(src_filename, src_cloud, false);
+  VelodynePointCloud::fromFile(trg_filename, trg_cloud, false);
+
+  return true;
+}
+
+int main(int argc, char** argv) {
+
+  VelodynePointCloud src_cloud, trg_cloud;
+  Eigen::Affine3f init_t;
+  if(!parse_arguments(argc, argv, src_cloud, trg_cloud, init_t)) {
     return EXIT_FAILURE;
   }
 
-  VelodynePointCloud src_cloud, trg_cloud;
-  VelodynePointCloud::fromFile(argv[1], src_cloud, true);
-  VelodynePointCloud::fromFile(argv[2], trg_cloud, true);
-
-  vector<Eigen::Affine3f> poses = KittiUtils::load_kitti_poses(argv[3]);
-
-  ManualRegistration registration(src_cloud, trg_cloud, poses[0].inverse()*poses[1]);
+  ManualRegistration registration(src_cloud, trg_cloud, init_t);
   Eigen::Affine3f t = registration.run();
   KittiUtils::printPose(cout, Eigen::Matrix4f::Identity());
   KittiUtils::printPose(cout, t.matrix());

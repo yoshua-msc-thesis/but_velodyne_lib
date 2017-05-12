@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 	for (int i = 0; i < clouds_to_process.size(); i++) {
 
 		string filename = clouds_to_process[i];
-        VelodynePointCloud::fromFile(filename, target_cloud, true);
+        VelodynePointCloud::fromFile(filename, target_cloud, false);
 
 		Eigen::Matrix4f t = registration.runRegistration(target_cloud,
 				covariances[i]);

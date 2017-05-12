@@ -141,16 +141,18 @@ void CollarLinesRegistration::findClosestMatchesByMiddles() {
   for(int target_index = 0; target_index < target_cloud.line_cloud.size(); target_index++) {
     PointXYZ target_line_middle = target_cloud.line_middles[target_index];
 
-    static const int K = 1;
+    int K = params.nearestNeighbors;
     vector<int> closest_index(K);
     vector<float> min_distance(K);
     int matches_count = source_kdtree.
         nearestKSearch(target_line_middle, K, closest_index, min_distance);
     assert(matches_count == 1);
 
-    // distance is actually square of real distance
-    DMatch match(target_index, closest_index.front(), min_distance.front());
-    matches.push_back(match);
+    for(int i = 0; i < matches_count; i++) {
+      // distance is actually square of real distance
+      DMatch match(target_index, closest_index[i], min_distance[i]);
+      matches.push_back(match);
+    }
   }
 
   float effective_threshold;

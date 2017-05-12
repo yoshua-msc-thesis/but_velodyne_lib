@@ -72,6 +72,24 @@ target_link_libraries(collar-lines-odom-with-mapping but_velodyne)
 add_executable(translation-by-mean src/apps/translation-by-mean.cpp)
 target_link_libraries(translation-by-mean but_velodyne)
 
+add_executable(cls-reg-to-map src/apps/cls-reg-to-map.cpp)
+target_link_libraries(cls-reg-to-map but_velodyne)
+
+add_executable(slice-clouds-sequence src/apps/slice-clouds-sequence.cpp)
+target_link_libraries(slice-clouds-sequence but_velodyne)
+
+add_executable(cls-reg-subsequences src/apps/cls-reg-subsequences.cpp)
+target_link_libraries(cls-reg-subsequences but_velodyne)
+
+add_executable(cluster-subsequences src/apps/cluster-subsequences.cpp)
+target_link_libraries(cluster-subsequences but_velodyne)
+
+add_executable(gicp src/apps/gicp.cpp)
+target_link_libraries(gicp but_velodyne)
+
+add_executable(transform-pcd src/apps/transform-pcd.cpp)
+target_link_libraries(transform-pcd but_velodyne)
+
 ########################## Visualization apps: ###############################
 
 add_executable(show-kitti-poses src/apps/show-kitti-poses.cpp)
@@ -85,6 +103,9 @@ target_link_libraries(kitti-viewer but_velodyne)
 
 add_executable(cloud-eraser src/apps/cloud-eraser.cpp)
 target_link_libraries(cloud-eraser but_velodyne)
+
+add_executable(build-3d-model src/apps/build-3d-model.cpp)
+target_link_libraries(build-3d-model but_velodyne)
 
 ########################## Loops detection/closure: ##########################
 
@@ -111,6 +132,12 @@ target_link_libraries(keypoints-matches but_velodyne)
 
 add_executable(correct-velodyne-distortion src/apps/correct-velodyne-distortion.cpp)
 target_link_libraries(correct-velodyne-distortion but_velodyne)
+
+add_executable(pose-graph-viewer src/apps/pose-graph-viewer.cpp)
+target_link_libraries(pose-graph-viewer but_velodyne)
+
+add_executable(cloud-eraser-from-seq src/apps/cloud-eraser-from-seq.cpp)
+target_link_libraries(cloud-eraser-from-seq but_velodyne)
 
 ########################## RANSAC registration (visual features): ############
 

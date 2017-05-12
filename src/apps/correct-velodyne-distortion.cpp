@@ -51,58 +51,95 @@ namespace po = boost::program_options;
 
 const int SLICES_COUNT = 36;
 
-void getSlices(const VelodynePointCloud &in_cloud, vector<VelodynePointCloud> &slices, float offset) {
-  float polar_bin_size = 360.0f / slices.size();
+void getSlices(const VelodynePointCloud &in_cloud, vector<VelodynePointCloud> &slices) {
+  float polar_bin_size = 1.0 / slices.size();
   for(VelodynePointCloud::const_iterator pt = in_cloud.begin(); pt < in_cloud.end(); pt++) {
-    float angle = VelodynePointCloud::horizontalAngle(pt->z, pt->x) + offset;
-    if(angle >= 360.0) {
-      angle -= 360.0;
-    }
-    int bin = slices.size() - 1 - floor(angle/polar_bin_size);
+    int bin = floor(pt->phase/polar_bin_size);
     slices[bin].push_back(*pt);
   }
 }
 
+bool parse_arguments(
+    int argc, char **argv,
+    vector<Eigen::Affine3f> &poses,
+    vector<string> &clouds_to_process,
+    string &out_dir) {
+
+  string pose_filename;
+
+  po::options_description desc(
+      "Correction of Velodyne point clouds distortion\n"
+          "======================================\n"
+          " * Reference(s): ???\n"
+          " * Allowed options");
+  desc.add_options()
+      ("help,h", "produce help message")
+      ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
+      ("out_dir,o", po::value<string>(&out_dir)->required(), "Output directory for clouds.");
+
+  po::variables_map vm;
+  po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
+  po::store(parsed, vm);
+  clouds_to_process = po::collect_unrecognized(parsed.options, po::include_positional);
+
+  if (vm.count("help") || clouds_to_process.size() < 1) {
+    std::cerr << desc << std::endl;
+    return false;
+  }
+  try {
+    po::notify(vm);
+  } catch (std::exception& e) {
+    std::cerr << "Error: " << e.what() << std::endl << std::endl << desc << std::endl;
+    return false;
+  }
+
+  poses = KittiUtils::load_kitti_poses(pose_filename);
+
+  return true;
+}
 
 int main(int argc, char** argv) {
 
-  string src_filename, trg_filename;
-
-  if(argc != 5) {
-    cerr << "ERROR, expected arguments: [input_cloud.pcd] [init_poses.txt] [hor-angle-offset] [output_cloud.pcd]" << endl;
+  vector<Eigen::Affine3f> poses;
+  vector<string> clouds_to_process;
+  string out_dir;
+  if(!parse_arguments(argc, argv, poses, clouds_to_process, out_dir)) {
     return EXIT_FAILURE;
   }
 
-  VelodynePointCloud in_cloud, out_cloud;
-  VelodynePointCloud::fromFile(argv[1], in_cloud, true);
+//  Visualizer3D vis;
+  int output_count = MIN(clouds_to_process.size(), poses.size()) - 1;
+  for(int cloud_i = 0; cloud_i < output_count; cloud_i++) {
+    VelodynePointCloud in_cloud, out_cloud;
+    VelodynePointCloud::fromFile(clouds_to_process[cloud_i], in_cloud, false);
 
-  vector<Eigen::Affine3f> poses = KittiUtils::load_kitti_poses(argv[2]);
+    Eigen::Affine3f delta = poses[cloud_i].inverse()*poses[cloud_i+1];
 
-  Eigen::Affine3f delta = poses[0].inverse()*poses[1];
+    vector<VelodynePointCloud> slices(SLICES_COUNT);
+    getSlices(in_cloud, slices);
 
+    /*
+    vis.keepOnlyClouds(0);
+    for(int i = 0; i < slices.size(); i++) {
+      vis.setColor(0, 100, i*(255.0/SLICES_COUNT)).addPointCloud(slices[i]);
+    }
+    vis.show();
+    */
 
-  vector<VelodynePointCloud> slices(SLICES_COUNT);
-  getSlices(in_cloud, slices, atof(argv[3]));
+    vector<float> dof(6);
+    getTranslationAndEulerAngles(delta, dof[0], dof[1], dof[2], dof[3], dof[4], dof[5]);
+    for(int i = 0; i < slices.size(); i++) {
+      Eigen::Affine3f t = getTransformation(dof[0]/SLICES_COUNT*i, dof[1]/SLICES_COUNT*i, dof[2]/SLICES_COUNT*i,
+          dof[3]/SLICES_COUNT*i, dof[4]/SLICES_COUNT*i, dof[5]/SLICES_COUNT*i);
+      transformPointCloud(slices[i], slices[i], t);
+//      vis.setColor(i*(255.0/SLICES_COUNT), 100, 0).addPointCloud(slices[i]);
+      out_cloud += slices[i];
+    }
+//    vis.show();
 
-  Visualizer3D vis;
-  for(int i = 0; i < slices.size(); i++) {
-    vis.setColor(0, 100, i*(255.0/SLICES_COUNT)).addPointCloud(slices[i]);
+    transformPointCloud(out_cloud, out_cloud, in_cloud.getAxisCorrection().inverse());
+    io::savePCDFileBinary(out_dir + "/" + KittiUtils::getKittiFrameName(cloud_i, ".pcd"), out_cloud);
   }
-  vis.show();
-
-  vector<float> dof(6);
-  getTranslationAndEulerAngles(delta, dof[0], dof[1], dof[2], dof[3], dof[4], dof[5]);
-  for(int i = 0; i < slices.size(); i++) {
-    Eigen::Affine3f t = getTransformation(dof[0]/SLICES_COUNT*i, dof[1]/SLICES_COUNT*i, dof[2]/SLICES_COUNT*i,
-        dof[3]/SLICES_COUNT*i, dof[4]/SLICES_COUNT*i, dof[5]/SLICES_COUNT*i);
-    transformPointCloud(slices[i], slices[i], t);
-    vis.setColor(i*(255.0/SLICES_COUNT), 100, 0).addPointCloud(slices[i]);
-    out_cloud += slices[i];
-  }
-  vis.show();
-
-  transformPointCloud(out_cloud, out_cloud, in_cloud.getAxisCorrection().inverse());
-  io::savePCDFileBinary(argv[4], out_cloud);
 
   return EXIT_SUCCESS;
 }

@@ -133,14 +133,14 @@ Visualizer3D& Visualizer3D::addLine(const PointCloudLine &line,
 
 Visualizer3D& Visualizer3D::addArrow(const PointCloudLine &line) {
   viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
-                    rng(256), rng(256), rng(256), false, getId("arrow"));
+      rngF(), rngF(), rngF(), false, getId("arrow"));
   return *this;
 }
 
 Visualizer3D& Visualizer3D::addArrow(const PointCloudLine &line, string &id) {
   id = getId("arrow");
   viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
-                    rng(256), rng(256), rng(256), false, id);
+      rngF(), rngF(), rngF(), false, id);
   return *this;
 }
 
@@ -226,10 +226,7 @@ Visualizer3D& Visualizer3D::addPosesLoops(const vector<Eigen::Affine3f> &poses,
 }
 
 Visualizer3D& Visualizer3D::addPosesDots(const vector<Eigen::Affine3f> &poses, int viewport) {
-  PointCloud<PointXYZ> poses_cloud;
-  for(vector<Eigen::Affine3f>::const_iterator p = poses.begin(); p < poses.end(); p++) {
-    poses_cloud.push_back(KittiUtils::positionFromPose(*p));
-  }
+  PointCloud<PointXYZ> poses_cloud = posesToPoints(poses);
   return addPointCloud(poses_cloud, Eigen::Matrix4f::Identity(), viewport);
 }
 
@@ -270,7 +267,11 @@ std::string Visualizer3D::getId(const string &what) {
 }
 
 double Visualizer3D::rngF() {
-  return rng.uniform(0.0, 1.0);
+  if(color_stack.size() > color_index) {
+    return color_stack[color_index++] / 256.0;
+  } else {
+    return rng.uniform(0.0, 1.0);
+  }
 }
 
 unsigned Visualizer3D::rngU() {

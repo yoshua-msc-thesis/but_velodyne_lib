@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     std::cerr << "Processing KITTI file: " << filenames[cloud_i] << std::endl << std::flush;
     if (filenames[cloud_i].find(".pcd") != std::string::npos) {
       pcl::io::loadPCDFile(filenames[cloud_i], cloud);
-      cloud.setImageLikeAxisFromKitti();
+      //cloud.setImageLikeAxisFromKitti();
     } else {
       VelodynePointCloud::fromKitti(filenames[cloud_i], cloud);
     }
@@ -226,6 +226,11 @@ int main(int argc, char** argv) {
   } else {
     rgb_cloud = Visualizer3D::colorizeCloud(sum_cloud, true);
   }
+
+  if(!output_pcd_file.empty()) {
+    io::savePCDFileBinary(output_pcd_file, *rgb_cloud);
+  }
+
   visualizer.addColorPointCloud(rgb_cloud);
 
   if(!poses.empty()) {
@@ -233,10 +238,6 @@ int main(int argc, char** argv) {
     visualizer.setColor(0, 100, 200).addPosesDots(poses);
   }
   visualizer.show();
-
-  if(!output_pcd_file.empty()) {
-    io::savePCDFileBinary(output_pcd_file, *rgb_cloud);
-  }
 
   return EXIT_SUCCESS;
 }

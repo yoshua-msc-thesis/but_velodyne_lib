@@ -38,6 +38,7 @@
 #include <but_velodyne/Correspondence.h>
 #include <but_velodyne/Regular2DGrid.h>
 #include <but_velodyne/Regular2DGridGenerator.h>
+#include <but_velodyne/KittiUtils.h>
 
 using namespace std;
 
@@ -372,6 +373,14 @@ public:
                        rngU(), rngU(), rngU(), false, getId("arrow"));
     }
     return *this;
+  }
+
+  static pcl::PointCloud<pcl::PointXYZ> posesToPoints(const std::vector<Eigen::Affine3f> &poses) {
+    pcl::PointCloud<pcl::PointXYZ> poses_cloud;
+    for(vector<Eigen::Affine3f>::const_iterator p = poses.begin(); p < poses.end(); p++) {
+      poses_cloud.push_back(KittiUtils::positionFromPose(*p));
+    }
+    return poses_cloud;
   }
 
   /**!

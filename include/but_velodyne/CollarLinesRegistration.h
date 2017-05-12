@@ -76,16 +76,19 @@ public:
         Threshold distance_threshold_ = MEDIAN_THRESHOLD,
         Weights weighting_ = NO_WEIGHTS,
         int correnspPerLineMatch_ = 1,
-        float lineCorrenspSigma_ = 0.0001) :
+        float lineCorrenspSigma_ = 0.0001,
+        int nearestNeighbors_ = 1) :
         distance_threshold(distance_threshold_),
         weighting(weighting_),
         correnspPerLineMatch(correnspPerLineMatch_),
-        lineCorrenspSigma(lineCorrenspSigma_){
+        lineCorrenspSigma(lineCorrenspSigma_),
+        nearestNeighbors(nearestNeighbors_) {
     }
     Threshold distance_threshold;       /// how is the threshold of line matches distance estimated
     Weights weighting;                  /// optional weighting of line matches
     int correnspPerLineMatch;           /// [Experimental] how many corresponding points are generated per line match
     float lineCorrenspSigma;            /// [Experimental] deviation of Gaussian noise added to the point correspondences
+    int nearestNeighbors;
   } params;
 
   /**!
@@ -105,6 +108,21 @@ public:
     matching_time(0), correnspondences_time(0), tranformation_time(0), error_time(0) {
 
     source_kdtree.setInputCloud(source_cloud.line_middles.makeShared());
+    this->target_cloud.transform(initial_transformation);
+  }
+
+  CollarLinesRegistration(const LineCloud &source_cloud_,
+                          pcl::KdTreeFLANN<pcl::PointXYZ> &source_kdtree_,
+                          const LineCloud &target_cloud_,
+                          const Parameters params_,
+                          const Eigen::Matrix4f initial_transformation_ = Eigen::Matrix4f::Identity()) :
+    source_cloud(source_cloud_), target_cloud(target_cloud_),
+    initial_transformation(initial_transformation_),
+    params(params_),
+    source_kdtree(source_kdtree_),
+    transformation(Eigen::Matrix4f::Identity()),
+    matching_time(0), correnspondences_time(0), tranformation_time(0), error_time(0) {
+
     this->target_cloud.transform(initial_transformation);
   }
 

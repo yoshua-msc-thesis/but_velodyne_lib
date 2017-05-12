@@ -31,7 +31,7 @@ trg_cloud=$(find $data_seq -name '*.pcd' -o -name '*.bin' | sort -g | head -n $(
 
 #$BIN_DIR/kitti-viewer -p $working_dir/loop-init.poses $src_cloud $trg_cloud
 
-$BIN_DIR/manual-registration $src_cloud $trg_cloud $working_dir/loop-init.poses > $working_dir/loop.poses
+$BIN_DIR/manual-registration --src_cloud $src_cloud --trg_cloud $trg_cloud --pose_file $working_dir/loop-init.poses > $working_dir/loop.poses
 
 #$BIN_DIR/kitti-viewer -p $working_dir/loop.poses $src_cloud $trg_cloud
 

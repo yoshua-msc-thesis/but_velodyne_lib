@@ -26,6 +26,8 @@
 #include <cstdlib>
 #include <cstdio>
 
+#include <boost/program_options.hpp>
+
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/Visualizer3D.h>
 #include <but_velodyne/KittiUtils.h>
@@ -40,6 +42,7 @@ using namespace std;
 using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace but_velodyne;
+namespace po = boost::program_options;
 
 void toColor(uchar i, uchar &r, uchar &g, uchar &b) {
   if(i < 128) {
@@ -74,39 +77,89 @@ void addVelodynePcl(Visualizer3D &vis, const VelodynePointCloud &cloud) {
   vis.addColorPointCloud(rgb_cloud);
 }
 
+bool parse_arguments(int argc, char **argv,
+                     vector<Eigen::Affine3f> &poses,
+                     vector<string> &clouds_to_process,
+                     vector<bool> &mask) {
+  string pose_filename, skip_filename;
 
-int main(int argc, char** argv)
-{
-  if(argc < 2) {
-    cerr << "Insufficient arguments. Usage: " << argv[0] << " <poses> <point-cloud>+";
-    return 1;
+  po::options_description desc("Collar Lines Registration of Velodyne scans\n"
+      "======================================\n"
+      " * Reference(s): Velas et al, ICRA 2016\n"
+      " * Allowed options");
+  desc.add_options()
+      ("help,h", "produce help message")
+      ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
+      ("skip_file,s", po::value<string>(&skip_filename)->default_value(""), "File with indidces to skip.")
+  ;
+  po::variables_map vm;
+  po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
+  po::store(parsed, vm);
+  clouds_to_process = po::collect_unrecognized(parsed.options, po::include_positional);
+
+  if (vm.count("help")) {
+      std::cerr << desc << std::endl;
+      return false;
+  }
+  try {
+      po::notify(vm);
+  } catch(std::exception& e) {
+      std::cerr << "Error: " << e.what() << std::endl << std::endl << desc << std::endl;
+      return false;
   }
 
-  vector<Eigen::Affine3f> poses = KittiUtils::load_kitti_poses(argv[1]);
+  poses = KittiUtils::load_kitti_poses(pose_filename);
+
+  mask.resize(poses.size(), true);
+  ifstream skip_file(skip_filename.c_str());
+  string line;
+  while(getline(skip_file, line)) {
+    mask[atoi(line.c_str())] = false;
+  }
+
+  return true;
+}
+
+int main(int argc, char** argv) {
+
+  vector<Eigen::Affine3f> poses;
+  vector<bool> mask;
+  vector<string> clouds_fnames;
+  if(!parse_arguments(argc, argv, poses, clouds_fnames, mask)) {
+    return EXIT_FAILURE;
+  }
 
   Visualizer3D visualizer;
   VelodynePointCloud cloud;
   VelodynePointCloud sum_cloud;
 
   PointXYZ senzor(0,0,0);
-  for(int i = 0; i < argc-2; i++) {
-    /*if(i%10 != 0) {
-      continue;
-    }*/
-    string kitti_scan = argv[i+2];
-    cerr << "scan: " << kitti_scan << endl;
-    //VelodynePointCloud::fromKitti(kitti_scan, cloud);
-    if (kitti_scan.find(".pcd") != string::npos) {
-        pcl::io::loadPCDFile(kitti_scan, cloud);
-    } else {
-      VelodynePointCloud::fromKitti(kitti_scan, cloud);
+  for(int i = 0; i < clouds_fnames.size(); i++) {
+    if(mask[i]) {
+      /*if(i%10 != 0) {
+        continue;
+      }*/
+      VelodynePointCloud::fromFile(clouds_fnames[i], cloud, false);
+      transformPointCloud(cloud, cloud, poses[0].inverse()*poses[i]);
+      sum_cloud += cloud;
+      visualizer.keepOnlyClouds(0);
+      addVelodynePcl(visualizer, sum_cloud);
     }
-
-    transformPointCloud(cloud, cloud, poses[0].inverse()*poses[i]);
-    sum_cloud += cloud;
-    visualizer.keepOnlyClouds(0);
-    addVelodynePcl(visualizer, sum_cloud);
   }
+
+  vector<Eigen::Affine3f> poses_to_vis;
+  vector<Eigen::Affine3f> poses_to_skip;
+  for(int i = 0; i < poses.size(); i++) {
+    if(mask[i]) {
+      poses_to_vis.push_back(poses[i]);
+    } else {
+      poses_to_skip.push_back(poses[i]);
+    }
+  }
+  visualizer
+    .setColor(200, 50, 50).addPosesDots(poses_to_vis)
+    .setColor(10, 10, 255).addPosesDots(poses_to_skip);
+
   visualizer.show();
 
   return EXIT_SUCCESS;

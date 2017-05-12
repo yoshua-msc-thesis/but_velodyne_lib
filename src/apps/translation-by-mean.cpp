@@ -102,10 +102,10 @@ int main(int argc, char** argv) {
     compute3DCentroid(cloud, centroid);
     if(cloud_i > 0) {
       translation += last_centroid - centroid;
-      KittiUtils::save_kitti_pose(
-          Eigen::Translation3f(translation.head<3>())*poses[cloud_i],
-          cout);
     }
+    KittiUtils::save_kitti_pose(
+        Eigen::Translation3f(translation.head<3>())*poses[cloud_i],
+        cout);
     last_centroid = centroid;
   }
   return EXIT_SUCCESS;
