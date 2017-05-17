@@ -34,7 +34,7 @@ for odom in odometries[1:]:
     data = [files[fi] for fi in FILES_SCHEMA]
     classes = angles2classes(odom.dof[3:], MAX_ANGLES, CLASSES_COUNTS)
 
-    for dato in odom.dof + classes + data:
+    for dato in odom.dof.tolist() + classes + data:
         sys.stdout.write("%s "%dato)
     print ""
     #frames.append({"odometry":odom.dof, "data":data, "rot_class_x":classes[0], "rot_class_y":classes[1], "rot_class_z":classes[2]})
