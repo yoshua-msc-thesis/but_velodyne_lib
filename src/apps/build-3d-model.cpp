@@ -82,8 +82,8 @@ bool parse_arguments(int argc, char **argv,
 
   poses = KittiUtils::load_kitti_poses(pose_filename);
 
+  mask.resize(poses.size(), true);
   if(!skip_filename.empty()) {
-    mask.resize(poses.size(), true);
     ifstream skip_file(skip_filename.c_str());
     string line;
     while(getline(skip_file, line)) {

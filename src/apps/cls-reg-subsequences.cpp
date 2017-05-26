@@ -64,10 +64,12 @@ void read_lines(const string &fn, vector<string> &lines) {
 bool parse_arguments(int argc, char **argv,
     CollarLinesRegistration::Parameters &registration_parameters,
     CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
+    Eigen::Matrix4f &init_transform,
     vector<Eigen::Affine3f> &src_poses, vector<string> &src_clouds_filenames,
     vector<Eigen::Affine3f> &trg_poses, vector<string> &trg_clouds_filenames) {
   string source_poses_file, target_poses_file;
   string source_clouds_list, target_clouds_list;
+  string init_transform_filename;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -107,6 +109,8 @@ bool parse_arguments(int argc, char **argv,
       "File with poses of target clouds for initialisation")
     ("nearest_neighbors", po::value<int>(&registration_parameters.nearestNeighbors)->default_value(registration_parameters.nearestNeighbors),
       "How many nearest neighbors (matches) are found for each line of source frame.")
+    ("init_transform,i", po::value<string>(&init_transform_filename)->default_value(""),
+      "Transform for initialisation (pose file)")
   ;
 
   po::variables_map vm;
@@ -130,6 +134,12 @@ bool parse_arguments(int argc, char **argv,
   trg_poses = KittiUtils::load_kitti_poses(target_poses_file);
   read_lines(source_clouds_list, src_clouds_filenames);
   read_lines(target_clouds_list, trg_clouds_filenames);
+
+  if(!init_transform_filename.empty()) {
+    init_transform = KittiUtils::load_kitti_poses(init_transform_filename).front().matrix();
+  } else {
+    init_transform = Eigen::Matrix4f::Identity();
+  }
 
   return true;
 }
@@ -171,6 +181,30 @@ Eigen::Matrix4f registerLineClouds(
   return transformation;
 }
 
+int retval = EXIT_SUCCESS;
+
+void keyCallback(const pcl::visualization::KeyboardEvent &event, void *viewer_void) {
+  pcl::visualization::PCLVisualizer *viewer = static_cast<pcl::visualization::PCLVisualizer*>(viewer_void);
+  if(event.keyDown()) {
+    if(event.getKeySym() == "d") {
+      retval = 18;
+      viewer->close();
+    }
+  }
+}
+
+void cloudXYZtoRGBA(const PointCloud<PointXYZ> &in, PointCloud<PointXYZRGBA> &out,
+    uint8_t r, uint8_t g, uint8_t b, uint8_t alpha) {
+  out.resize(in.size());
+  for(int i = 0; i < in.size(); i++) {
+    copyXYZ(in[i], out[i]);
+    out[i].r = r;
+    out[i].g = g;
+    out[i].b = b;
+    out[i].a = alpha;
+  }
+}
+
 /**
  * ./collar-lines-odom $(ls *.bin | sort | xargs)
  */
@@ -178,11 +212,13 @@ int main(int argc, char** argv) {
 
   CollarLinesRegistration::Parameters registration_parameters;
   CollarLinesRegistrationPipeline::Parameters pipeline_parameters;
+  Eigen::Matrix4f init_transform;
   vector<Eigen::Affine3f> src_poses, trg_poses;
   vector<string> src_clouds_filenames, trg_clouds_filenames;
 
   if (!parse_arguments(argc, argv,
       registration_parameters, pipeline_parameters,
+      init_transform,
       src_poses, src_clouds_filenames, trg_poses, trg_clouds_filenames)) {
     return EXIT_FAILURE;
   }
@@ -197,17 +233,18 @@ int main(int argc, char** argv) {
       trg_lines, trg_cloud);
 
   Eigen::Matrix4f t = registerLineClouds(src_lines, trg_lines,
-      Eigen::Matrix4f::Identity(),
+      init_transform,
       registration_parameters,
       pipeline_parameters);
 
   KittiUtils::printPose(std::cout, t);
   Visualizer3D vis;
-  vis.keepOnlyClouds(0)
-    .setColor(0, 0, 255).addPointCloud(src_lines.line_middles)
-    .setColor(0, 255, 0).addPointCloud(trg_cloud)
-    .setColor(255, 0, 0).addPointCloud(trg_cloud, t)
-    .show();
+  vis.getViewer()->registerKeyboardCallback(keyCallback, (void*)&(*vis.getViewer()));
+  vis.setColor(0, 0, 255).addPointCloud(src_lines.line_middles);
+  PointCloud<PointXYZRGBA>::Ptr old_target(new PointCloud<PointXYZRGBA>);
+  cloudXYZtoRGBA(trg_lines.line_middles, *old_target, 130, 130, 230, 150);
+  vis.addColorPointCloud(old_target, init_transform);
+  vis.setColor(255, 0, 0).addPointCloud(trg_lines.line_middles, t).show();
 
-  return EXIT_SUCCESS;
+  return retval;
 }

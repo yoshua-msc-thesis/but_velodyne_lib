@@ -33,11 +33,11 @@ using namespace pcl;
 
 namespace but_velodyne
 {
+cv::RNG& LineCloud::rng(cv::theRNG());
 
 LineCloud::LineCloud(const PolarGridOfClouds &polar_grid,
                      const int lines_per_cell_pair_generated,
                      CollarLinesFilter &filter_) :
-    rng(cv::theRNG()),
     filter(filter_)
 {
   for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
@@ -58,6 +58,12 @@ LineCloud::LineCloud(const PolarGridOfClouds &polar_grid,
       }
     }
   }
+}
+
+void LineCloud::push_back(const PointCloudLine &line) {
+  line_cloud.push_back(line);
+  Eigen::Vector3f middle = line.middle();
+  line_middles.push_back(PointXYZ(middle.x(), middle.y(), middle.z()));
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr LineCloud::generateDenseCloud(const int points_per_cell) const {

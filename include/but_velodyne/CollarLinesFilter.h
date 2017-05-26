@@ -41,7 +41,7 @@ protected:
   virtual bool checkLine(const PointCloudLine &line, const CellId &src_cell, const CellId &targ_cell) const;
 
 private:
-  const int lines_to_preserve;
+  int lines_to_preserve;
   COMPARATION comparation_metric;
 };
 

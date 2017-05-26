@@ -2,17 +2,64 @@
 
 BUT_SCRIPTS=~/workspace/but_velodyne_lib/scripts
 BUT_BINS=~/workspace/but_velodyne_lib/bin
+SLAMPP=~/apps/SLAM_plus_plus_v2.10/bin/slam_plus_plus
 
-$BUT_SCRIPTS/poses_to_graph.py < 03-poses-cls-m10.txt > 04-cls-subseq.unclosed.graph
-cat loop.txt >>04-cls-subseq.unclosed.graph
+function slampp {
+	in=$1
+	out=$2
+	pushd $(dirname $in)
+		$SLAMPP -i $(basename $in) --pose-only --no-detailed-timing --silent
+	popd
+	$BUT_BINS/slampp-solution-to-poses < $(dirname $in)/solution.txt > $out
+}
 
-# $BUT_BINS/cls-reg-subsequences --source_clouds_list forward.1.clouds --source_poses_file forward.1.poses --target_clouds_list backward.9.clouds --target_poses_file backward.9.poses --max_time_for_registration 1000 --max_iterations 1000 -g 2 -p 1 --matching_threshold NO_THRESHOLD | tee forward.1-to-backward.9.poses
-$BUT_SCRIPTS/pose_to_edge.py --src_index_from 253 --src_index_to 495 --trg_index_from 1849 --trg_index_to 2120 -p 03-poses-cls-m10.txt -r forward.1-to-backward.9.poses -g 04-cls-subseq.unclosed.graph >>04-cls-subseq.unclosed.graph
-$BUT_SCRIPTS/pose_to_edge.py --src_index_from 754 --src_index_to 887 --trg_index_from 1849 --trg_index_to 2120 -p 03-poses-cls-m10.txt -r forward.3-to-backward.9.poses -g 04-cls-subseq.unclosed.graph >>04-cls-subseq.unclosed.graph
-$BUT_SCRIPTS/pose_to_edge.py --src_index_from 888 --src_index_to 1174 --trg_index_from 1741 --trg_index_to 1860 -p 03-poses-cls-m10.txt -r forward.4-to-backward.8.poses -g 04-cls-subseq.unclosed.graph >>04-cls-subseq.unclosed.graph
-$BUT_SCRIPTS/pose_to_edge.py --src_index_from 0 --src_index_to 252 --trg_index_from 1849 --trg_index_to 2120 -p 03-poses-cls-m10.txt -r forward.0-to-backward.9.poses -g 04-cls-subseq.unclosed.graph >>04-cls-subseq.unclosed.graph
+if [ $# -ne 5 ]; then
+	echo "ERROR, expected usage: $0 <pcd-dir> <pose-file.txt> <input-pose.graph> <subseq-count> <output-dir>" >&2
+	exit 1
+fi
 
-~/apps/SLAM_plus_plus_v2.10/bin/slam_plus_plus -i 04-cls-subseq.unclosed.graph --pose-only --no-detailed-timing
-$BUT_BINS/slampp-solution-to-poses < solution.txt > 04-cls-subseq.closed.txt
-$BUT_BINS/build-3d-model -p 04-cls-subseq.closed.txt $(ls fixed-by-03-poses-cls-m10/*.pcd | sort) -o 04-cls-subseq.closed.pcd
-pcl_viewer 04-cls-subseq.closed.pcd.rgb.pcd
+PCD_DIR=$1
+POSE_FILE=$2
+INPUT_POSE_GRAPH=$3
+CLUSTERS=$4
+OUTPUT_DIR=$5
+
+mkdir -p $OUTPUT_DIR
+cp $INPUT_POSE_GRAPH $OUTPUT_DIR/04-subseq.graph
+
+slampp $INPUT_POSE_GRAPH $OUTPUT_DIR/initial-poses.txt
+echo "Clustering ..."
+$BUT_BINS/cluster-subsequences -p $OUTPUT_DIR/initial-poses.txt -c $CLUSTERS $(ls $PCD_DIR/*.pcd | sort) | tee $OUTPUT_DIR/subsequences.txt
+
+echo "Source index:"
+read src_subseq_idx
+src_poses=$OUTPUT_DIR/subseq.$src_subseq_idx.poses
+src_clouds=$OUTPUT_DIR/subseq.$src_subseq_idx.clouds
+from_to=$($BUT_SCRIPTS/get-subsequences.sh $OUTPUT_DIR/subsequences.txt $src_subseq_idx $POSE_FILE $PCD_DIR $src_poses $src_clouds)
+src_idx_from=$(echo $from_to | cut -d" " -f1)
+src_idx_to=$(echo $from_to | cut -d" " -f2)
+
+echo "Target index:"
+read trg_subseq_idx
+trg_poses=$OUTPUT_DIR/subseq.$trg_subseq_idx.poses
+trg_clouds=$OUTPUT_DIR/subseq.$trg_subseq_idx.clouds
+from_to=$($BUT_SCRIPTS/get-subsequences.sh $OUTPUT_DIR/subsequences.txt $trg_subseq_idx $POSE_FILE $PCD_DIR $trg_poses $trg_clouds)
+trg_idx_from=$(echo $from_to | cut -d" " -f1)
+trg_idx_to=$(echo $from_to | cut -d" " -f2)
+
+loop_transform=$OUTPUT_DIR/loop-seq-$src_subseq_idx-to-$trg_subseq_idx.txt
+$BUT_BINS/cls-reg-subsequences --source_clouds_list $src_clouds --source_poses_file $src_poses --target_clouds_list $trg_clouds --target_poses_file $trg_poses --max_time_for_registration 1000 --max_iterations 1000 -g 2 -p 1 --matching_threshold NO_THRESHOLD > $loop_transform
+exit_code=$?
+echo $exit_code
+if [ $exit_code -eq 18 ]; then
+	mv $loop_transform $loop_transform.coarse
+	$BUT_BINS/cls-reg-subsequences --source_clouds_list $src_clouds --source_poses_file $src_poses --target_clouds_list $trg_clouds --target_poses_file $trg_poses --max_time_for_registration 1000 --max_iterations 1000 -g 2 -p 1 -i $loop_transform.coarse | tee $loop_transform
+fi
+
+$BUT_SCRIPTS/pose_to_edge.py --src_index_from $src_idx_from --src_index_to $src_idx_to --trg_index_from $trg_idx_from --trg_index_to $trg_idx_to -p $POSE_FILE -r $loop_transform -g $OUTPUT_DIR/04-subseq.graph >>$OUTPUT_DIR/04-subseq.graph
+
+slampp $OUTPUT_DIR/04-subseq.graph $OUTPUT_DIR/04-subseq-closed.txt
+
+$BUT_BINS/build-3d-model -p $OUTPUT_DIR/04-subseq-closed.txt $(ls $PCD_DIR/*.pcd | sort) -o $OUTPUT_DIR/04-subseq-closed.pcd
+pcl_viewer $OUTPUT_DIR/04-subseq-closed.pcd.rgb.pcd
+pcl_viewer $OUTPUT_DIR/04-subseq-closed.pcd.poses.pcd

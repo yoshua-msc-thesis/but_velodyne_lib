@@ -134,12 +134,12 @@ public:
   static pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeCloud(const pcl::PointCloud<PointT> &cloud, bool grayscale = false) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     for (typename pcl::PointCloud<PointT>::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
+      float intensity = pt->intensity;
       uchar r, g, b;
-
       if(grayscale) {
-        r = g = b = 255*pt->intensity;
+        r = g = b = 255*intensity;
       } else {
-        colorizeIntensity(pt->intensity, r, g, b);
+        colorizeIntensity(intensity, r, g, b);
       }
 
       pcl::PointXYZRGB rgb_pt;
@@ -227,6 +227,11 @@ public:
    */
   Visualizer3D& addColorPointCloud(
       const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
+      const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity(),
+      int viewport = 0);
+
+  Visualizer3D& addColorPointCloud(
+      const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud,
       const Eigen::Matrix4f &transformation = Eigen::Matrix4f::Identity(),
       int viewport = 0);
 

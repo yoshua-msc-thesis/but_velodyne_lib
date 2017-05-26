@@ -38,6 +38,8 @@ using namespace Eigen;
 namespace but_velodyne
 {
 
+float PoseGraphEdge::CORRECTION = 0.01;
+
 // EDGE3D sourceIdx targetIdx 6DOF(6 floats) upper-triange-of-cholesky-cov(21 floats)
 std::ostream& operator<<(std::ostream &stream, const PoseGraphEdge &edge) {
   float x, y, z, roll, pitch, yaw;
@@ -52,7 +54,7 @@ std::ostream& operator<<(std::ostream &stream, const PoseGraphEdge &edge) {
   Eigen::MatrixXf eigenCovariance;
   cv2eigen(edge.covariance, eigenCovariance);
 
-  MatrixXf correction = MatrixXf::Identity(edge.covariance.rows, edge.covariance.cols) * 0.01;
+  MatrixXf correction = MatrixXf::Identity(edge.covariance.rows, edge.covariance.cols) * PoseGraphEdge::CORRECTION;
   MatrixXf precision = (eigenCovariance + correction).inverse();
 
   for(int row = 0; row < edge.covariance.rows; row++) {

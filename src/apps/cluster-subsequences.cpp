@@ -45,6 +45,9 @@ using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 namespace po = boost::program_options;
 
+const int TEXT_MARGIN = 3;
+const int FONT_TITLE = 11;
+
 bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      vector<string> &clouds_to_process,
@@ -99,9 +102,9 @@ float normalize(float value, float min, float max) {
 
 class StartEnd {
 public:
-  int start, end;
+  int start, end, idx;
   StartEnd(void) :
-    start(1000000000), end(-1) {
+    start(1000000000), end(-1), idx(0) {
   }
   bool operator <(const StartEnd &other) const {
     return this->start < other.start;
@@ -147,7 +150,7 @@ int main(int argc, char** argv) {
     data.at<float>(i, 0) = normalize(centroids->at(i).x, min_pt.x, max_pt.x);
     data.at<float>(i, 1) = normalize(centroids->at(i).y, min_pt.y, max_pt.y);
     data.at<float>(i, 2) = normalize(centroids->at(i).z, min_pt.z, max_pt.z);
-    data.at<float>(i, 3) = normalize(i, 0, filenames.size());
+    data.at<float>(i, 3) = normalize(i, 0, filenames.size())*2;
   }
   cv::Mat labels(filenames.size(), 1, CV_32SC1);
   cv::TermCriteria termination(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 1);
@@ -162,15 +165,30 @@ int main(int argc, char** argv) {
     clusters[label].push_back(poses_points[i]);
     cluster_borders[label].start = MIN(cluster_borders[label].start, i);
     cluster_borders[label].end = MAX(cluster_borders[label].end, i);
-  }
-
-  std::sort(cluster_borders.begin(), cluster_borders.end());
-  for(int c = 0; c < cluster_count; c++) {
-    cout << cluster_borders[c].start << " " << cluster_borders[c].end << endl;
+    cluster_borders[label].idx = label;
   }
 
   Visualizer3D vis;
-  vis.addPointClouds(clusters);
+  cv::RNG& rng = cv::theRNG();
+  int text_x = TEXT_MARGIN;
+  int text_y = TEXT_MARGIN;
+  std::sort(cluster_borders.begin(), cluster_borders.end());
+  for(int c = 0; c < cluster_count; c++) {
+    cout << cluster_borders[c].start << " " << cluster_borders[c].end << endl;
+    stringstream ss;
+    ss << "poses_cluster." << c << ".pcd";
+    io::savePCDFileBinary(ss.str(), clusters[cluster_borders[c].idx]);
+
+    uchar r = rng(256);
+    uchar g = rng(256);
+    uchar b = rng(256);
+    vis.setColor(r, g, b).addPointCloud(clusters[cluster_borders[c].idx]);
+    text_y += FONT_TITLE + TEXT_MARGIN;
+    stringstream c_str;
+    c_str << "cluster-" << c;
+    vis.getViewer()->addText(c_str.str(), text_x, text_y, FONT_TITLE, b/255.0, g/255.0, r/255.0, c_str.str());
+  }
+
   vis.addColorPointCloud(centroids).show();
 
   return EXIT_SUCCESS;

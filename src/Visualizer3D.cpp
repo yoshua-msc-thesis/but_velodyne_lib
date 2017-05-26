@@ -44,7 +44,7 @@ Visualizer3D::Visualizer3D() :
     viewer(new pcl::visualization::PCLVisualizer()),
     identifier(0),
     color_index(0),
-    point_size(2)
+    point_size(1)
 {
   viewer->setBackgroundColor(1.0, 1.0, 1.0);
   viewer->addCoordinateSystem(0.5);
@@ -63,12 +63,27 @@ Visualizer3D& Visualizer3D::addColorPointCloud(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
     const Eigen::Matrix4f &transformation, int viewport) {
 
-  pcl::transformPointCloud(*cloud, *cloud, transformation);
-  pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb_vis(cloud);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::transformPointCloud(*cloud, *cloud_transformed, transformation);
+  pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb_vis(cloud_transformed);
   std::string id = getId("cloud");
-  viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb_vis, id, viewport);
+  viewer->addPointCloud<pcl::PointXYZRGB>(cloud_transformed, rgb_vis, id, viewport);
   viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE,
-					   point_size, id);
+                       point_size, id);
+  return *this;
+}
+
+Visualizer3D& Visualizer3D::addColorPointCloud(
+    const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud,
+    const Eigen::Matrix4f &transformation, int viewport) {
+
+  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZRGBA>);
+  pcl::transformPointCloud(*cloud, *cloud_transformed, transformation);
+  pcl::visualization::PointCloudColorHandlerRGBAField<pcl::PointXYZRGBA> rgb_vis(cloud_transformed);
+  std::string id = getId("cloud");
+  viewer->addPointCloud<pcl::PointXYZRGBA>(cloud_transformed, rgb_vis, id, viewport);
+  viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE,
+                       point_size, id);
   return *this;
 }
 
@@ -132,14 +147,14 @@ Visualizer3D& Visualizer3D::addLine(const PointCloudLine &line,
 }
 
 Visualizer3D& Visualizer3D::addArrow(const PointCloudLine &line) {
-  viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
+  viewer->addArrow(line.getEndPoint(), line.getBeginPoint(),
       rngF(), rngF(), rngF(), false, getId("arrow"));
   return *this;
 }
 
 Visualizer3D& Visualizer3D::addArrow(const PointCloudLine &line, string &id) {
   id = getId("arrow");
-  viewer->addArrow(line.getBeginPoint(), line.getEndPoint(),
+  viewer->addArrow(line.getEndPoint(), line.getBeginPoint(),
       rngF(), rngF(), rngF(), false, id);
   return *this;
 }

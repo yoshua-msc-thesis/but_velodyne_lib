@@ -12,4 +12,4 @@ count=$(($trg_idx-$src_idx+1))
 head -n $(($trg_idx+1)) $3 | tail -n $count > $5
 ls $4/*.pcd | sort | head -n $(($trg_idx+1)) | tail -n $count > $6
 
-echo "Poses and clouds from index $src_idx to $trg_idx were listed in $5 $6" >&2
+echo "$src_idx $trg_idx"

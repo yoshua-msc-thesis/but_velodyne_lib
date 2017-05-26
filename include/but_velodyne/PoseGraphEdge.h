@@ -78,6 +78,8 @@ public:
   int targetIdx;                        ///! ID of target vertex the edge is connected to
   Eigen::Matrix4f transformation;       ///! transformation between the positions (vertices)
   cv::Mat covariance;                   ///! covariance matrix for SLAM++ (how much the algorithm trusts the edge)
+
+  static float CORRECTION;
 };
 
 /**!

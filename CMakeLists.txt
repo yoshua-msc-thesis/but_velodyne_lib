@@ -90,6 +90,9 @@ target_link_libraries(gicp but_velodyne)
 add_executable(transform-pcd src/apps/transform-pcd.cpp)
 target_link_libraries(transform-pcd but_velodyne)
 
+add_executable(cluster-collar-lines src/apps/cluster-collar-lines.cpp)
+target_link_libraries(cluster-collar-lines but_velodyne)
+
 ########################## Visualization apps: ###############################
 
 add_executable(show-kitti-poses src/apps/show-kitti-poses.cpp)
@@ -106,6 +109,12 @@ target_link_libraries(cloud-eraser but_velodyne)
 
 add_executable(build-3d-model src/apps/build-3d-model.cpp)
 target_link_libraries(build-3d-model but_velodyne)
+
+add_executable(threshold-intensity src/apps/threshold-intensity.cpp)
+target_link_libraries(threshold-intensity but_velodyne)
+
+add_executable(defile-cloud src/apps/defile-cloud.cpp)
+target_link_libraries(defile-cloud but_velodyne)
 
 ########################## Loops detection/closure: ##########################
 

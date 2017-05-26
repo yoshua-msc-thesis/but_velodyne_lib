@@ -49,7 +49,6 @@ public:
    * Initialize empty line cloud.
    */
   LineCloud() :
-    rng(cv::theRNG()),
     filter(CollarLinesFilter(0)) {
     // empty
   }
@@ -97,6 +96,8 @@ public:
     return *this;
   }
 
+  void push_back(const PointCloudLine &line);
+
 protected:
   void generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
                                  const CellId &source_cell,
@@ -111,8 +112,8 @@ protected:
   std::vector<CellId> getTargetCells(const CellId &source_cell) const;
 
 private:
-  cv::RNG& rng;
-  const CollarLinesFilter &filter;
+  static cv::RNG& rng;
+  CollarLinesFilter filter;
 };
 
 } /* namespace but_velodyne */
