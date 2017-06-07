@@ -36,7 +36,7 @@ DOF_WEIGHTS = [1.0] * 6
 # in case of ROT_TYPE == "classes"
 ROTATIONS_BINS = [20,100,20]
 MAX_ROTATIONS = [1.5,6.0,1.5]  # deg
-FIND_PROBABILITY_PEAK = False
+WINDOW_PROB_SIZE = 7
 
 FRAME_WIDTH=1800
 FRAME_HEIGHT=64
@@ -54,8 +54,13 @@ DOF_PREDICTED_FIRST = 3
 def create_blob(input_files, schema_dic):
     blob = np.empty([BATCH_SIZE*HISTORY_SIZE, JOINED_FRAMES*CHANNELS, FRAME_HEIGHT, FRAME_WIDTH / HORIZONTAL_DIVISION + HORIZONTAL_DIVISION_OVERLAY * 2])
     for file_i in range(len(input_files)):
-        file_data = cv_yaml.load(input_files[file_i], 'range-y-intensity')
+
+        if input_files[file_i].endswith(".npy"):
+            file_data = np.load(input_files[file_i])
+        else:
+            file_data = cv_yaml.load(input_files[file_i], 'range-y-intensity')
         file_data = np.moveaxis(file_data, [0, 1, 2], [1, 2, 0])
+
         file_data = horizontal_split(file_data, HORIZONTAL_DIVISION, HORIZONTAL_DIVISION_OVERLAY, FEATURES, FRAME_HEIGHT, FRAME_WIDTH)
         for indices in schema_dic[file_i]:
             for f in range(CHANNELS):
@@ -138,10 +143,10 @@ def axis_angle_to_euler_rad(dof):
 def extract_prediction(data_blobs, blob_i, slot_i):
     if ROT_TYPE == "classes":
         return odom_deg_to_rad([0]*3 + classes_blob2angles(data_blobs, blob_i, [0, 1, 2], ['rot_class_x', 'rot_class_y', 'rot_class_z'], 
-                                                           MAX_ROTATIONS, ROTATIONS_BINS, FIND_PROBABILITY_PEAK))
+                                                           MAX_ROTATIONS, ROTATIONS_BINS, WINDOW_PROB_SIZE))
     if ROT_TYPE == "class_y":
         return odom_deg_to_rad([0]*3 + classes_blob2angles(data_blobs, blob_i, [1], ["rot_class_y"], 
-                                                           MAX_ROTATIONS, ROTATIONS_BINS, FIND_PROBABILITY_PEAK))
+                                                           MAX_ROTATIONS, ROTATIONS_BINS, WINDOW_PROB_SIZE))
     dof = [0]*DOF_REQUIRED
     for i in range(DOF_PREDICTED_FIRST, DOF_PREDICTED_FIRST+DOF_PREDICTED):
         dof[i] = extract_single_number(data_blobs[OUTPUT_LAYER_NAME][blob_i][slot_i*DOF_PREDICTED + i - DOF_PREDICTED_FIRST])

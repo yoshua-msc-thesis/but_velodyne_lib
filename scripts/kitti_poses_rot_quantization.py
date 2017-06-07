@@ -78,14 +78,13 @@ def class_i2angle(dimension_idx, class_idx, max_rotations, rotation_bins):
     bin_sizes = get_bin_sizes(max_rotations, rotation_bins)
     return (class_idx - rotation_bins[dimension_idx] / 2) * (bin_sizes[dimension_idx])
 
-def get_best_prob_combination(probabilities):
-    COMB_SIZE = 7
+def get_best_prob_combination(probabilities, comb_size):
     best_start = -1
     best_end = -1
     best_prob = -1
     for i in range(len(probabilities)):
-        start = max(0, i - COMB_SIZE / 2)
-        end = min(len(probabilities), i + COMB_SIZE / 2 + 1)
+        start = max(0, i - comb_size / 2)
+        end = min(len(probabilities), i + comb_size / 2 + 1)
         prob_slice = probabilities[start:end]
         avg_prob = sum(prob_slice) / len(prob_slice)
         if avg_prob > best_prob:
@@ -97,20 +96,17 @@ def get_best_prob_combination(probabilities):
         mask[i] = 1
     return mask
 
-def weight_avg_angles(angles, probabilities, do_find_prob_peak):
+def weight_avg_angles(angles, probabilities, window_size):
     assert len(angles) == len(probabilities)
     angles_sum = 0
     prob_sum = 0
-    if do_find_prob_peak:
-        mask = get_best_prob_combination(probabilities)
-    else:
-        mask = [1]*len(probabilities)
+    mask = get_best_prob_combination(probabilities, window_size)
     for i in range(len(angles)):
         angles_sum += angles[i] * probabilities[i] * mask[i]
         prob_sum += probabilities[i] * mask[i]
     return angles_sum / prob_sum
 
-def classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_bins, do_find_prob_peak):
+def classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_bins, window_size):
     probabilities = []
     angles = []
     for cls_i in range(rotation_bins[dim_i]):
@@ -118,15 +114,15 @@ def classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_b
         angle = class_i2angle(dim_i, cls_i, max_rotations, rotation_bins)
         probabilities.append(prob)
         angles.append(angle)
-    return weight_avg_angles(angles, probabilities, do_find_prob_peak)
+    return weight_avg_angles(angles, probabilities, window_size)
 
 def classes_blob2angles(predicion_blob, blob_i, out_indexes=[0, 1, 2], layer_names=OUT_LAYERS,
-                        max_rotations=MAX_ROTATIONS, rotation_bins=ROTATIONS_BINS, do_find_prob_peak=False):
+                        max_rotations=MAX_ROTATIONS, rotation_bins=ROTATIONS_BINS, window_size=7):
     rotations = [0] * 3
     for i in range(len(out_indexes)):
         classes_probabilities = predicion_blob[layer_names[i]][blob_i]
         dim_i = out_indexes[i]
-        rotations[dim_i] = classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_bins, do_find_prob_peak)
+        rotations[dim_i] = classes2single_angle(classes_probabilities, dim_i, max_rotations, rotation_bins, window_size)
     return rotations
 
 if __name__ == "__main__":
