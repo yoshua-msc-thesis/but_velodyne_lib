@@ -113,8 +113,11 @@ target_link_libraries(build-3d-model but_velodyne)
 add_executable(threshold-intensity src/apps/threshold-intensity.cpp)
 target_link_libraries(threshold-intensity but_velodyne)
 
-add_executable(defile-cloud src/apps/defile-cloud.cpp)
-target_link_libraries(defile-cloud but_velodyne)
+add_executable(hor-align-and-defile src/apps/hor-align-and-defile.cpp)
+target_link_libraries(hor-align-and-defile but_velodyne)
+
+add_executable(normalize-intensity src/apps/normalize-intensity.cpp)
+target_link_libraries(normalize-intensity but_velodyne)
 
 ########################## Loops detection/closure: ##########################
 

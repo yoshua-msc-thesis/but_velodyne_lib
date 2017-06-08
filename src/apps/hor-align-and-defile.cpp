@@ -51,24 +51,6 @@ using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 namespace po = boost::program_options;
 
-void normalizeMinMax(const PointCloud<PointXYZI> &in, PointCloud<PointXYZI> &out,
-    float skiprate, float expected_min, float expected_max) {
-  vector<float> intensities;
-  for (pcl::PointCloud<PointXYZI>::const_iterator pt = in.begin(); pt < in.end(); pt++) {
-    intensities.push_back(pt->intensity);
-  }
-  sort(intensities.begin(), intensities.end());
-  float min_intensity = intensities[intensities.size()*skiprate];
-  float max_intensity = intensities[intensities.size()*(1-skiprate)];
-
-  out.resize(in.size());
-  for (int i = 0; i < in.size(); i++) {
-    copyXYZ(in[i], out[i]);
-    out[i].intensity = (in[i].intensity-min_intensity)/(max_intensity-min_intensity) * (expected_max-expected_min) + expected_min;
-    out[i].intensity = MIN(MAX(out[i].intensity, 0.0), 1.0);
-  }
-}
-
 class HorizontalAligner {
 public:
   HorizontalAligner(Visualizer3D &vis_, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_) :
@@ -193,7 +175,7 @@ int main(int argc, char** argv) {
 
   PointCloud<PointXYZI> cloud;
   pcl::io::loadPCDFile(input_cloud, cloud);
-  normalizeMinMax(cloud, cloud, 0.01, 0.1, 1.0);
+  Visualizer3D::normalizeMinMaxIntensity(cloud, cloud, 0.01, 0.1, 1.0);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud = Visualizer3D::colorizeCloud(cloud, true);
 
   Visualizer3D vis;

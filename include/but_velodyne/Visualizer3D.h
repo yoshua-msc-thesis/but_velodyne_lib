@@ -152,6 +152,25 @@ public:
     return rgb_cloud;
   }
 
+  static void normalizeMinMaxIntensity(const pcl::PointCloud<pcl::PointXYZI> &in,
+      pcl::PointCloud<pcl::PointXYZI> &out,
+      float skiprate, float expected_min, float expected_max) {
+    vector<float> intensities;
+    for (pcl::PointCloud<pcl::PointXYZI>::const_iterator pt = in.begin(); pt < in.end(); pt++) {
+      intensities.push_back(pt->intensity);
+    }
+    sort(intensities.begin(), intensities.end());
+    float min_intensity = intensities[intensities.size()*skiprate];
+    float max_intensity = intensities[intensities.size()*(1-skiprate)];
+
+    out.resize(in.size());
+    for (int i = 0; i < in.size(); i++) {
+      copyXYZ(in[i], out[i]);
+      out[i].intensity = (in[i].intensity-min_intensity)/(max_intensity-min_intensity) * (expected_max-expected_min) + expected_min;
+      out[i].intensity = MIN(MAX(out[i].intensity, expected_min), expected_max);
+    }
+  }
+
   /**!
    * Add new point cloud of arbitrary point type into the visualization. Cloud
    * is optionally transformed. The color of each point is estimated according to its height.
