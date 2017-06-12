@@ -48,13 +48,7 @@ trg_idx_from=$(echo $from_to | cut -d" " -f1)
 trg_idx_to=$(echo $from_to | cut -d" " -f2)
 
 loop_transform=$OUTPUT_DIR/loop-seq-$src_subseq_idx-to-$trg_subseq_idx.txt
-$BUT_BINS/cls-reg-subsequences --source_clouds_list $src_clouds --source_poses_file $src_poses --target_clouds_list $trg_clouds --target_poses_file $trg_poses --max_time_for_registration 1000 --max_iterations 1000 -g 2 -p 1 --matching_threshold NO_THRESHOLD > $loop_transform
-exit_code=$?
-echo $exit_code
-if [ $exit_code -eq 18 ]; then
-	mv $loop_transform $loop_transform.coarse
-	$BUT_BINS/cls-reg-subsequences --source_clouds_list $src_clouds --source_poses_file $src_poses --target_clouds_list $trg_clouds --target_poses_file $trg_poses --max_time_for_registration 1000 --max_iterations 1000 -g 2 -p 1 -i $loop_transform.coarse | tee $loop_transform
-fi
+$BUT_BINS/cls-reg-subsequences --source_clouds_list $src_clouds --source_poses_file $src_poses --target_clouds_list $trg_clouds --target_poses_file $trg_poses --max_time_for_registration 30 --max_iterations 500 -g 2 -p 1 --matching_threshold NO_THRESHOLD | tee $loop_transform
 
 $BUT_SCRIPTS/pose_to_edge.py --src_index_from $src_idx_from --src_index_to $src_idx_to --trg_index_from $trg_idx_from --trg_index_to $trg_idx_to -p $POSE_FILE -r $loop_transform -g $OUTPUT_DIR/04-subseq.graph >>$OUTPUT_DIR/04-subseq.graph
 

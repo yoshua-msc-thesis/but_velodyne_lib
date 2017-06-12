@@ -173,6 +173,7 @@ int main(int argc, char** argv) {
   int text_x = TEXT_MARGIN;
   int text_y = TEXT_MARGIN;
   std::sort(cluster_borders.begin(), cluster_borders.end());
+
   for(int c = 0; c < cluster_count; c++) {
     cout << cluster_borders[c].start << " " << cluster_borders[c].end << endl;
     stringstream ss;
@@ -189,7 +190,8 @@ int main(int argc, char** argv) {
     vis.getViewer()->addText(c_str.str(), text_x, text_y, FONT_TITLE, b/255.0, g/255.0, r/255.0, c_str.str());
   }
 
-  vis.addColorPointCloud(centroids).show();
+  // vis.addColorPointCloud(centroids).show();
+  vis.show();
 
   return EXIT_SUCCESS;
 }
