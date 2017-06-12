@@ -146,11 +146,13 @@ bool parse_arguments(int argc, char **argv,
           "If standard deviation of error from last N=min_iterations iterations if below this value - registration is terminated")
       ("history_size,m", po::value<int>(&pipeline_parameters.historySize)->default_value(pipeline_parameters.historySize),
           "How many previous frames are used for registration (multi-view CLS-M approach described in the paper)")
-			("linear_estimator", po::value<int>(&linear_estimator)->default_value(0),
-					"Use last N frames for linear odometry prediction - can not be combined with kalman_estimator switch or init_poses_estimator")
-			("init_poses_estimator", po::value<string>(&init_poses)->default_value(""),
-					"Use precomputed poses as a prediction - can not be combined with kalman_estimator switch or linear_estimator")
+      ("linear_estimator", po::value<int>(&linear_estimator)->default_value(0),
+          "Use last N frames for linear odometry prediction - can not be combined with kalman_estimator switch or init_poses_estimator")
+      ("init_poses_estimator", po::value<string>(&init_poses)->default_value(""),
+          "Use precomputed poses as a prediction - can not be combined with kalman_estimator switch or linear_estimator")
       ("kalman_estimator", po::bool_switch(&use_kalman), "Use Kalman filter instead of linear predictor or precomputed poses for estimation of odometry")
+      ("translation_only", po::bool_switch(&registration_parameters.estimate_translation_only),
+          "Estimate only the translation (rotation should be presented as the initial pose)")
    ;
 
     po::variables_map vm;

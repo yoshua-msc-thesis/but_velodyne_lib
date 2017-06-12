@@ -300,6 +300,14 @@ Eigen::Matrix4f CollarLinesRegistration::computeTransformationWeighted(
   centroid_1 << source_points_weighted.row(0).sum(),
       source_points_weighted.row(1).sum(), source_points_weighted.row(2).sum();
 
+  typedef Eigen::Matrix<TPoint3D::Scalar, 4, 1> _TyVector4;
+  Eigen::Matrix4f transformation = _TyVector4::Ones().asDiagonal();
+
+  if(params.estimate_translation_only) {
+    transformation.block(0, 3, 3, 1) = centroid_1 - centroid_0;
+    return transformation;
+  }
+
   Eigen::Matrix<TPoint3D::Scalar, 1, Eigen::Dynamic> identity_vec =
 		  Eigen::Matrix<TPoint3D::Scalar, 1, Eigen::Dynamic>::Ones(1, target_coresp_points.cols()); //setOnes();
 
@@ -338,10 +346,7 @@ Eigen::Matrix4f CollarLinesRegistration::computeTransformationWeighted(
   // R is the rotation of point_0_translated to fit the source_coresp_points_translated
   Matrix3f R = svd.matrixV() * E * (svd.matrixU().transpose());
 
-  typedef Eigen::Matrix<TPoint3D::Scalar, 4, 1> _TyVector4;
-  Eigen::Matrix4f transformation = _TyVector4::Ones().asDiagonal();
   transformation.block(0, 0, 3, 3) = R;
-
   // The translation must be computed as centroid_1 - rotated centroid_0
   transformation.block(0, 3, 3, 1) = centroid_1 - (R * centroid_0);
 

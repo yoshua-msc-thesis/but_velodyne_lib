@@ -77,18 +77,21 @@ public:
         Weights weighting_ = NO_WEIGHTS,
         int correnspPerLineMatch_ = 1,
         float lineCorrenspSigma_ = 0.0001,
-        int nearestNeighbors_ = 1) :
+        int nearestNeighbors_ = 1,
+        bool estimate_translation_only_ = false) :
         distance_threshold(distance_threshold_),
         weighting(weighting_),
         correnspPerLineMatch(correnspPerLineMatch_),
         lineCorrenspSigma(lineCorrenspSigma_),
-        nearestNeighbors(nearestNeighbors_) {
+        nearestNeighbors(nearestNeighbors_),
+        estimate_translation_only(estimate_translation_only_) {
     }
     Threshold distance_threshold;       /// how is the threshold of line matches distance estimated
     Weights weighting;                  /// optional weighting of line matches
     int correnspPerLineMatch;           /// [Experimental] how many corresponding points are generated per line match
     float lineCorrenspSigma;            /// [Experimental] deviation of Gaussian noise added to the point correspondences
     int nearestNeighbors;
+    bool estimate_translation_only;
   } params;
 
   /**!
