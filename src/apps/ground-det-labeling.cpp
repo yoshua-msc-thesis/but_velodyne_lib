@@ -152,12 +152,13 @@ public:
 
 class GroundProbabilityByHeightDev : public NormalizedFeature {
 public:
-  GroundProbabilityByHeightDev() :
-    ranges_diff(VelodyneSpecification::RINGS) {
+  GroundProbabilityByHeightDev(const int rings_) :
+    rings(rings_),
+    ranges_diff(rings) {
   }
 
   void setData(PolarGridOfClouds::Ptr grid, int polar_id) {
-    for (int ring = VelodyneSpecification::RINGS - 1; ring >= 0; ring--) {
+    for (int ring = grid->rings - 1; ring >= 0; ring--) {
       if (grid->at(CellId(polar_id, ring)).empty()) {
         ranges_diff[ring] = NAN;
       }
@@ -170,13 +171,14 @@ public:
 
   float compute(int ring) {
     vector<float>::iterator first_range = ranges_diff.begin() + MAX(ring - MAX_RANGES_USED/2, 0);
-    vector<float>::iterator end_range   = ranges_diff.begin() + MIN(ring + MAX_RANGES_USED/2, VelodyneSpecification::RINGS);
+    vector<float>::iterator end_range   = ranges_diff.begin() + MIN(ring + MAX_RANGES_USED/2, rings);
     float result = -deviation(first_range, end_range);
     updateMinMax(result);
     return result;
   }
 
 private:
+  const int rings;
   vector<float> ranges_diff;
   static const int MAX_RANGES_USED = 7;
 };
@@ -214,11 +216,11 @@ public:
   GroundProbabilityByRingDist() : last_range(-1.0) {
   }
 
-  float compute(const Eigen::Vector3f &current_point, int ring) {
+  float compute(const Eigen::Vector3f &current_point, VelodyneSpecification::Model model, int ring) {
     float current_range = sqrt(current_point.x()*current_point.x() + current_point.z()*current_point.z());
     float ret_val;
     if(last_range > 0) {
-      float expected_diff = fabs(VelodyneSpecification::getExpectedRange(ring) - VelodyneSpecification::getExpectedRange(ring+1));
+      float expected_diff = fabs(VelodyneSpecification::getExpectedRange(ring, model) - VelodyneSpecification::getExpectedRange(ring+1, model));
       float found_diff = fabs(last_range-current_range);
       ret_val = gauss(0.0, 1.0, MAX(expected_diff - found_diff, 0), false);
     } else {
@@ -232,9 +234,7 @@ private:
 };
 
 vector<float> groundSegmentationByRings(const VelodynePointCloud &cloud) {
-  PolarGridOfClouds::POLAR_SUPERBINS = 360;
-  PolarGridOfClouds::BIN_SUBDIVISION = 1;
-  PolarGridOfClouds polar_grid(cloud);
+  PolarGridOfClouds polar_grid(cloud, 360, 1);
   PolarGridOfClouds::Ptr summary = polar_grid.summarize();
 
   map<CellId, float> normalized_probabilities;
@@ -243,19 +243,19 @@ vector<float> groundSegmentationByRings(const VelodynePointCloud &cloud) {
 
   // probabilities requiring normalization:
   GroundProbabilityByHeight prob_height;
-  GroundProbabilityByHeightDev prob_hdev;
+  GroundProbabilityByHeightDev prob_hdev(cloud.ringCount());
 
-  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
+  for(int polar = 0; polar < polar_grid.getPolarBins(); polar++) {
     // normalized probabilities:
     GroundProbabilityByElevationDiff prob_elevation;
     GroundProbabilityByRingDist prob_rdist;
     prob_hdev.setData(summary, polar);
-    for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
+    for(int ring = cloud.ringCount()-1; ring >= 0; ring--) {
       if(!summary->at(CellId(polar, ring)).empty()) {
         Eigen::Vector3f current_point = summary->at(CellId(polar, ring)).front().getVector3fMap();
         normalized_probabilities[CellId(polar, ring)] =
             prob_elevation.compute(current_point)*
-            prob_rdist.compute(current_point, ring);
+            prob_rdist.compute(current_point, cloud.getVelodyneModel(), ring);
         hdev_probabilities[CellId(polar, ring)] = prob_hdev.compute(ring);
         height_probabilities[CellId(polar, ring)] = prob_height.compute(current_point);
       }
@@ -302,13 +302,11 @@ public:
 vector<float> segmentationRegularPolarGrid(
     const VelodynePointCloud &cloud,
     NormalizedFeatureInRegularGrid &feature_esimator) {
-  PolarGridOfClouds::POLAR_SUPERBINS = 72;
-  PolarGridOfClouds::BIN_SUBDIVISION = 1;
-  PolarGridOfClouds grid(cloud, true);
+  PolarGridOfClouds grid(cloud, 72, 1, Eigen::Affine3f::Identity(), true);
 
   map<CellId, float> hdist_probabilities;
-  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
-    for(int ring = VelodyneSpecification::RINGS-1; ring >= 0; ring--) {
+  for(int polar = 0; polar < grid.getPolarBins(); polar++) {
+    for(int ring = cloud.ringCount()-1; ring >= 0; ring--) {
       CellId cell_id(polar, ring);
       const VelodynePointCloud &cell_content = grid.at(cell_id);
       if(!cell_content.empty()) {

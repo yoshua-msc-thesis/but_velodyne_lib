@@ -137,9 +137,12 @@ class VelodynePointCloud : public pcl::PointCloud<velodyne_pointcloud::VelodyneP
 {
 public:
 
+  typedef boost::shared_ptr<VelodynePointCloud> Ptr;
+
 	VelodynePointCloud() :
 		pcl::PointCloud<velodyne_pointcloud::VelodynePoint>(),
-		axis_correction(Eigen::Matrix4f::Identity()) {
+		axis_correction(Eigen::Matrix4f::Identity()),
+		velodyne_model(VelodyneSpecification::Unknown) {
 	}
 
   /**!
@@ -250,6 +253,7 @@ public:
         out_cloud.push_back(point);
       }
       input.close();
+      out_cloud.setVelodyneModel(VelodyneSpecification::HDL64);
 
       std::cerr << "Read KTTI point cloud " << infile << " with " << i-1 << " points." << std::endl;
   }
@@ -277,8 +281,19 @@ public:
       if(transform_pcd) {
         out_cloud.setImageLikeAxisFromKitti();
       }
+      out_cloud.estimateModel();
     } else {
       VelodynePointCloud::fromKitti(infile, out_cloud);
+    }
+  }
+
+  static VelodyneSpecification::Model getSourceModel(const std::string &cloud_infile) {
+    if (cloud_infile.find(".pcd") != std::string::npos) {
+      VelodynePointCloud cloud;
+      pcl::io::loadPCDFile(cloud_infile, cloud);
+      return cloud.estimateModel();
+    } else {
+      return VelodyneSpecification::HDL64;
     }
   }
 
@@ -286,26 +301,39 @@ public:
 
   float averageIntensity() const;
 
-  void getRings(std::vector< std::vector<velodyne_pointcloud::VelodynePoint> > &rings,
-		std::vector< std::vector<int> > &to_cloud_indices,
-		std::vector<int> &to_ring_indices) const;
+  void getRings(
+      std::vector<std::vector<velodyne_pointcloud::VelodynePoint> > &rings,
+      std::vector<std::vector<int> > &to_cloud_indices,
+      std::vector<int> &to_ring_indices) const;
 
   std::vector<int> removeNanPoints();
 
-	Eigen::Matrix4f getAxisCorrection() const {
-		return axis_correction;
-	}
+  Eigen::Matrix4f getAxisCorrection() const {
+    return axis_correction;
+  }
 
-	void addAxisCorrection(const Eigen::Matrix4f &correction);
+  void addAxisCorrection(const Eigen::Matrix4f &correction);
+
+  int ringCount() const {
+    return VelodyneSpecification::rings(velodyne_model);
+  }
+
+  VelodyneSpecification::Model estimateModel();
+
+  VelodyneSpecification::Model getVelodyneModel() const {
+    return velodyne_model;
+  }
+
+  void setVelodyneModel(VelodyneSpecification::Model velodyneModel) {
+    velodyne_model = velodyneModel;
+  }
 
 protected:
   VelodynePointCloud discartWeakPoints(float threshold);
 
 private:
   Eigen::Matrix4f axis_correction;
-
-public:
-  static const uint16_t VELODYNE_RINGS_COUNT = VelodyneSpecification::RINGS;      ///! Expected number of the rings in Velodyne point cloud
+  VelodyneSpecification::Model velodyne_model;
 };
 
 }

@@ -150,7 +150,8 @@ bool parse_arguments(int argc, char **argv,
           "Use last N frames for linear odometry prediction - can not be combined with kalman_estimator switch or init_poses_estimator")
       ("init_poses_estimator", po::value<string>(&init_poses)->default_value(""),
           "Use precomputed poses as a prediction - can not be combined with kalman_estimator switch or linear_estimator")
-      ("kalman_estimator", po::bool_switch(&use_kalman), "Use Kalman filter instead of linear predictor or precomputed poses for estimation of odometry")
+      ("kalman_estimator", po::bool_switch(&use_kalman),
+          "Use Kalman filter instead of linear predictor or precomputed poses for estimation of odometry")
       ("translation_only", po::bool_switch(&registration_parameters.estimate_translation_only),
           "Estimate only the translation (rotation should be presented as the initial pose)")
    ;

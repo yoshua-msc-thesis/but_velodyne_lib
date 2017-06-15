@@ -83,6 +83,25 @@ void VelodynePointCloud::normalizeIntensity(float min_intensity, float max_inten
   }
 }
 
+VelodyneSpecification::Model VelodynePointCloud::estimateModel() {
+  int max_ring = -1;
+  for(VelodynePointCloud::const_iterator p = this->begin(); p < this->end(); p++) {
+    max_ring = MAX(max_ring, p->ring);
+  }
+  if(max_ring < 0) {
+    velodyne_model = VelodyneSpecification::Unknown;
+  } else if(max_ring < VelodyneSpecification::rings(VelodyneSpecification::VLP16)) {
+    velodyne_model = VelodyneSpecification::VLP16;
+  } else if(max_ring < VelodyneSpecification::rings(VelodyneSpecification::HDL32)) {
+    velodyne_model = VelodyneSpecification::HDL32;
+  } else if(max_ring < VelodyneSpecification::rings(VelodyneSpecification::HDL64)) {
+    velodyne_model = VelodyneSpecification::HDL64;
+  } else {
+    velodyne_model = VelodyneSpecification::Unknown;
+  }
+  return velodyne_model;
+}
+
 VelodynePointCloud VelodynePointCloud::discartWeakPoints(float threshold) {
   VelodynePointCloud output;
   for(PointCloud<VelodynePoint>::const_iterator pt = this->begin();
@@ -157,18 +176,18 @@ void VelodynePointCloud::getRings(vector< vector<VelodynePoint> > &rings,
 				  vector<int> &to_ring_indices) const
 {
   rings.clear();
-  rings.resize(VELODYNE_RINGS_COUNT);
+  rings.resize(ringCount());
   to_cloud_indices.clear();
-  to_cloud_indices.resize(VELODYNE_RINGS_COUNT);
+  to_cloud_indices.resize(ringCount());
   int id = 0;
   for (PointCloud<VelodynePoint>::const_iterator pt = this->begin();
       pt < this->end();
       pt++, id++)
   {
-    assert(pt->ring < VELODYNE_RINGS_COUNT);
+    assert(pt->ring < ringCount());
     rings[pt->ring].push_back(*pt);
     to_cloud_indices[pt->ring].push_back(id);
-    to_ring_indices.push_back((rings[pt->ring].size()-1)*VELODYNE_RINGS_COUNT +
+    to_ring_indices.push_back((rings[pt->ring].size()-1)*ringCount() +
 			      pt->ring);
   }
 }
@@ -243,13 +262,13 @@ void VelodynePointCloud::addAxisCorrection(const Eigen::Matrix4f &correction) {
 
 void VelodynePointCloud::setRingsByPointCount() {
 	int ring = 0;
-	int ring_size = this->size() / VELODYNE_RINGS_COUNT;
+	int ring_size = this->size() / ringCount();
 	for (int i = 0; i < this->size(); i++) {
 		if (i != 0 && (i % ring_size) == 0) {
 			ring++;
 		}
 
-		if (ring < VELODYNE_RINGS_COUNT) {
+		if (ring < ringCount()) {
 			points[i].ring = ring;
 		} else {
 			this->erase(this->begin() + i, this->end());
@@ -289,7 +308,7 @@ void VelodynePointCloud::setRingsByHorizontalAngles() {
   }
   cv::Mat possible_breakpoints_mat(possible_breakpoints);
 
-  const int K = VELODYNE_RINGS_COUNT-1;
+  const int K = ringCount()-1;
   Mat labels, centers;
   cv::kmeans(possible_breakpoints_mat,
   		K, labels,
@@ -297,10 +316,10 @@ void VelodynePointCloud::setRingsByHorizontalAngles() {
          3, KMEANS_PP_CENTERS, centers);
   cv::sort(centers, centers, CV_SORT_EVERY_COLUMN);
 
-  cv::Mat breakpoints = Mat::ones(VELODYNE_RINGS_COUNT, 1, CV_32FC1)*INFINITY;
-  centers.copyTo(breakpoints.rowRange(0, VELODYNE_RINGS_COUNT-1));
+  cv::Mat breakpoints = Mat::ones(ringCount(), 1, CV_32FC1)*INFINITY;
+  centers.copyTo(breakpoints.rowRange(0, ringCount()-1));
   int cloud_index = 0;
-  for(int ring = 0; ring < VELODYNE_RINGS_COUNT; ring++) {
+  for(int ring = 0; ring < ringCount(); ring++) {
   	for(; cloud_index < breakpoints.at<float>(ring) && cloud_index < this->size(); cloud_index++) {
   		points[cloud_index].ring = ring;
   	}
@@ -349,7 +368,7 @@ bool projectPoint(const VelodynePoint &pt,
 }
 
 vector<float> VelodynePointCloud::getMaxOfRingRanges() const {
-  vector< vector<float> > ranges(VelodyneSpecification::RINGS);
+  vector< vector<float> > ranges(ringCount());
   for(const_iterator pt = begin(); pt < end(); pt++) {
     ranges[pt->ring].push_back(pt->x*pt->x + pt->z*pt->z);
   }

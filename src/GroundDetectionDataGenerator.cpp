@@ -13,17 +13,15 @@ GroundDetectionDataGenerator::GroundDetectionDataGenerator(const VelodynePointCl
   file_basename(file_basename_),
   storage(params_.labels_output + "/" + file_basename_ + ".gd_data.yaml.gz", FileStorage::WRITE),
   params(params_),
-  occupancy(VelodyneSpecification::RINGS, params_.polar_bins, CV_8UC1) {
+  occupancy(cloud.ringCount(), params_.polar_bins, CV_8UC1) {
 
-  PolarGridOfClouds::POLAR_SUPERBINS = params.polar_bins;
-  PolarGridOfClouds::BIN_SUBDIVISION = 1;
-  PolarGridOfClouds polar_grid(cloud);
+  PolarGridOfClouds polar_grid(cloud, params.polar_bins, 1);
   indices = polar_grid.getIndices();
 
   summary = polar_grid.summarize();
 
-  for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
-    for(int p = 0; p < PolarGridOfClouds::getPolarBins(); p++) {
+  for(int r = 0; r < cloud.ringCount(); r++) {
+    for(int p = 0; p < polar_grid.getPolarBins(); p++) {
       const CellId cell_id(p, r);
       if(!summary->at(cell_id).empty() && isValid(summary->at(cell_id).front())) {
 	occupancy.at<uchar>(r, p) = 1;
@@ -35,9 +33,9 @@ GroundDetectionDataGenerator::GroundDetectionDataGenerator(const VelodynePointCl
 }
 
 Mat GroundDetectionDataGenerator::getMatrixOf(const InputDataTypes &type) {
-  Mat output(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
-  for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
-    for(int p = 0; p < PolarGridOfClouds::getPolarBins(); p++) {
+  Mat output(getRingCount(), getPolarBins(), CV_32FC1);
+  for(int r = 0; r < getRingCount(); r++) {
+    for(int p = 0; p < getPolarBins(); p++) {
       const int c = p;
       const CellId cell_id(p, r);
       if(occupancy.at<uchar>(r, p) != 0) {
@@ -64,10 +62,10 @@ Mat GroundDetectionDataGenerator::getMatrixOf(const InputDataTypes &type) {
 }
 
 void GroundDetectionDataGenerator::getGroundLabels(const vector<float> &probabilities, Mat &out_probabilities, Mat &out_labels) {
-  out_probabilities = Mat(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_32FC1);
+  out_probabilities = Mat(getRingCount(), getPolarBins(), CV_32FC1);
   summarizeProbabilities(probabilities, out_probabilities);
   fillMissing<float>(out_probabilities);
-  out_labels = Mat(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_8UC1);
+  out_labels = Mat(getRingCount(), getPolarBins(), CV_8UC1);
   prob_to_labels(out_probabilities, out_labels, params.threshold);
 }
 
@@ -86,19 +84,19 @@ void GroundDetectionDataGenerator::getGroundLabels(const vector<float> &probabil
  * 10 - fence - 193 120 87
  */
 void GroundDetectionDataGenerator::getGroundLabelsFromAnn(const vector<int> &annotations, Mat &out_labels) {
-  out_labels = Mat::zeros(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_8UC1);
-  vector<int> counters(VelodyneSpecification::RINGS*PolarGridOfClouds::getPolarBins()*11, 0);
+  out_labels = Mat::zeros(getRingCount(), getPolarBins(), CV_8UC1);
+  vector<int> counters(getRingCount()*getPolarBins()*11, 0);
   for(int i = 0; i < annotations.size() && i < indices.size(); i++) {
     int ring = indices[i].ring;
     int polar = indices[i].polar;
     int ann = annotations[i];
-    counters[ring*PolarGridOfClouds::getPolarBins()*11 +
+    counters[ring*getPolarBins()*11 +
 	     polar*11 +
 	     ann]++;
   }
   for(int r = 0; r < out_labels.rows; r++) {
     for(int c = 0; c < out_labels.cols; c++) {
-      vector<int>::iterator first = counters.begin() + r*PolarGridOfClouds::getPolarBins()*11 + c*11;
+      vector<int>::iterator first = counters.begin() + r*getPolarBins()*11 + c*11;
       vector<int>::iterator max_it = max_element(first, first + 11);
        int label = (max_it - first);
        out_labels.at<uchar>(r, c) = (label == 3 || label == 5) ? 1 : 0;
@@ -108,20 +106,20 @@ void GroundDetectionDataGenerator::getGroundLabelsFromAnn(const vector<int> &ann
 }
 
 void GroundDetectionDataGenerator::getGroundLabelsFromBinaryAnn(const vector<int> &annotations, Mat &out_labels) {
-  out_labels = Mat::zeros(VelodyneSpecification::RINGS, PolarGridOfClouds::getPolarBins(), CV_8UC1);
-  vector<int> counters(VelodyneSpecification::RINGS*PolarGridOfClouds::getPolarBins(), 0);
+  out_labels = Mat::zeros(getRingCount(), getPolarBins(), CV_8UC1);
+  vector<int> counters(getRingCount()*getPolarBins(), 0);
   for(int i = 0; i < annotations.size() && i < indices.size(); i++) {
     int ring = indices[i].ring;
     int polar = indices[i].polar;
     if(annotations[i] == 0) {
-      counters[ring*PolarGridOfClouds::getPolarBins() + polar]--;
+      counters[ring*getPolarBins() + polar]--;
     } else {
-      counters[ring*PolarGridOfClouds::getPolarBins() + polar]++;
+      counters[ring*getPolarBins() + polar]++;
     }
   }
   for(int r = 0; r < out_labels.rows; r++) {
     for(int c = 0; c < out_labels.cols; c++) {
-      out_labels.at<uchar>(r, c) = (counters[r*PolarGridOfClouds::getPolarBins() + c] >= 0) ? 1 : 0;
+      out_labels.at<uchar>(r, c) = (counters[r*getPolarBins() + c] >= 0) ? 1 : 0;
     }
   }
   fillMissing<uchar>(out_labels);
@@ -156,9 +154,9 @@ void GroundDetectionDataGenerator::saveAsImage(const Mat &matrix, const string &
 }
 
 void GroundDetectionDataGenerator::fillMissing(PolarGridOfClouds &summarized_data) {
-  for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
+  for(int c = 0; c < getPolarBins(); c++) {
     FillingFM<VelodynePoint> fill_fm;
-    for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+    for(int r = 0; r < getRingCount(); r++) {
       bool occupied = !summarized_data.at(CellId(c, r)).empty();
       VelodynePoint pt;
       if(occupied) {

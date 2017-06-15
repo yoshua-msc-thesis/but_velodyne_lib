@@ -138,7 +138,7 @@ void CollarLinesRegistrationPipeline::updateHistory(const PolarGridOfClouds::Ptr
 
 Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(const VelodynePointCloud &target_cloud,
                                               Mat &covariance) {
-  PolarGridOfClouds::Ptr target_polar_grid = PolarGridOfClouds::of(target_cloud);
+  PolarGridOfClouds::Ptr target_polar_grid(new PolarGridOfClouds(target_cloud));
   Eigen::Matrix4f transformation;
   if(!history.empty()) {
     pickBestByAverage(runRegistrationEffective(target_polar_grid),

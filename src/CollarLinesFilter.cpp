@@ -62,8 +62,8 @@ bool AngularCollarLinesFilter::checkLine(const PointCloudLine &line, const CellI
 }
 
 float AngularCollarLinesFilter::getExpectedRangesDiff(int src_ring, int targ_ring) const {
-  float src_range = VelodyneSpecification::getExpectedRange(src_ring, VelodyneSpecification::KITTI_HEIGHT);
-  float targ_range = VelodyneSpecification::getExpectedRange(targ_ring, VelodyneSpecification::KITTI_HEIGHT);
+  float src_range = VelodyneSpecification::getExpectedRange(src_ring, velodyne_model, VelodyneSpecification::KITTI_HEIGHT);
+  float targ_range = VelodyneSpecification::getExpectedRange(targ_ring, velodyne_model, VelodyneSpecification::KITTI_HEIGHT);
   if (clouds_processed > 0) {
     if (params.weight_of_expected_horizontal_range_diff < 0) {
       if (src_range < targ_range) {
@@ -88,8 +88,8 @@ float AngularCollarLinesFilter::getExpectedRangesDiff(int src_ring, int targ_rin
 }
 
 void AngularCollarLinesFilter::addNewMaxRingRanges(std::vector<float> max_ring_ranges_) {
-  assert(max_ring_ranges_.size() == VelodyneSpecification::RINGS);
-  for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+  assert(max_ring_ranges_.size() == VelodyneSpecification::rings(velodyne_model));
+  for(int r = 0; r < VelodyneSpecification::rings(velodyne_model); r++) {
     max_ring_ranges[r] = max_ring_ranges[r]*clouds_processed + max_ring_ranges_[r];
   }
   clouds_processed++;

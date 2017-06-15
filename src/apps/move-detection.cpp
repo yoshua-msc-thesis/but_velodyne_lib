@@ -159,7 +159,9 @@ public:
         float delta_threshold_ = 0.2,
         int history_size_ = 10,
         int spatial_cell_dist_tolerance_ = 2,
-        float value_diff_rel_tolerance_ = 0.2) :
+        float value_diff_rel_tolerance_ = 0.2,
+        int polar_superbins_ = 36,
+        int bin_subdivision_ = 5) :
           lines_generated(lines_generated_),
           points_per_cell(points_per_cell_),
           height_mean_threshold(height_mean_threshold_),
@@ -167,7 +169,9 @@ public:
           height_delta_threshold(delta_threshold_),
           history_size(history_size_),
           spatial_cell_dist_tolerance(spatial_cell_dist_tolerance_),
-          value_diff_rel_tolerance(value_diff_rel_tolerance_) {
+          value_diff_rel_tolerance(value_diff_rel_tolerance_),
+          polar_superbins(polar_superbins_),
+          bin_subdivision(bin_subdivision_) {
     }
 
   public:
@@ -179,6 +183,8 @@ public:
     int history_size;
     int spatial_cell_dist_tolerance;
     float value_diff_rel_tolerance;
+    int polar_superbins;
+    int bin_subdivision;
   };
 
   MoveDetection(Parameters params_,
@@ -191,10 +197,11 @@ public:
 
   // TODO return 2D bool grid
   void run(const VelodynePointCloud &new_cloud, Eigen::Affine3f last_odometry) {
-    PolarGridOfClouds polar_grid(new_cloud);
+    PolarGridOfClouds polar_grid(new_cloud, params.polar_superbins, params.bin_subdivision);
     filter.addNewMaxRingRanges(new_cloud.getMaxOfRingRanges());
     LineCloud lines(polar_grid, params.lines_generated, filter);
-    PointCloud<PointXYZ>::Ptr dense_cloud = lines.generateDenseCloud(params.points_per_cell);
+    PointCloud<PointXYZ>::Ptr dense_cloud = lines.generateDenseCloud(params.points_per_cell,
+        polar_grid.getPolarBins()*(new_cloud.ringCount()-1));
     PointCloud<PointXYZ>::Ptr dense_downsampled_cloud = downsampleCloud<pcl::PointXYZ>(dense_cloud, 0.1);
     //Visualizer3D().addCloudColoredByHeight(*dense_downsampled_cloud).addRingColoredCloud(new_cloud).show();
     *dense_downsampled_cloud += *new_cloud.getXYZCloudPtr();
@@ -411,7 +418,8 @@ int main(int argc, char** argv) {
 
   std::vector<Eigen::Affine3f> poses = KittiUtils::load_kitti_poses(pose_filename);
 
-  AngularCollarLinesFilter filter(CollarLinesFilter::HORIZONTAL_RANGE_DIFF, filter_parameters);
+  AngularCollarLinesFilter filter(CollarLinesFilter::HORIZONTAL_RANGE_DIFF, filter_parameters,
+      VelodynePointCloud::getSourceModel(clouds_to_process.front()));
   Regular2DGridGenerator::Parameters grid_params;
   MoveDetection move_detection(parameters, filter, grid_params);
 
@@ -419,11 +427,8 @@ int main(int argc, char** argv) {
   for(vector<string>::iterator filename = clouds_to_process.begin(); filename < clouds_to_process.end(); filename++, pose++) {
     VelodynePointCloud new_cloud;
     log << "Processing KITTI file: " << *filename << endl << flush;
-    if (filename->find(".pcd") != string::npos) {
-      io::loadPCDFile(*filename, new_cloud);
-    } else {
-      VelodynePointCloud::fromKitti(*filename, new_cloud);
-    }
+    VelodynePointCloud::fromFile(*filename, new_cloud);
+
     Eigen::Affine3f last_transformation;
     if(filename == clouds_to_process.begin()) {
       last_transformation = Eigen::Affine3f::Identity();
@@ -459,9 +464,9 @@ bool parse_arguments(int argc, char **argv, MoveDetection::Parameters &parameter
           "How many collar lines are preserved per single polar bin after filtering")
       ("points_per_cell", po::value<int>(&parameters.points_per_cell)->default_value(parameters.points_per_cell),
           "How many points are generated within each polar bin")
-      ("polar_superbins", po::value<int>(&PolarGridOfClouds::POLAR_SUPERBINS)->default_value(PolarGridOfClouds::POLAR_SUPERBINS),
+      ("polar_superbins", po::value<int>(&parameters.polar_superbins)->default_value(parameters.polar_superbins),
           "Number of polar bins in the grid")
-      ("bin_subdivision", po::value<int>(&PolarGridOfClouds::BIN_SUBDIVISION)->default_value(5),
+      ("bin_subdivision", po::value<int>(&parameters.bin_subdivision)->default_value(parameters.bin_subdivision),
           "How many times is the polar bin sub-divided")
       ("max_line_horizontal_diff", po::value<float>(&filter_parameters.max_horizontal_range_diff)->default_value(filter_parameters.max_horizontal_range_diff),
           "Max difference of horizontal ranges for preserved line")

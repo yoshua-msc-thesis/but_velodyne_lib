@@ -151,6 +151,7 @@ int main(int argc, char **argv) {
 			// frame
 			velodyne_sample_t vsample;
 			VelodynePointCloud cloud;
+			cloud.setVelodyneModel(VelodyneSpecification::HDL64);
 			while (!velodyne_decoder_next(vcalib, &vdecoder, &vsample)) {
 				if (vsample.range < 0.01) {
 					continue;
@@ -161,7 +162,7 @@ int main(int argc, char **argv) {
 				point.y = vsample.xyz[1];
 				point.z = vsample.xyz[2];
 				point.intensity = vsample.intensity;
-				point.ring = VelodyneSpecification::RINGS - 1 - vsample.logical;
+				point.ring = cloud.ringCount() - 1 - vsample.logical;
 				cloud.push_back(point);
 			}
 

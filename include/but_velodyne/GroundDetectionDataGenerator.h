@@ -128,13 +128,21 @@ public:
     return occupancy;
   }
 
+  int getRingCount() const {
+    return occupancy.rows;
+  }
+
+  int getPolarBins() const {
+    return occupancy.cols;
+  }
+
 protected:
 
   template <typename T>
   void fillMissing(cv::Mat &data) {
-    for(int c = 0; c < PolarGridOfClouds::getPolarBins(); c++) {
+    for(int c = 0; c < getPolarBins(); c++) {
       FillingFM<T> fill_fm;
-      for(int r = 0; r < VelodyneSpecification::RINGS; r++) {
+      for(int r = 0; r < getRingCount(); r++) {
         fill_fm.next(occupancy.at<uchar>(r, c) != 0, data.at<T>(r, c));
         typename FillingFM<T>::FillData fill_data;
         if(fill_fm.getFillData(fill_data)) {

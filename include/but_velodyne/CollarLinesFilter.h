@@ -69,11 +69,13 @@ public:
   };
 
   AngularCollarLinesFilter(COMPARATION comparation_metric_,
-                           Parameters params_) :
+                           Parameters params_,
+                           VelodyneSpecification::Model model) :
                             CollarLinesFilter(params_.lines_to_preserve, comparation_metric_),
                             params(params_),
-                            max_ring_ranges(VelodyneSpecification::RINGS, 0.0),
-                            clouds_processed(0) {
+                            max_ring_ranges(VelodyneSpecification::rings(model), 0.0),
+                            clouds_processed(0),
+                            velodyne_model(model) {
   }
 
   void addNewMaxRingRanges(std::vector<float> max_ring_ranges_);
@@ -87,6 +89,7 @@ private:
   Parameters params;
   std::vector<float> max_ring_ranges;
   int clouds_processed;
+  VelodyneSpecification::Model velodyne_model;
 };
 
 } /* namespace but_visual_registration */

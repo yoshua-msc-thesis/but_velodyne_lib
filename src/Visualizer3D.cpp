@@ -92,7 +92,7 @@ Visualizer3D& Visualizer3D::addCloudColoredByRing(const VelodynePointCloud &clou
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
   for (VelodynePointCloud::const_iterator pt = cloud.begin(); pt < cloud.end(); pt++) {
     uchar r, g, b;
-    r = pt->ring / ((float) VelodyneSpecification::RINGS) * 255;
+    r = pt->ring / ((float) cloud.ringCount()) * 255;
     g = b = 0;
 
     pcl::PointXYZRGB rgb_pt;

@@ -40,8 +40,8 @@ LineCloud::LineCloud(const PolarGridOfClouds &polar_grid,
                      CollarLinesFilter &filter_) :
     filter(filter_)
 {
-  for(int polar = 0; polar < PolarGridOfClouds::getPolarBins(); polar++) {
-    for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT-1; ring++) {
+  for(int polar = 0; polar < polar_grid.getPolarBins(); polar++) {
+    for(int ring = 0; ring < polar_grid.rings-1; ring++) {
       //cerr << "Ring: " << ring << ", expected_range: " << VelodyneSpecification::getExpectedRange(ring, VelodyneSpecification::KITTI_HEIGHT) << endl;
       vector<PointCloudLine> lines_among_cells;
       generateLineCloudFromCell(polar_grid,
@@ -66,10 +66,10 @@ void LineCloud::push_back(const PointCloudLine &line) {
   line_middles.push_back(PointXYZ(middle.x(), middle.y(), middle.z()));
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr LineCloud::generateDenseCloud(const int points_per_cell) const {
+pcl::PointCloud<pcl::PointXYZ>::Ptr LineCloud::generateDenseCloud(const int points_per_cell, const int cell_count) const {
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr generated_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  int points_generated = PolarGridOfClouds::getPolarBins()*(VelodyneSpecification::RINGS-1)*points_per_cell;
+  int points_generated = cell_count*points_per_cell;
   int points_per_line = points_generated / line_cloud.size();
   points_generated = points_per_line * line_cloud.size();
   generated_cloud->resize(points_generated);
@@ -94,7 +94,7 @@ void LineCloud::generateLineCloudAmongCells(const PolarGridOfClouds &polar_grid,
   const VelodynePointCloud *cell2;
   while(true) {
     cell2 = &polar_grid[cell2_id];
-    if(cell2->empty() && (cell2_id.ring < VelodyneSpecification::RINGS-1)) {
+    if(cell2->empty() && (cell2_id.ring < polar_grid.rings-1)) {
       cell2_id.ring++;
       /*cerr << cell1_id << " -> " << cell2_id << ", expected_range_diff: "
           << fabs(VelodyneSpecification::getExpectedRange(cell1_id.ring, VelodyneSpecification::KITTI_HEIGHT) -
@@ -120,7 +120,7 @@ void LineCloud::generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
                                const CellId &source_cell,
                                const int lines_per_cell_pair_generated,
                                std::vector<PointCloudLine> &line_cloud) const {
-  vector<CellId> target_cells = getTargetCells(source_cell);
+  vector<CellId> target_cells = getTargetCells(source_cell, polar_grid.getPolarBins(), polar_grid.bin_subdivision);
   for(vector<CellId>::iterator target_cell = target_cells.begin(); target_cell < target_cells.end(); target_cell++) {
     generateLineCloudAmongCells(polar_grid,
                                 source_cell, *target_cell,
@@ -129,14 +129,14 @@ void LineCloud::generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
   }
 }
 
-vector<CellId> LineCloud::getTargetCells(const CellId &source_cell) const {
+vector<CellId> LineCloud::getTargetCells(const CellId &source_cell, int total_polar_bins, int bin_subdivision) const {
   vector<CellId> target_cells;
 
-  int min_polar = source_cell.polar - PolarGridOfClouds::BIN_SUBDIVISION / 2;
-  int max_polar = source_cell.polar + PolarGridOfClouds::BIN_SUBDIVISION / 2;
+  int min_polar = source_cell.polar - bin_subdivision / 2;
+  int max_polar = source_cell.polar + bin_subdivision / 2;
 
   for(int polar = min_polar; polar <= max_polar; polar++) {
-    int polar_periodic = (polar + PolarGridOfClouds::getPolarBins()) % PolarGridOfClouds::getPolarBins();
+    int polar_periodic = (polar + total_polar_bins) % total_polar_bins;
     target_cells.push_back(CellId(polar_periodic, source_cell.ring+1));
   }
 

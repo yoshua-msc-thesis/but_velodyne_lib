@@ -41,9 +41,6 @@ include_directories(EIGEN3_INCLUDE_DIR)
 FIND_PACKAGE(Boost 1.40 COMPONENTS program_options REQUIRED )
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
-set(VELODYNE_MODEL "64" CACHE FILEPATH "Model of the Velodyne LiDAR (16, 32 or 64=default)")
-add_definitions(-DVELODYNE_MODEL=${VELODYNE_MODEL})
-
 ########################### Library: #########################################
 
 file(GLOB header_files ${CMAKE_CURRENT_SOURCE_DIR}/include/but_velodyne/*.h)
@@ -173,17 +170,11 @@ target_link_libraries(ground-det-annotation but_velodyne)
 add_executable(ground-det-kitti-ann src/apps/ground-det-kitti-ann.cpp)
 target_link_libraries(ground-det-kitti-ann but_velodyne)
 
-add_executable(ground-det-get-warp src/apps/ground-det-get-warp.cpp)
-target_link_libraries(ground-det-get-warp but_velodyne)
-
 add_executable(ground-det-cnn src/apps/ground-det-cnn.cpp)
 target_link_libraries(ground-det-cnn but_velodyne)
 
 add_executable(ground-by-median src/apps/ground-by-median.cpp)
 target_link_libraries(ground-by-median but_velodyne)
-
-add_executable(odometry-cnn src/apps/odometry-cnn.cpp)
-target_link_libraries(odometry-cnn but_velodyne)
 
 add_executable(to-kitti src/mit-dgc-data/c/to-kitti.cpp
     src/mit-dgc-data/c/eventlog.c src/mit-dgc-data/c/lcmtypes_gps_to_local_t.c

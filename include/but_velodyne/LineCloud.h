@@ -63,7 +63,7 @@ public:
             const int lines_per_cell_pair_generated,
             CollarLinesFilter &filter_);
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr generateDenseCloud(const int points_per_cell) const;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr generateDenseCloud(const int points_per_cell, const int cell_count) const;
 
   /**!
    * @return all lines
@@ -109,7 +109,7 @@ protected:
                                    int lines_per_cell_pair_generated,
                                    std::vector<PointCloudLine> &line_cloud) const;
 
-  std::vector<CellId> getTargetCells(const CellId &source_cell) const;
+  std::vector<CellId> getTargetCells(const CellId &source_cell, int total_polar_bins, int bin_subdivision) const;
 
 private:
   static cv::RNG& rng;

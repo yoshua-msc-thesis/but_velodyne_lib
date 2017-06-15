@@ -34,26 +34,43 @@ using namespace pcl;
 
 namespace but_velodyne {
 
-int PolarGridOfClouds::POLAR_SUPERBINS = 36;
-int PolarGridOfClouds::BIN_SUBDIVISION = 1;
-
 std::ostream& operator<< (std::ostream &out, const CellId &id) {
   out << "[r:" << id.ring << "; p:" << id.polar << "]";
   return out;
 }
 
 PolarGridOfClouds::PolarGridOfClouds(
-    const VelodynePointCloud &point_cloud, bool redistribute) :
-      polar_grid(getPolarBins()) {
-  fill(point_cloud, redistribute);
+    const VelodynePointCloud &point_cloud,
+    int polar_superbins_, int bin_subdivision_, Eigen::Affine3f sensor_pose_,
+    bool redistribute) :
+      polar_superbins(polar_superbins_),
+      bin_subdivision(bin_subdivision_),
+      rings(point_cloud.ringCount()),
+      sensors(1) {
+  allocateClouds();
+  fill(point_cloud, 0, sensor_pose_, redistribute);
 }
 
-PolarGridOfClouds::PolarGridOfClouds() :
-      polar_grid(getPolarBins()) {
+PolarGridOfClouds::PolarGridOfClouds(int polar_superbins_, int bin_subdivision_, int rings_,
+    int sensors_) :
+      polar_superbins(polar_superbins_),
+      bin_subdivision(bin_subdivision_),
+      rings(rings_),
+      sensors(sensors_) {
+  allocateClouds();
+}
+
+void PolarGridOfClouds::allocateClouds() {
+  int total_cells = polar_superbins*bin_subdivision*rings*sensors;
+  for(int i = 0; i < total_cells; i++) {
+    polar_grid.push_back(VelodynePointCloud::Ptr(new VelodynePointCloud));
+  }
 }
 
 void PolarGridOfClouds::fill(
-    const VelodynePointCloud &point_cloud, bool redistribute) {
+    const VelodynePointCloud &point_cloud,
+    int sensor_idx, const Eigen::Affine3f &sensor_pose,
+    bool redistribute) {
   std::vector<float> borders;
   if(redistribute) {
     borders = point_cloud.getMaxOfRingRanges();
@@ -67,15 +84,33 @@ void PolarGridOfClouds::fill(
     } else {
       ring = pt->ring;
     }
-    assert(ring < VelodynePointCloud::VELODYNE_RINGS_COUNT);
+    assert(ring < rings);
     assert(ring >= 0);
 
     int polar_bin = getPolarBinIndex(*pt);
     assert(polar_bin < getPolarBins());
     assert(polar_bin >= 0);
 
-    polar_grid[polar_bin][ring].push_back(*pt);
-    indices.push_back(CellId(polar_bin, ring));
+    CellId cell_id(polar_bin, ring);
+    this->at(cell_id).push_back(*pt);
+    indices.push_back(cell_id);
+  }
+
+  transform(sensor_pose.matrix(), sensor_idx);
+}
+
+void PolarGridOfClouds::transform(const Eigen::Matrix4f &t, int sensor_idx) {
+  if(sensor_idx < 0) {
+    for(int i = 0; i < polar_grid.size(); i++) {
+      transformPointCloud(*polar_grid[i], *polar_grid[i], t);
+    }
+  } else {
+    for(int polar = 0; polar < getPolarBins(); polar++) {
+      for(int ring = 0; ring < rings; ring++) {
+        CellId cell_idx(polar, ring, sensor_idx);
+        transformPointCloud(at(cell_idx), at(cell_idx), t);
+      }
+    }
   }
 }
 
@@ -83,7 +118,7 @@ int PolarGridOfClouds::computeNewRingIndex(const velodyne_pointcloud::VelodynePo
                                            const std::vector<float> &borders) {
   float range = compute2DRange(point);
   int new_ring_id;
-  for(new_ring_id = VelodyneSpecification::RINGS-2; new_ring_id > 0; new_ring_id--) {
+  for(new_ring_id = rings-2; new_ring_id > 0; new_ring_id--) {
     if(borders[new_ring_id] > range) {
       break;
     }
@@ -92,19 +127,21 @@ int PolarGridOfClouds::computeNewRingIndex(const velodyne_pointcloud::VelodynePo
 }
 
 PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
-  PolarGridOfClouds::Ptr sumarized = of(VelodynePointCloud());
+  PolarGridOfClouds::Ptr sumarized(
+      new PolarGridOfClouds(polar_superbins, bin_subdivision, rings, sensors));
   for(int polar = 0; polar < getPolarBins(); polar++) {
-    for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT; ring++) {
-      if(!polar_grid[polar][ring].empty()) {
+    for(int ring = 0; ring < rings; ring++) {
+      CellId cell_id(polar, ring);
+      if(!this->at(cell_id).empty()) {
         Eigen::Vector4f centroid;
-        pcl::compute3DCentroid(polar_grid[polar][ring], centroid);
+        pcl::compute3DCentroid(this->at(cell_id), centroid);
         velodyne_pointcloud::VelodynePoint centroid_ir;
         centroid_ir.x = centroid(0);
         centroid_ir.y = centroid(1);
         centroid_ir.z = centroid(2);
         centroid_ir.ring = ring;
-        centroid_ir.intensity = polar_grid[polar][ring].averageIntensity();
-        sumarized->polar_grid[polar][ring].push_back(centroid_ir);
+        centroid_ir.intensity = this->at(cell_id).averageIntensity();
+        sumarized->at(cell_id).push_back(centroid_ir);
       }
     }
   }
@@ -114,20 +151,10 @@ PolarGridOfClouds::Ptr PolarGridOfClouds::summarize() const {
 void PolarGridOfClouds::showColored() {
   static Visualizer3D visualizer;
   visualizer.keepOnlyClouds(0);
-  for(int polar = 0; polar < getPolarBins(); polar++) {
-    for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT; ring++) {
-      visualizer.addPointCloud(polar_grid[polar][ring]);
-    }
+  for(int i = 0; i < polar_grid.size(); i++) {
+    visualizer.addPointCloud(*polar_grid[i]);
   }
   visualizer.show();
-}
-
-void PolarGridOfClouds::transform(const Eigen::Matrix4f &t) {
-  for(int polar = 0; polar < getPolarBins(); polar++) {
-    for(int ring = 0; ring < VelodynePointCloud::VELODYNE_RINGS_COUNT; ring++) {
-      transformPointCloud(polar_grid[polar][ring], polar_grid[polar][ring], t);
-    }
-  }
 }
 
 }

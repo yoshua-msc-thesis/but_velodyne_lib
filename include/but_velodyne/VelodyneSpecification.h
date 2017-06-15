@@ -37,6 +37,10 @@ class VelodyneSpecification {
 
 public:
 
+  typedef enum {
+    VLP16, HDL32, HDL64, Unknown
+  } Model;
+
   /**
    * Angles in degrees, O = sensor.
    *
@@ -52,30 +56,44 @@ public:
    * (0°)
    */
 
-#if VELODYNE_MODEL == 16
+  static int rings(const Model model) {
+    switch(model) {
+    case VLP16:
+      return 16;
+    case HDL32:
+      return 32;
+    case HDL64:
+      return 64;
+    default:
+      throw std::invalid_argument("Unknown Velodyne model");
+    }
+  }
 
-  static const float MIN_ANGLE =  75.00;        // deg
-  static const float MAX_ANGLE = 105.00;
+  static float minAngle(const Model model) {
+    switch(model) {
+    case VLP16:
+      return 75.00;
+    case HDL32:
+      return 59.33;
+    case HDL64:
+      return 62.13;
+    default:
+      throw std::invalid_argument("Unknown Velodyne model");
+    }
+  }
 
-#elif VELODYNE_MODEL == 36
-
-  static const float MIN_ANGLE =  59.33;
-  static const float MAX_ANGLE = 100.67;
-
-#elif VELODYNE_MODEL == 64
-
-  static const float MIN_ANGLE = 62.13;
-  static const float MAX_ANGLE = 92.00;
-
-#else
-
-#error Type of the Velodyne LiDAR is not specified.
-
-#endif
-
-#ifdef VELODYNE_MODEL
-  static const int RINGS = VELODYNE_MODEL;
-#endif
+  static float maxAngle(const Model model) {
+    switch(model) {
+    case VLP16:
+      return 105.00;
+    case HDL32:
+      return 100.67;
+    case HDL64:
+      return 92.00;
+    default:
+      throw std::invalid_argument("Unknown Velodyne model");
+    }
+  }
 
   static const float KITTI_HEIGHT = 1.73;        // m
 
@@ -94,18 +112,20 @@ public:
    * @param height how height is Velodyne positioned
    * @return expected horizontal range of points from given ring
    */
-  static float getExpectedRange(const int ring, const int height = KITTI_HEIGHT) {
-    int n = RINGS - ring - 1;       // invert indexing (0=nearest)
+  static float getExpectedRange(const int ring, const Model model, const int height = KITTI_HEIGHT) {
+    int n = rings(model) - ring - 1;       // invert indexing (0=nearest)
     static std::map<int, float> ranges;
-
+    static Model last_model = model;
+    if(last_model != model) {
+      ranges.clear();
+    }
     if(ranges.empty()) {
-      float delta = (MAX_ANGLE - MIN_ANGLE)/(RINGS-1);
-      for(int n = 0; n < RINGS; n++) {
-        float angle = MIN_ANGLE + n*delta;
+      float delta = (maxAngle(model) - minAngle(model))/(rings(model)-1);
+      for(int n = 0; n < rings(model); n++) {
+        float angle = minAngle(model) + n*delta;
         ranges[n] = (angle < 90.0f) ? (tan(degToRad(angle))*height) : INFINITY;
       }
     }
-
     return ranges[n];
   }
 };
