@@ -41,14 +41,28 @@ std::ostream& operator<< (std::ostream &out, const CellId &id) {
 
 PolarGridOfClouds::PolarGridOfClouds(
     const VelodynePointCloud &point_cloud,
-    int polar_superbins_, int bin_subdivision_, Eigen::Affine3f sensor_pose_,
+    int polar_superbins_, int bin_subdivision_, Eigen::Affine3f sensor_pose,
     bool redistribute) :
       polar_superbins(polar_superbins_),
       bin_subdivision(bin_subdivision_),
       rings(point_cloud.ringCount()),
       sensors(1) {
   allocateClouds();
-  fill(point_cloud, 0, sensor_pose_, redistribute);
+  fill(point_cloud, 0, sensor_pose, redistribute);
+}
+
+PolarGridOfClouds::PolarGridOfClouds(const std::vector<VelodynePointCloud> &point_clouds,
+    std::vector<Eigen::Affine3f> sensor_poses,
+    int polar_superbins_, int bin_subdivision_, bool redistribute) :
+      polar_superbins(polar_superbins_),
+      bin_subdivision(bin_subdivision_),
+      rings(VelodynePointCloud::getMaxRingCount(point_clouds)),
+      sensors(sensor_poses.size()) {
+  assert(point_clouds.size() == sensor_poses.size());
+  allocateClouds();
+  for(int i = 0; i < sensor_poses.size(); i++) {
+    fill(point_clouds[i], i, sensor_poses[i], redistribute);
+  }
 }
 
 PolarGridOfClouds::PolarGridOfClouds(int polar_superbins_, int bin_subdivision_, int rings_,

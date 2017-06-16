@@ -177,6 +177,13 @@ public:
   Eigen::Matrix4f runRegistration(const VelodynePointCloud &target_cloud,
                                   cv::Mat &covariance);
 
+  Eigen::Matrix4f runRegistration(const std::vector<VelodynePointCloud> &target_clouds,
+                                  const std::vector<Eigen::Affine3f> &sensor_poses,
+                                  cv::Mat &covariance);
+
+  Eigen::Matrix4f runRegistration(PolarGridOfClouds::Ptr target_polar_grid,
+                                  cv::Mat &covariance);
+
   /**!
    * Prints out the estimation of current sensor pose in KITTI format
    *

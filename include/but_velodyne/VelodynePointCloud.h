@@ -297,6 +297,14 @@ public:
     }
   }
 
+  static int getMaxRingCount(const std::vector<VelodynePointCloud> &point_clouds) {
+    int max_ring_count = -1;
+    for(int i = 0; i < point_clouds.size(); i++) {
+      max_ring_count = MAX(max_ring_count, point_clouds[i].ringCount());
+    }
+    return max_ring_count;
+  }
+
   std::vector<float> getMaxOfRingRanges() const;
 
   float averageIntensity() const;
@@ -334,6 +342,41 @@ protected:
 private:
   Eigen::Matrix4f axis_correction;
   VelodyneSpecification::Model velodyne_model;
+};
+
+class VelodyneMultiFrame {
+public:
+
+  VelodyneMultiFrame(const std::vector<std::string> &filenames_,
+      const std::vector<Eigen::Affine3f> &sensor_poses_,
+      bool transform_pcd_files_ = false);
+
+  void joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output);
+
+  void joinTo(pcl::PointCloud<pcl::PointXYZI> &output);
+
+  void joinTo(pcl::PointCloud<pcl::PointXYZ> &output);
+
+  std::vector<std::string> filenames;
+  std::vector<VelodynePointCloud::Ptr> clouds;
+  std::vector<Eigen::Affine3f> sensor_poses;
+};
+
+class VelodyneFileSequence {
+public:
+  VelodyneFileSequence(const std::vector<std::string> &filenames,
+      const std::vector<Eigen::Affine3f> &sensor_poses_,
+      bool transform_pcd_files = false);
+
+  bool hasNext(void);
+
+  VelodyneMultiFrame getNext(void);
+
+private:
+  const std::vector<std::string> filenames;
+  const std::vector<Eigen::Affine3f> sensor_poses;
+  const bool transform_pcd_files;
+  int index;
 };
 
 }

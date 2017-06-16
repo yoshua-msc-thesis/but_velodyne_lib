@@ -51,6 +51,7 @@ bool parse_arguments(int argc, char **argv,
                      CollarLinesRegistration::Parameters &registration_parameters,
                      CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
                      boost::shared_ptr<MoveEstimator> &estimator,
+                     vector<Eigen::Affine3f> &sensor_poses,
                      vector<string> &clouds_to_process);
 
 /**
@@ -58,61 +59,66 @@ bool parse_arguments(int argc, char **argv,
  */
 int main(int argc, char** argv) {
 
-	CollarLinesRegistration::Parameters registration_parameters;
-	CollarLinesRegistrationPipeline::Parameters pipeline_parameters;
-	vector<string> clouds_to_process;
-        boost::shared_ptr<MoveEstimator> estimator;
+  CollarLinesRegistration::Parameters registration_parameters;
+  CollarLinesRegistrationPipeline::Parameters pipeline_parameters;
+  vector<string> clouds_to_process;
+  boost::shared_ptr<MoveEstimator> estimator;
+  vector<Eigen::Affine3f> sensor_poses;
 
-	if(!parse_arguments(argc, argv, registration_parameters, pipeline_parameters, estimator, clouds_to_process)) {
-	  return EXIT_FAILURE;
-	}
+  if (!parse_arguments(argc, argv, registration_parameters, pipeline_parameters,
+      estimator, sensor_poses, clouds_to_process)) {
+    return EXIT_FAILURE;
+  }
 
-	boost::filesystem::path first_cloud(clouds_to_process.front());
-    string output_path;
-    if (first_cloud.has_parent_path()) {
-        output_path = first_cloud.parent_path().string();
-    } else {
-        output_path =  boost::filesystem::current_path().string();
+  boost::filesystem::path first_cloud(clouds_to_process.front());
+  string output_path;
+  if (first_cloud.has_parent_path()) {
+    output_path = first_cloud.parent_path().string();
+  } else {
+    output_path = boost::filesystem::current_path().string();
+  }
+  string graph_filename = output_path + "/poses.graph";
+  ofstream graph_file(graph_filename.c_str());
+  if (!graph_file.is_open()) {
+    perror(graph_filename.c_str());
+    exit(1);
+  }
+
+  CollarLinesRegistrationPipeline registration(*estimator, graph_file,
+      pipeline_parameters, registration_parameters);
+
+  int sensors = sensor_poses.size();
+  vector<Mat> covariances(clouds_to_process.size()/sensors);
+  for (int i = 0; i + sensors <= clouds_to_process.size(); i += sensors) {
+
+    vector<VelodynePointCloud> target_clouds(sensors);
+    for(int j = 0; j < sensors; j++) {
+      string filename = clouds_to_process[i+j];
+      VelodynePointCloud::fromFile(filename, target_clouds[j], false);
     }
-    string graph_filename = output_path + "/poses.graph";
-	ofstream graph_file(graph_filename.c_str());
-	if (!graph_file.is_open()) {
-		perror(graph_filename.c_str());
-		exit(1);
-	}
 
-	CollarLinesRegistrationPipeline registration(
-			*estimator, graph_file,
-			pipeline_parameters, registration_parameters);
+    Eigen::Matrix4f t = registration.runRegistration(target_clouds, sensor_poses,
+        covariances[i/sensors]);
+    registration.output(t);
+  }
 
-	VelodynePointCloud target_cloud;
-	vector<Mat> covariances(clouds_to_process.size());
-	for (int i = 0; i < clouds_to_process.size(); i++) {
+  string cov_filename = output_path + "/covariances.yaml";
+  FileStorage cov_fs(cov_filename, FileStorage::WRITE);
+  cov_fs << "covariances" << covariances;
 
-		string filename = clouds_to_process[i];
-        VelodynePointCloud::fromFile(filename, target_cloud, false);
-
-		Eigen::Matrix4f t = registration.runRegistration(target_cloud,
-				covariances[i]);
-		EigenUtils::saveMatrix(filename + string(".transform"), t);
-		registration.output(t);
-	}
-
-	string cov_filename = output_path + "/covariances.yaml";
-	FileStorage cov_fs(cov_filename, FileStorage::WRITE);
-	cov_fs << "covariances" << covariances;
-
-	return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }
 
 bool parse_arguments(int argc, char **argv,
                      CollarLinesRegistration::Parameters &registration_parameters,
                      CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
                      boost::shared_ptr<MoveEstimator> &estimator,
+                     vector<Eigen::Affine3f> &sensor_poses,
                      vector<string> &clouds_to_process) {
   bool use_kalman;
   int linear_estimator;
   string init_poses;
+  string sensors_pose_file;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -154,6 +160,8 @@ bool parse_arguments(int argc, char **argv,
           "Use Kalman filter instead of linear predictor or precomputed poses for estimation of odometry")
       ("translation_only", po::bool_switch(&registration_parameters.estimate_translation_only),
           "Estimate only the translation (rotation should be presented as the initial pose)")
+      ("sensors_pose_file", po::value<string>(&sensors_pose_file)->default_value(""),
+          "Extrinsic calibration parameters, when multiple Velodyne LiDARs are used")
    ;
 
     po::variables_map vm;
@@ -187,6 +195,12 @@ bool parse_arguments(int argc, char **argv,
       estimator.reset(new PosesToInitEstimator(init_poses));
     } else {
       estimator.reset(new LinearMoveEstimator(linear_estimator > 0 ? linear_estimator : 3));
+    }
+
+    if(sensors_pose_file.empty()) {
+      sensor_poses.push_back(Eigen::Affine3f::Identity());
+    } else {
+      sensor_poses = KittiUtils::load_kitti_poses(sensors_pose_file);
     }
 
     return true;

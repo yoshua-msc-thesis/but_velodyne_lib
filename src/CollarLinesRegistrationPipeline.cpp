@@ -136,9 +136,24 @@ void CollarLinesRegistrationPipeline::updateHistory(const PolarGridOfClouds::Ptr
   history.push_front(HistoryRecord<PolarGridOfClouds>(target_polar_grid, pose_index));
 }
 
-Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(const VelodynePointCloud &target_cloud,
-                                              Mat &covariance) {
+Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(
+    const VelodynePointCloud &target_cloud,
+    Mat &covariance) {
   PolarGridOfClouds::Ptr target_polar_grid(new PolarGridOfClouds(target_cloud));
+  return runRegistration(target_polar_grid, covariance);
+}
+
+Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(
+    const std::vector<VelodynePointCloud> &target_clouds,
+    const std::vector<Eigen::Affine3f> &sensor_poses,
+    cv::Mat &covariance) {
+  PolarGridOfClouds::Ptr target_polar_grid(new PolarGridOfClouds(target_clouds, sensor_poses));
+  return runRegistration(target_polar_grid, covariance);
+}
+
+Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(
+    PolarGridOfClouds::Ptr target_polar_grid,
+    cv::Mat &covariance) {
   Eigen::Matrix4f transformation;
   if(!history.empty()) {
     pickBestByAverage(runRegistrationEffective(target_polar_grid),

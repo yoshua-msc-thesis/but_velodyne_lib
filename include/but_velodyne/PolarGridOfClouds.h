@@ -95,6 +95,11 @@ public:
       Eigen::Affine3f sensor_pose_ = Eigen::Affine3f::Identity(),
       bool redistribute = false);
 
+  PolarGridOfClouds(const std::vector<VelodynePointCloud> &point_cloud,
+      std::vector<Eigen::Affine3f> sensor_poses_,
+      int polar_superbins_ = 36, int bin_subdivision_ = 1,
+      bool redistribute = false);
+
   /**!
    * Visualization of the grouping into the polar bins - same bin = same color.
    */

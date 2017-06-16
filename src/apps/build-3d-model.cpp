@@ -48,10 +48,11 @@ namespace po = boost::program_options;
 bool parse_arguments(int argc, char **argv,
                      float &sampling_ratio,
                      vector<Eigen::Affine3f> &poses,
+                     vector<Eigen::Affine3f> &sensor_poses,
                      vector<string> &clouds_to_process,
                      string &output_file,
                      vector<bool> &mask) {
-  string pose_filename, skip_filename;
+  string pose_filename, skip_filename, sensor_poses_filename;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -63,6 +64,7 @@ bool parse_arguments(int argc, char **argv,
       ("sampling_ratio,s", po::value<float>(&sampling_ratio)->default_value(0.1), "Reduce size with this ratio.")
       ("output_file,o", po::value<string>(&output_file)->required(), "Output PCD file")
       ("skip_file,k", po::value<string>(&skip_filename)->default_value(""), "File with indices to skip")
+      ("sensor_poses", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensor poses (calibration).")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -89,6 +91,12 @@ bool parse_arguments(int argc, char **argv,
     while(getline(skip_file, line)) {
       mask[atoi(line.c_str())] = false;
     }
+  }
+
+  if(!sensor_poses_filename.empty()) {
+    sensor_poses = KittiUtils::load_kitti_poses(sensor_poses_filename);
+  } else {
+    sensor_poses.push_back(Eigen::Affine3f::Identity());
   }
 
   return true;
@@ -133,14 +141,14 @@ void subsample_cloud(PointCloud<PointXYZI>::Ptr cloud, float sampling_ratio) {
 int main(int argc, char** argv) {
 
   vector<string> filenames;
-  vector<Eigen::Affine3f> poses;
+  vector<Eigen::Affine3f> poses, sensor_poses;
   string output_pcd_file;
   float sampling_ratio;
   vector<bool> mask;
 
   if(!parse_arguments(argc, argv,
       sampling_ratio,
-      poses, filenames,
+      poses, sensor_poses, filenames,
       output_pcd_file,
       mask)) {
     return EXIT_FAILURE;
@@ -148,18 +156,19 @@ int main(int argc, char** argv) {
 
   PointCloud<PointXYZI> sum_cloud;
   PointCloud<PointXYZI>::Ptr cloud(new PointCloud<PointXYZI>);
-  for (int cloud_i = 0; cloud_i < filenames.size(); cloud_i++) {
-    if(cloud_i >= poses.size()) {
-      std::cerr << "No remaining pose for cloud: " << cloud_i << std::endl << std::flush;
+  VelodyneFileSequence file_sequence(filenames, sensor_poses);
+  for (int frame_i = 0; file_sequence.hasNext(); frame_i++) {
+    if(frame_i >= poses.size()) {
+      std::cerr << "No remaining pose for cloud: " << frame_i << std::endl << std::flush;
       break;
     }
 
-    if(mask[cloud_i]) {
-      std::cerr << "Processing file: " << filenames[cloud_i] << std::endl << std::flush;
-      pcl::io::loadPCDFile(filenames[cloud_i], *cloud);
+    VelodyneMultiFrame multiframe = file_sequence.getNext();
+    if(mask[frame_i]) {
+      multiframe.joinTo(*cloud);
 
       subsample_cloud(cloud, sampling_ratio);
-      transformPointCloud(*cloud, *cloud, poses[cloud_i]);
+      transformPointCloud(*cloud, *cloud, poses[frame_i]);
       sum_cloud += *cloud;
     }
   }

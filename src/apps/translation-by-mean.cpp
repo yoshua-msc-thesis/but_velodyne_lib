@@ -46,9 +46,11 @@ using namespace but_velodyne;
 namespace po = boost::program_options;
 
 bool parse_arguments(int argc, char **argv,
-                     vector<Eigen::Affine3f> &poses,
-                     vector<string> &clouds_to_process) {
+    vector<Eigen::Affine3f> &poses,
+    vector<Eigen::Affine3f> &sensor_poses,
+    vector<string> &clouds_to_process) {
   string pose_filename;
+  string sensor_poses_filename;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -57,6 +59,7 @@ bool parse_arguments(int argc, char **argv,
   desc.add_options()
       ("help,h", "produce help message")
       ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
+      ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensor poses (calibration).")
    ;
 
     po::variables_map vm;
@@ -76,8 +79,11 @@ bool parse_arguments(int argc, char **argv,
         return false;
     }
 
-    if(!pose_filename.empty()) {
-      poses = KittiUtils::load_kitti_poses(pose_filename);
+    poses = KittiUtils::load_kitti_poses(pose_filename);
+    if(!sensor_poses_filename.empty()) {
+      sensor_poses = KittiUtils::load_kitti_poses(sensor_poses_filename);
+    } else {
+      sensor_poses.push_back(Eigen::Affine3f::Identity());
     }
     return true;
 }
@@ -86,27 +92,33 @@ bool parse_arguments(int argc, char **argv,
 int main(int argc, char** argv) {
 
   vector<string> filenames;
-  vector<Eigen::Affine3f> poses;
+  vector<Eigen::Affine3f> poses, sensor_poses;
   if(!parse_arguments(argc, argv,
-      poses, filenames)) {
+      poses, sensor_poses, filenames)) {
     return EXIT_FAILURE;
   }
 
-  VelodynePointCloud cloud;
   Eigen::Vector4f last_centroid;
   Eigen::Vector4f translation = Eigen::Vector4f::Zero();
-  for (int cloud_i = 0; cloud_i < filenames.size(); cloud_i++) {
-    VelodynePointCloud::fromFile(filenames[cloud_i], cloud);
-    transformPointCloud(cloud, cloud, poses[cloud_i]);
+  bool initialized = false;
+  int pose_index = 0;
+  VelodyneFileSequence fileSequence(filenames, sensor_poses);
+  while(fileSequence.hasNext()) {
+    VelodyneMultiFrame multiframe = fileSequence.getNext();
+    PointCloud<velodyne_pointcloud::VelodynePoint> cloud;
+    multiframe.joinTo(cloud);
+    transformPointCloud(cloud, cloud, poses[pose_index]);
     Eigen::Vector4f centroid;
     compute3DCentroid(cloud, centroid);
-    if(cloud_i > 0) {
+    if(initialized) {
       translation += last_centroid - centroid;
     }
+    initialized = true;
     KittiUtils::save_kitti_pose(
-        Eigen::Translation3f(translation.head<3>())*poses[cloud_i],
+        Eigen::Translation3f(translation.head<3>())*poses[pose_index],
         cout);
     last_centroid = centroid;
+    pose_index++;
   }
   return EXIT_SUCCESS;
 }
