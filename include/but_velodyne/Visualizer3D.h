@@ -108,6 +108,22 @@ public:
     return color_cloud;
   }
 
+  template<typename PointT>
+  static pcl::PointCloud<pcl::PointXYZRGBA>::Ptr colorizeCloud(const pcl::PointCloud<PointT> &cloud, uchar r, uchar g, uchar b, uchar a) {
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr color_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+    color_cloud->resize(cloud.size());
+    for(int i = 0; i < cloud.size(); i++)
+    {
+      pcl::PointXYZRGBA &color_pt = color_cloud->at(i);
+      copyXYZ(cloud[i], color_pt);
+      color_pt.r = r;
+      color_pt.g = g;
+      color_pt.b = b;
+      color_pt.a = a;
+    }
+    return color_cloud;
+  }
+
   static void colorizeIntensity(float normalized_intensity, uchar &r, uchar &g, uchar &b) {
     // magic by http://ros-users.122217.n3.nabble.com/RVIZ-PointCloud-display-coloring-based-on-height-td981630.html
     float h = normalized_intensity * 5.0f + 1.0f;

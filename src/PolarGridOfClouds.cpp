@@ -105,7 +105,7 @@ void PolarGridOfClouds::fill(
     assert(polar_bin < getPolarBins());
     assert(polar_bin >= 0);
 
-    CellId cell_id(polar_bin, ring);
+    CellId cell_id(polar_bin, ring, sensor_idx);
     this->at(cell_id).push_back(*pt);
     indices.push_back(cell_id);
   }

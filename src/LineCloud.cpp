@@ -40,21 +40,23 @@ LineCloud::LineCloud(const PolarGridOfClouds &polar_grid,
                      CollarLinesFilter &filter_) :
     filter(filter_)
 {
-  for(int polar = 0; polar < polar_grid.getPolarBins(); polar++) {
-    for(int ring = 0; ring < polar_grid.rings-1; ring++) {
-      //cerr << "Ring: " << ring << ", expected_range: " << VelodyneSpecification::getExpectedRange(ring, VelodyneSpecification::KITTI_HEIGHT) << endl;
-      vector<PointCloudLine> lines_among_cells;
-      generateLineCloudFromCell(polar_grid,
-                                CellId(polar, ring),
-                                lines_per_cell_pair_generated,
-                                lines_among_cells);
-      line_cloud.insert(line_cloud.end(),
-                        lines_among_cells.begin(), lines_among_cells.end());
-      for(vector<PointCloudLine>::iterator line = lines_among_cells.begin();
-          line < lines_among_cells.end();
-          line++) {
-        Eigen::Vector3f middle = line->middle();
-        line_middles.push_back(PointXYZ(middle.x(), middle.y(), middle.z()));
+  for(int sensor_idx = 0; sensor_idx < polar_grid.sensors; sensor_idx++) {
+    for(int polar = 0; polar < polar_grid.getPolarBins(); polar++) {
+      for(int ring = 0; ring < polar_grid.rings-1; ring++) {
+        //cerr << "Ring: " << ring << ", expected_range: " << VelodyneSpecification::getExpectedRange(ring, VelodyneSpecification::KITTI_HEIGHT) << endl;
+        vector<PointCloudLine> lines_among_cells;
+        generateLineCloudFromCell(polar_grid,
+                                  CellId(polar, ring, sensor_idx),
+                                  lines_per_cell_pair_generated,
+                                  lines_among_cells);
+        line_cloud.insert(line_cloud.end(),
+                          lines_among_cells.begin(), lines_among_cells.end());
+        for(vector<PointCloudLine>::iterator line = lines_among_cells.begin();
+            line < lines_among_cells.end();
+            line++) {
+          Eigen::Vector3f middle = line->middle();
+          line_middles.push_back(PointXYZ(middle.x(), middle.y(), middle.z()));
+        }
       }
     }
   }
@@ -137,7 +139,7 @@ vector<CellId> LineCloud::getTargetCells(const CellId &source_cell, int total_po
 
   for(int polar = min_polar; polar <= max_polar; polar++) {
     int polar_periodic = (polar + total_polar_bins) % total_polar_bins;
-    target_cells.push_back(CellId(polar_periodic, source_cell.ring+1));
+    target_cells.push_back(CellId(polar_periodic, source_cell.ring+1, source_cell.sensor));
   }
 
   return target_cells;
