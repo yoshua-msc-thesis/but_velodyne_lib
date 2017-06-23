@@ -409,14 +409,14 @@ std::vector<int> VelodynePointCloud::removeNanPoints() {
 }
 
 VelodyneMultiFrame::VelodyneMultiFrame(const std::vector<std::string> &filenames_,
-    const std::vector<Eigen::Affine3f> &sensor_poses_,
+    const SensorsCalibration &calibration_,
     bool transform_pcd_files) :
       filenames(filenames_),
       clouds(filenames.size()),
-      sensor_poses(sensor_poses_) {
-  if(filenames.size() != sensor_poses.size()) {
+      calibration(calibration_) {
+  if(filenames.size() != calibration.sensorsCount()) {
     cerr << "WARNING: different number of files (" << filenames.size() <<
-        ") and sensor_poses (" << sensor_poses.size() << ")" << endl;
+        ") and sensor_poses (" << calibration.sensorsCount() << ")" << endl;
   }
   for(int i = 0; i < filenames.size(); i++) {
     clouds[i].reset(new VelodynePointCloud);
@@ -427,7 +427,7 @@ VelodyneMultiFrame::VelodyneMultiFrame(const std::vector<std::string> &filenames
 void VelodyneMultiFrame::joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output) {
   for(int i = 0; i < clouds.size(); i++) {
     VelodynePointCloud transformed;
-    pcl::transformPointCloud(*clouds[i], transformed, sensor_poses[i]);
+    pcl::transformPointCloud(*clouds[i], transformed, calibration.ofSensor(i));
     output += transformed;
   }
 }
@@ -452,25 +452,25 @@ void VelodyneMultiFrame::joinTo(PointCloud<PointXYZ> &output) {
 }
 
 VelodyneFileSequence::VelodyneFileSequence(const std::vector<std::string> &filenames_,
-    const std::vector<Eigen::Affine3f> &sensor_poses_,
+    const SensorsCalibration &calibration_,
     bool transform_pcd_files_) :
       filenames(filenames_),
-      sensor_poses(sensor_poses_),
+      calibration(calibration_),
       transform_pcd_files(transform_pcd_files_),
       index(0) {
 }
 
 bool VelodyneFileSequence::hasNext(void) {
-  return index + sensor_poses.size() <= filenames.size();
+  return index + calibration.sensorsCount() <= filenames.size();
 }
 
 VelodyneMultiFrame VelodyneFileSequence::getNext(void) {
   assert(hasNext());
   vector<string>::const_iterator first = filenames.begin() + index;
-  vector<string>::const_iterator last = first + sensor_poses.size();
-  index += sensor_poses.size();
+  vector<string>::const_iterator last = first + calibration.sensorsCount();
+  index += calibration.sensorsCount();
   vector<string> frame_filenames(first, last);
-  return VelodyneMultiFrame(frame_filenames, sensor_poses, transform_pcd_files);
+  return VelodyneMultiFrame(frame_filenames, calibration, transform_pcd_files);
 }
 
 }

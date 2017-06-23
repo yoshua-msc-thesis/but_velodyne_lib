@@ -177,8 +177,8 @@ public:
   Eigen::Matrix4f runRegistration(const VelodynePointCloud &target_cloud,
                                   cv::Mat &covariance);
 
-  Eigen::Matrix4f runRegistration(const std::vector<VelodynePointCloud> &target_clouds,
-                                  const std::vector<Eigen::Affine3f> &sensor_poses,
+  Eigen::Matrix4f runRegistration(const std::vector<VelodynePointCloud::Ptr> &target_clouds,
+                                  const SensorsCalibration &calibration,
                                   cv::Mat &covariance);
 
   Eigen::Matrix4f runRegistration(PolarGridOfClouds::Ptr target_polar_grid,

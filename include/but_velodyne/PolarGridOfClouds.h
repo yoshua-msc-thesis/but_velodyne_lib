@@ -95,8 +95,8 @@ public:
       Eigen::Affine3f sensor_pose_ = Eigen::Affine3f::Identity(),
       bool redistribute = false);
 
-  PolarGridOfClouds(const std::vector<VelodynePointCloud> &point_cloud,
-      std::vector<Eigen::Affine3f> sensor_poses_,
+  PolarGridOfClouds(const std::vector<VelodynePointCloud::Ptr> &point_cloud,
+      const SensorsCalibration &calibration_,
       int polar_superbins_ = 36, int bin_subdivision_ = 1,
       bool redistribute = false);
 

@@ -51,7 +51,7 @@ bool parse_arguments(int argc, char **argv,
                      CollarLinesRegistration::Parameters &registration_parameters,
                      CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
                      boost::shared_ptr<MoveEstimator> &estimator,
-                     vector<Eigen::Affine3f> &sensor_poses,
+                     SensorsCalibration &calibration,
                      vector<string> &clouds_to_process);
 
 /**
@@ -63,10 +63,10 @@ int main(int argc, char** argv) {
   CollarLinesRegistrationPipeline::Parameters pipeline_parameters;
   vector<string> clouds_to_process;
   boost::shared_ptr<MoveEstimator> estimator;
-  vector<Eigen::Affine3f> sensor_poses;
+  SensorsCalibration calibration;
 
   if (!parse_arguments(argc, argv, registration_parameters, pipeline_parameters,
-      estimator, sensor_poses, clouds_to_process)) {
+      estimator, calibration, clouds_to_process)) {
     return EXIT_FAILURE;
   }
 
@@ -87,18 +87,14 @@ int main(int argc, char** argv) {
   CollarLinesRegistrationPipeline registration(*estimator, graph_file,
       pipeline_parameters, registration_parameters);
 
-  int sensors = sensor_poses.size();
+  int sensors = calibration.sensorsCount();
   vector<Mat> covariances(clouds_to_process.size()/sensors);
-  for (int i = 0; i + sensors <= clouds_to_process.size(); i += sensors) {
+  VelodyneFileSequence sequence(clouds_to_process, calibration);
+  for (int frame_i = 0; sequence.hasNext(); frame_i++) {
+    VelodyneMultiFrame multiframe = sequence.getNext();
 
-    vector<VelodynePointCloud> target_clouds(sensors);
-    for(int j = 0; j < sensors; j++) {
-      string filename = clouds_to_process[i+j];
-      VelodynePointCloud::fromFile(filename, target_clouds[j], false);
-    }
-
-    Eigen::Matrix4f t = registration.runRegistration(target_clouds, sensor_poses,
-        covariances[i/sensors]);
+    Eigen::Matrix4f t = registration.runRegistration(multiframe.clouds, calibration,
+        covariances[frame_i]);
     registration.output(t);
   }
 
@@ -113,7 +109,7 @@ bool parse_arguments(int argc, char **argv,
                      CollarLinesRegistration::Parameters &registration_parameters,
                      CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
                      boost::shared_ptr<MoveEstimator> &estimator,
-                     vector<Eigen::Affine3f> &sensor_poses,
+                     SensorsCalibration &calibration,
                      vector<string> &clouds_to_process) {
   bool use_kalman;
   int linear_estimator;
@@ -198,9 +194,9 @@ bool parse_arguments(int argc, char **argv,
     }
 
     if(sensors_pose_file.empty()) {
-      sensor_poses.push_back(Eigen::Affine3f::Identity());
+      calibration = SensorsCalibration();
     } else {
-      sensor_poses = KittiUtils::load_kitti_poses(sensors_pose_file);
+      calibration = SensorsCalibration(sensors_pose_file);
     }
 
     return true;

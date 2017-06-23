@@ -51,17 +51,17 @@ PolarGridOfClouds::PolarGridOfClouds(
   fill(point_cloud, 0, sensor_pose, redistribute);
 }
 
-PolarGridOfClouds::PolarGridOfClouds(const std::vector<VelodynePointCloud> &point_clouds,
-    std::vector<Eigen::Affine3f> sensor_poses,
+PolarGridOfClouds::PolarGridOfClouds(const std::vector<VelodynePointCloud::Ptr> &point_clouds,
+    const SensorsCalibration &calibration_,
     int polar_superbins_, int bin_subdivision_, bool redistribute) :
       polar_superbins(polar_superbins_),
       bin_subdivision(bin_subdivision_),
       rings(VelodynePointCloud::getMaxRingCount(point_clouds)),
-      sensors(sensor_poses.size()) {
-  assert(point_clouds.size() == sensor_poses.size());
+      sensors(calibration_.sensorsCount()) {
+  assert(point_clouds.size() == calibration_.sensorsCount());
   allocateClouds();
-  for(int i = 0; i < sensor_poses.size(); i++) {
-    fill(point_clouds[i], i, sensor_poses[i], redistribute);
+  for(int i = 0; i < calibration_.sensorsCount(); i++) {
+    fill(*point_clouds[i], i, calibration_.ofSensor(i), redistribute);
   }
 }
 

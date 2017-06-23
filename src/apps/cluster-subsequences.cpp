@@ -52,8 +52,9 @@ bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      vector<string> &clouds_to_process,
                      float &voxel_resolution,
-                     int &cluster_count) {
-  string pose_filename;
+                     int &cluster_count,
+                     SensorsCalibration &calibration) {
+  string pose_filename, calibration_filename;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -63,7 +64,8 @@ bool parse_arguments(int argc, char **argv,
       ("help,h", "produce help message")
       ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
       ("voxel_resolution,r", po::value<float>(&voxel_resolution)->default_value(1.0), "Resolution of voxel grid.")
-      ("cluster_count,c", po::value<int>(&cluster_count)->default_value(10), "Count of clusters.")
+      ("cluster_count,k", po::value<int>(&cluster_count)->default_value(10), "Count of clusters.")
+      ("calibration,c", po::value<string>(&calibration_filename)->default_value(""), "Count of clusters.")
    ;
 
     po::variables_map vm;
@@ -83,9 +85,14 @@ bool parse_arguments(int argc, char **argv,
         return false;
     }
 
-    if(!pose_filename.empty()) {
-      poses = KittiUtils::load_kitti_poses(pose_filename);
+    poses = KittiUtils::load_kitti_poses(pose_filename);
+
+    if(calibration_filename.empty()) {
+      calibration = SensorsCalibration();
+    } else {
+      calibration = SensorsCalibration(calibration_filename);
     }
+
     return true;
 }
 
@@ -117,42 +124,46 @@ int main(int argc, char** argv) {
   vector<Eigen::Affine3f> poses;
   float voxel_resolution;
   int cluster_count;
+  SensorsCalibration calibration;
   if(!parse_arguments(argc, argv,
       poses, filenames,
       voxel_resolution,
-      cluster_count)) {
+      cluster_count, calibration)) {
     return EXIT_FAILURE;
   }
 
   PointCloud<PointXYZ>::Ptr cloud(new PointCloud<PointXYZ>);
   PointCloud<PointXYZRGB>::Ptr centroids(new PointCloud<PointXYZRGB>);
   PointCloud<PointXYZ> map;
-  centroids->resize(filenames.size());
-  for (int cloud_i = 0; cloud_i < filenames.size(); cloud_i++) {
+  VelodyneFileSequence sequence(filenames, calibration);
+  centroids->resize(sequence.size());
+  for (int frame_i = 0; sequence.hasNext() && frame_i < poses.size(); frame_i++) {
     cloud->clear();
-    io::loadPCDFile(filenames[cloud_i], *cloud);
-    transformPointCloud(*cloud, *cloud, poses[cloud_i]);
+    VelodyneMultiFrame frame = sequence.getNext();
+    frame.joinTo(*cloud);
+    transformPointCloud(*cloud, *cloud, poses[frame_i]);
     subsampleCloud(cloud, voxel_resolution);
     map += *cloud;
     Eigen::Vector4f centroid;
     compute3DCentroid(*cloud, centroid);
-    PointXYZRGB &pt = centroids->at(cloud_i);
+    PointXYZRGB &pt = centroids->at(frame_i);
     pt.getVector4fMap() = centroid;
     pt.r = pt.g = 0;
-    pt.b = 1.0/filenames.size() * cloud_i * 255;
+    pt.b = 1.0/sequence.size() * frame_i * 255;
   }
 
   PointXYZ min_pt, max_pt;
   getMinMax3D(map, min_pt, max_pt);
 
-  cv::Mat data(filenames.size(), 4, CV_32F);
-  for (int i = 0; i < filenames.size(); i++) {
+  cv::Mat data(sequence.size(), 4, CV_32F);
+  for (int i = 0; i < sequence.size(); i++) {
     data.at<float>(i, 0) = normalize(centroids->at(i).x, min_pt.x, max_pt.x);
     data.at<float>(i, 1) = normalize(centroids->at(i).y, min_pt.y, max_pt.y);
     data.at<float>(i, 2) = normalize(centroids->at(i).z, min_pt.z, max_pt.z);
-    data.at<float>(i, 3) = normalize(i, 0, filenames.size())*2;
+    data.at<float>(i, 3) = normalize(i, 0, sequence.size())*2;
   }
-  cv::Mat labels(filenames.size(), 1, CV_32SC1);
+
+  cv::Mat labels(sequence.size(), 1, CV_32SC1);
   cv::TermCriteria termination(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 1);
   int attempts = 2;
   cv::kmeans(data, cluster_count, labels, termination, attempts, cv::KMEANS_PP_CENTERS);

@@ -56,11 +56,6 @@ public:
     estimated_transform(init_transform_) {
 
     src_cloud = Visualizer3D::colorizeCloud(src_cloud_, 255, 0, 0);
-    for(int i = 0; i < src_cloud->size(); i++) {
-      src_cloud->at(i).r = 1.0/src_cloud->size()*i*255;
-      cerr << (int)src_cloud->at(i).r << endl;
-      src_cloud->at(i).g = src_cloud->at(i).b = 0;
-    }
     trg_cloud = Visualizer3D::colorizeCloud(trg_cloud_, 0, 0, 255);
 
     vector<int> indices;

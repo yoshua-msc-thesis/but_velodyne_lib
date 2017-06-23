@@ -47,7 +47,7 @@ namespace po = boost::program_options;
 
 bool parse_arguments(int argc, char **argv,
     vector<Eigen::Affine3f> &poses,
-    vector<Eigen::Affine3f> &sensor_poses,
+    SensorsCalibration &calibration,
     vector<string> &clouds_to_process) {
   string pose_filename;
   string sensor_poses_filename;
@@ -81,9 +81,9 @@ bool parse_arguments(int argc, char **argv,
 
     poses = KittiUtils::load_kitti_poses(pose_filename);
     if(!sensor_poses_filename.empty()) {
-      sensor_poses = KittiUtils::load_kitti_poses(sensor_poses_filename);
+      calibration = SensorsCalibration(sensor_poses_filename);
     } else {
-      sensor_poses.push_back(Eigen::Affine3f::Identity());
+      calibration = SensorsCalibration();
     }
     return true;
 }
@@ -92,9 +92,10 @@ bool parse_arguments(int argc, char **argv,
 int main(int argc, char** argv) {
 
   vector<string> filenames;
-  vector<Eigen::Affine3f> poses, sensor_poses;
+  vector<Eigen::Affine3f> poses;
+  SensorsCalibration calibration;
   if(!parse_arguments(argc, argv,
-      poses, sensor_poses, filenames)) {
+      poses, calibration, filenames)) {
     return EXIT_FAILURE;
   }
 
@@ -102,7 +103,7 @@ int main(int argc, char** argv) {
   Eigen::Vector4f translation = Eigen::Vector4f::Zero();
   bool initialized = false;
   int pose_index = 0;
-  VelodyneFileSequence fileSequence(filenames, sensor_poses);
+  VelodyneFileSequence fileSequence(filenames, calibration);
   while(fileSequence.hasNext()) {
     VelodyneMultiFrame multiframe = fileSequence.getNext();
     PointCloud<velodyne_pointcloud::VelodynePoint> cloud;

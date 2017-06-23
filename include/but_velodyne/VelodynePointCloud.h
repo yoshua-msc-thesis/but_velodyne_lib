@@ -33,6 +33,7 @@
 #include <cv.h>
 
 #include <but_velodyne/VelodyneSpecification.h>
+#include <but_velodyne/KittiUtils.h>
 
 namespace but_velodyne {
 
@@ -305,6 +306,14 @@ public:
     return max_ring_count;
   }
 
+  static int getMaxRingCount(const std::vector<VelodynePointCloud::Ptr> &point_clouds) {
+    int max_ring_count = -1;
+    for(int i = 0; i < point_clouds.size(); i++) {
+      max_ring_count = MAX(max_ring_count, point_clouds[i]->ringCount());
+    }
+    return max_ring_count;
+  }
+
   std::vector<float> getMaxOfRingRanges() const;
 
   float averageIntensity() const;
@@ -344,11 +353,33 @@ private:
   VelodyneSpecification::Model velodyne_model;
 };
 
+class SensorsCalibration {
+public:
+  SensorsCalibration(void) :
+    sensors_poses(1, Eigen::Affine3f::Identity()) {
+  }
+
+  SensorsCalibration(const std::string &calibration_file) :
+    sensors_poses(KittiUtils::load_kitti_poses(calibration_file)){
+  }
+
+  Eigen::Affine3f ofSensor(const int idx) const {
+    return sensors_poses[idx];
+  }
+
+  int sensorsCount(void) const {
+    return sensors_poses.size();
+  }
+
+private:
+  std::vector<Eigen::Affine3f> sensors_poses;
+};
+
 class VelodyneMultiFrame {
 public:
 
   VelodyneMultiFrame(const std::vector<std::string> &filenames_,
-      const std::vector<Eigen::Affine3f> &sensor_poses_,
+      const SensorsCalibration &calibration_,
       bool transform_pcd_files_ = false);
 
   void joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output);
@@ -359,22 +390,26 @@ public:
 
   std::vector<std::string> filenames;
   std::vector<VelodynePointCloud::Ptr> clouds;
-  std::vector<Eigen::Affine3f> sensor_poses;
+  SensorsCalibration calibration;
 };
 
 class VelodyneFileSequence {
 public:
   VelodyneFileSequence(const std::vector<std::string> &filenames,
-      const std::vector<Eigen::Affine3f> &sensor_poses_,
+      const SensorsCalibration &calibration_,
       bool transform_pcd_files = false);
 
   bool hasNext(void);
 
   VelodyneMultiFrame getNext(void);
 
+  int size(void) const {
+    return filenames.size() / calibration.sensorsCount();
+  }
+
 private:
   const std::vector<std::string> filenames;
-  const std::vector<Eigen::Affine3f> sensor_poses;
+  const SensorsCalibration calibration;
   const bool transform_pcd_files;
   int index;
 };

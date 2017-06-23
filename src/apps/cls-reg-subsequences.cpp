@@ -54,16 +54,63 @@ using namespace but_velodyne;
 
 namespace po = boost::program_options;
 
-class ManualSubseqRegistration {
+class SubseqRegistration {
 public:
-  ManualSubseqRegistration(const LineCloud &src_lines_, const LineCloud &trg_lines_,
+  SubseqRegistration(const LineCloud &src_lines_, const LineCloud &trg_lines_,
       const Eigen::Affine3f &init_transform_,
       CollarLinesRegistrationPipeline::Parameters &params_,
       CollarLinesRegistration::Parameters &registration_params_) :
     src_lines(src_lines_), trg_lines(trg_lines_),
     params(params_), registration_params(registration_params_),
-    split_idx(src_lines_.line_cloud.size()),
     estimated_transform(init_transform_) {
+  }
+
+  virtual ~SubseqRegistration() {}
+
+  virtual Eigen::Affine3f run() {
+    return Eigen::Affine3f(
+        registerLineClouds(src_lines, trg_lines,
+                           estimated_transform.matrix(),
+                           registration_params, params));
+  }
+
+protected:
+
+  Eigen::Matrix4f registerLineClouds(
+      const LineCloud &source, const LineCloud &target,
+      const Eigen::Matrix4f &initial_transformation,
+      CollarLinesRegistration::Parameters registration_params,
+      CollarLinesRegistrationPipeline::Parameters pipeline_params) {
+    Termination termination(pipeline_params.minIterations, pipeline_params.maxIterations,
+        pipeline_params.maxTimeSpent, pipeline_params.significantErrorDeviation,
+        pipeline_params.targetError);
+    Eigen::Matrix4f transformation = initial_transformation;
+    while (!termination()) {
+      CollarLinesRegistration icl_fitting(source, target, registration_params,
+          transformation);
+      float error = icl_fitting.refine();
+      termination.addNewError(error);
+      transformation = icl_fitting.getTransformation();
+    }
+    return transformation;
+  }
+
+  Eigen::Affine3f estimated_transform;
+  LineCloud src_lines, trg_lines;
+  CollarLinesRegistrationPipeline::Parameters params;
+  CollarLinesRegistration::Parameters registration_params;
+};
+
+class ManualSubseqRegistration : public SubseqRegistration {
+public:
+  ManualSubseqRegistration(const LineCloud &src_lines_, const LineCloud &trg_lines_,
+      const Eigen::Affine3f &init_transform_,
+      CollarLinesRegistrationPipeline::Parameters &params_,
+      CollarLinesRegistration::Parameters &registration_params_) :
+    SubseqRegistration(src_lines_, trg_lines_,
+        init_transform_,
+        params_, registration_params_),
+    split_idx(src_lines_.line_cloud.size()) {
 
     pclVis = visualizer.getViewer();
     pclVis->registerPointPickingCallback(&ManualSubseqRegistration::pickPointCallback, *this);
@@ -162,38 +209,11 @@ protected:
         estimated_transform.matrix(), registration_params, params));
   }
 
-  Eigen::Matrix4f registerLineClouds(
-      const LineCloud &source, const LineCloud &target,
-      const Eigen::Matrix4f &initial_transformation,
-      CollarLinesRegistration::Parameters registration_params,
-      CollarLinesRegistrationPipeline::Parameters pipeline_params) {
-    Termination termination(pipeline_params.minIterations, pipeline_params.maxIterations,
-        pipeline_params.maxTimeSpent, pipeline_params.significantErrorDeviation,
-        pipeline_params.targetError);
-    Eigen::Matrix4f transformation = initial_transformation;
-    while (!termination()) {
-      CollarLinesRegistration icl_fitting(source, target, registration_params,
-          transformation);
-      float error = icl_fitting.refine();
-      termination.addNewError(error);
-      transformation = icl_fitting.getTransformation();
-    }
-    return transformation;
-  }
-
-
-private:
   int split_idx;
   Visualizer3D visualizer;
   pcl::visualization::PCLVisualizer::Ptr pclVis;
   vector<int> src_indices;
   vector<int> trg_indices;
-
-  Eigen::Affine3f estimated_transform;
-
-  LineCloud src_lines, trg_lines;
-  CollarLinesRegistrationPipeline::Parameters params;
-  CollarLinesRegistration::Parameters registration_params;
 };
 
 void read_lines(const string &fn, vector<string> &lines) {
@@ -209,10 +229,12 @@ bool parse_arguments(int argc, char **argv,
     CollarLinesRegistrationPipeline::Parameters &pipeline_parameters,
     Eigen::Affine3f &init_transform,
     vector<Eigen::Affine3f> &src_poses, vector<string> &src_clouds_filenames,
-    vector<Eigen::Affine3f> &trg_poses, vector<string> &trg_clouds_filenames) {
+    vector<Eigen::Affine3f> &trg_poses, vector<string> &trg_clouds_filenames,
+    SensorsCalibration &calibration,
+    bool &manual) {
   string source_poses_file, target_poses_file;
   string source_clouds_list, target_clouds_list;
-  string init_transform_filename;
+  string init_transform_filename, calibration_filename;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -254,6 +276,10 @@ bool parse_arguments(int argc, char **argv,
       "How many nearest neighbors (matches) are found for each line of source frame.")
     ("init_transform,i", po::value<string>(&init_transform_filename)->default_value(""),
       "Transform for initialisation (pose file)")
+    ("manual", po::bool_switch(&manual),
+      "Enable manual verification and correction.")
+    ("calibration,c", po::value<string>(&calibration_filename)->default_value(""),
+        "Calibration file (sensors poses).")
   ;
 
   po::variables_map vm;
@@ -284,24 +310,28 @@ bool parse_arguments(int argc, char **argv,
     init_transform = Eigen::Affine3f::Identity();
   }
 
+  if(calibration_filename.empty()) {
+    calibration = SensorsCalibration();
+  } else {
+    calibration = SensorsCalibration(calibration_filename);
+  }
+
   return true;
 }
 
 void buildLineCloud(const vector<string> &cloud_files,
     const vector<Eigen::Affine3f> &poses,
+    const SensorsCalibration &calibration,
     int lines_per_cell_gen, int lines_per_cell_preserve,
-    LineCloud &out_lines,
-    VelodynePointCloud &out_cloud) {
+    LineCloud &out_lines) {
   CollarLinesFilter filter(lines_per_cell_preserve);
-  for(int i = 0; i < cloud_files.size(); i++) {
-    VelodynePointCloud cloud;
-    VelodynePointCloud::fromFile(cloud_files[i], cloud, false);
-    PolarGridOfClouds polar_grid(cloud);
+  VelodyneFileSequence sequence(cloud_files, calibration);
+  for(int i = 0; sequence.hasNext(); i++) {
+    VelodyneMultiFrame multiframe = sequence.getNext();
+    PolarGridOfClouds polar_grid(multiframe.clouds, multiframe.calibration);
     LineCloud line_cloud(polar_grid, lines_per_cell_gen, filter);
     line_cloud.transform(poses[i].matrix());
     out_lines += line_cloud;
-    transformPointCloud(cloud, cloud, poses[i]);
-    out_cloud += cloud;
   }
 }
 
@@ -315,28 +345,42 @@ int main(int argc, char** argv) {
   Eigen::Affine3f init_transform;
   vector<Eigen::Affine3f> src_poses, trg_poses;
   vector<string> src_clouds_filenames, trg_clouds_filenames;
+  SensorsCalibration calibration;
+  bool manual;
 
   if (!parse_arguments(argc, argv,
       registration_parameters, pipeline_parameters,
       init_transform,
-      src_poses, src_clouds_filenames, trg_poses, trg_clouds_filenames)) {
+      src_poses, src_clouds_filenames, trg_poses, trg_clouds_filenames,
+      calibration, manual)) {
     return EXIT_FAILURE;
   }
 
   LineCloud src_lines, trg_lines;
   VelodynePointCloud src_cloud, trg_cloud;
   buildLineCloud(src_clouds_filenames, src_poses,
+      calibration,
       pipeline_parameters.linesPerCellGenerated, pipeline_parameters.linesPerCellPreserved,
-      src_lines, src_cloud);
+      src_lines);
   buildLineCloud(trg_clouds_filenames, trg_poses,
+      calibration,
       pipeline_parameters.linesPerCellGenerated, pipeline_parameters.linesPerCellPreserved,
-      trg_lines, trg_cloud);
+      trg_lines);
 
-  ManualSubseqRegistration registration(src_lines, trg_lines,
-      init_transform,
-      pipeline_parameters,
-      registration_parameters);
-  Eigen::Affine3f t = registration.run();
+  Eigen::Affine3f t;
+  if(manual) {
+    ManualSubseqRegistration registration(src_lines, trg_lines,
+        init_transform,
+        pipeline_parameters,
+        registration_parameters);
+    t = registration.run();
+  } else {
+    SubseqRegistration registration(src_lines, trg_lines,
+        init_transform,
+        pipeline_parameters,
+        registration_parameters);
+    t = registration.run();
+  }
   KittiUtils::printPose(std::cout, t.matrix());
 
   return EXIT_SUCCESS;

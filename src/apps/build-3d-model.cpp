@@ -48,7 +48,7 @@ namespace po = boost::program_options;
 bool parse_arguments(int argc, char **argv,
                      float &sampling_ratio,
                      vector<Eigen::Affine3f> &poses,
-                     vector<Eigen::Affine3f> &sensor_poses,
+                     SensorsCalibration &calibration,
                      vector<string> &clouds_to_process,
                      string &output_file,
                      vector<bool> &mask) {
@@ -94,9 +94,9 @@ bool parse_arguments(int argc, char **argv,
   }
 
   if(!sensor_poses_filename.empty()) {
-    sensor_poses = KittiUtils::load_kitti_poses(sensor_poses_filename);
+    calibration = SensorsCalibration(sensor_poses_filename);
   } else {
-    sensor_poses.push_back(Eigen::Affine3f::Identity());
+    calibration = SensorsCalibration();
   }
 
   return true;
@@ -141,14 +141,15 @@ void subsample_cloud(PointCloud<PointXYZI>::Ptr cloud, float sampling_ratio) {
 int main(int argc, char** argv) {
 
   vector<string> filenames;
-  vector<Eigen::Affine3f> poses, sensor_poses;
+  vector<Eigen::Affine3f> poses;
+  SensorsCalibration calibration;
   string output_pcd_file;
   float sampling_ratio;
   vector<bool> mask;
 
   if(!parse_arguments(argc, argv,
       sampling_ratio,
-      poses, sensor_poses, filenames,
+      poses, calibration, filenames,
       output_pcd_file,
       mask)) {
     return EXIT_FAILURE;
@@ -156,7 +157,7 @@ int main(int argc, char** argv) {
 
   PointCloud<PointXYZI> sum_cloud;
   PointCloud<PointXYZI>::Ptr cloud(new PointCloud<PointXYZI>);
-  VelodyneFileSequence file_sequence(filenames, sensor_poses);
+  VelodyneFileSequence file_sequence(filenames, calibration);
   for (int frame_i = 0; file_sequence.hasNext(); frame_i++) {
     if(frame_i >= poses.size()) {
       std::cerr << "No remaining pose for cloud: " << frame_i << std::endl << std::flush;

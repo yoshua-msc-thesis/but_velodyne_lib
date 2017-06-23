@@ -144,10 +144,10 @@ Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(
 }
 
 Eigen::Matrix4f CollarLinesRegistrationPipeline::runRegistration(
-    const std::vector<VelodynePointCloud> &target_clouds,
-    const std::vector<Eigen::Affine3f> &sensor_poses,
+    const std::vector<VelodynePointCloud::Ptr> &target_clouds,
+    const SensorsCalibration &calibration,
     cv::Mat &covariance) {
-  PolarGridOfClouds::Ptr target_polar_grid(new PolarGridOfClouds(target_clouds, sensor_poses));
+  PolarGridOfClouds::Ptr target_polar_grid(new PolarGridOfClouds(target_clouds, calibration));
   return runRegistration(target_polar_grid, covariance);
 }
 

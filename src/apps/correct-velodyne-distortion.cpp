@@ -62,7 +62,7 @@ void getSlices(const VelodynePointCloud &in_cloud, vector<VelodynePointCloud> &s
 bool parse_arguments(
     int argc, char **argv,
     vector<Eigen::Affine3f> &poses,
-    vector<Eigen::Affine3f> &sensor_poses,
+    SensorsCalibration &calibration,
     vector<string> &clouds_to_process,
     string &out_dir) {
 
@@ -98,9 +98,9 @@ bool parse_arguments(
 
   poses = KittiUtils::load_kitti_poses(pose_filename);
   if(sensors_pose_file.empty()) {
-    sensor_poses.push_back(Eigen::Affine3f::Identity());
+    calibration = SensorsCalibration();
   } else {
-    sensor_poses = KittiUtils::load_kitti_poses(sensors_pose_file);
+    calibration = SensorsCalibration(sensors_pose_file);
   }
   return true;
 }
@@ -132,24 +132,25 @@ void fix_cloud(const VelodynePointCloud &in_cloud,
 
 int main(int argc, char** argv) {
 
-  vector<Eigen::Affine3f> poses, sensor_poses;
+  vector<Eigen::Affine3f> poses;
+  SensorsCalibration calibration;
   vector<string> clouds_to_process;
   string out_dir;
-  if(!parse_arguments(argc, argv, poses, sensor_poses, clouds_to_process, out_dir)) {
+  if(!parse_arguments(argc, argv, poses, calibration, clouds_to_process, out_dir)) {
     return EXIT_FAILURE;
   }
 
 //  Visualizer3D vis;
   int output_count = MIN(clouds_to_process.size(), poses.size()) - 1;
-  VelodyneFileSequence file_sequence(clouds_to_process, sensor_poses);
-  for(int frame_i = 0; file_sequence.hasNext(); frame_i++) {
+  VelodyneFileSequence file_sequence(clouds_to_process, calibration);
+  for(int frame_i = 0; file_sequence.hasNext() && frame_i+1 < poses.size(); frame_i++) {
 
     VelodyneMultiFrame multiframe = file_sequence.getNext();
     Eigen::Affine3f poses_delta = poses[frame_i].inverse()*poses[frame_i+1];
 
-    for(int sensor_i = 0; sensor_i < sensor_poses.size(); sensor_i++) {
+    for(int sensor_i = 0; sensor_i < calibration.sensorsCount(); sensor_i++) {
       VelodynePointCloud out_cloud;
-      Eigen::Affine3f sensor_pose = multiframe.sensor_poses[sensor_i];
+      Eigen::Affine3f sensor_pose = multiframe.calibration.ofSensor(sensor_i);
       fix_cloud(*multiframe.clouds[sensor_i], sensor_pose.inverse()*poses_delta*sensor_pose, out_cloud);
 
       boost::filesystem::path first_cloud(multiframe.filenames[sensor_i]);
