@@ -273,6 +273,7 @@ public:
     out_cloud.setImageLikeAxisFromKitti();
     out_cloud.setRingsByHorizontalAngles();
     //out_cloud.setRingsByPointCount();
+    out_cloud.removeNanPoints();
   }
 
   static void fromFile(const std::string &infile, VelodynePointCloud &out_cloud, bool transform_pcd = false) {
@@ -403,8 +404,16 @@ public:
 
   VelodyneMultiFrame getNext(void);
 
+  bool hasPrev(void);
+
+  VelodyneMultiFrame getPrev(void);
+
   int size(void) const {
     return filenames.size() / calibration.sensorsCount();
+  }
+
+  int getIndex() const {
+    return index / calibration.sensorsCount();
   }
 
 private:

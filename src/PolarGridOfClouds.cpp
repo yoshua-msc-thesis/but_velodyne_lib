@@ -101,6 +101,7 @@ void PolarGridOfClouds::fill(
     assert(ring < rings);
     assert(ring >= 0);
 
+    float angle = VelodynePointCloud::horizontalAngle(pt->z, pt->x);
     int polar_bin = getPolarBinIndex(*pt);
     assert(polar_bin < getPolarBins());
     assert(polar_bin >= 0);

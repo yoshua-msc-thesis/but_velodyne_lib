@@ -7,46 +7,65 @@ import argparse
 
 from odometry_cnn_data import Odometry, Edge3D, load_kitti_poses, get_delta_odometry
 
-def printEdge(poses, reg_pose, src_index, trg_index):
-    src_pose = poses[src_index]
-    trg_pose = poses[trg_index]
-    t = src_pose.inv() * (reg_pose * trg_pose)
-    print Edge3D(src_index, trg_index, t.dof)
+class EdgesGenerator:
+    def __init__(self, new_poses, original_poses, reg_pose, graph_file):
+        self.new_poses = new_poses
+        self.original_poses = original_poses
+        self.reg_pose = reg_pose
+        self.max_vertex = self.getMaxVertex(graph_file)
 
-def printEdges(poses, reg_pose, src_index_from, src_index_to, trg_index_from, trg_index_to):
-    if src_index_from <= src_index_to and trg_index_from <= trg_index_to:
-        src_middle_index = (src_index_from + src_index_to) / 2
-        trg_middle_index = (trg_index_from + trg_index_to) / 2
+    def getMaxVertex(self, graph_file):
+        max_vertex = -1
+        for line in open(graph_file).readlines():
+            tokens = line.split()
+            src_vertex = int(tokens[1])
+            trg_vertex = int(tokens[2])
+            max_vertex = max(max_vertex, max(src_vertex, trg_vertex))
+        return max_vertex
 
-        printEdges(poses, reg_pose, src_index_from, src_middle_index-1, trg_index_from, trg_middle_index-1)
-        printEdge(poses, reg_pose, src_middle_index, trg_middle_index)
-        printEdges(poses, reg_pose, src_middle_index+1, src_index_to, trg_middle_index+1, trg_index_to)
+    def genEdgesToNewVertex(self, idx_from, idx_to):
+        self.max_vertex = new_vertex = self.max_vertex+1
+        edges = []
+        for i in range(idx_from, idx_to+1):
+            t = self.original_poses[i].inv() * self.new_poses[0]
+            edges.append(Edge3D(i, new_vertex, t.dof))
+        return edges
 
-def printClosestEdge(poses, reg_pose, src_index_from, src_index_to, trg_index_from, trg_index_to):
-    min_dist = 1000*1000
-    for src_i in range(src_index_from, src_index_to+1):
-        for trg_i in range(trg_index_from, trg_index_to):
-            dist = poses[src_i].distanceTo(poses[trg_i])
-            if dist < min_dist:
-                min_dist = dist
-                min_src_i = src_i
-                min_trg_i = trg_i
-    printEdge(poses, reg_pose, min_src_i, min_trg_i)
+    def genEdges(self, src_idx_from, src_idx_to, trg_idx_from, trg_idx_to):
+        edges  = self.genEdgesToNewVertex(src_idx_from, src_idx_to)
+        edges += self.genEdgesToNewVertex(trg_idx_from, trg_idx_to)
+        edges.append(Edge3D(self.max_vertex-1, self.max_vertex, self.reg_pose.dof))
+        return edges
 
-def get_max_vertex(graph_file):
-    max_vertex = -1
-    for line in open(graph_file).readlines():
-        tokens = line.split()
-        src_vertex = int(tokens[1])
-        trg_vertex = int(tokens[2])
-        max_vertex = max(max_vertex, max(src_vertex, trg_vertex))
-    return max_vertex
+############ obsolete: ############
+    def getCorrection(self, src_index, trg_index):
+        src_new = self.new_poses[src_index]
+        src_old = self.original_poses[src_index]
+        trg_new = self.new_poses[trg_index]
+        trg_old = self.original_poses[trg_index]
+        return trg_new.inv() * trg_old * self.reg_pose * src_old.inv() * src_new
 
-def printEdgesToNewVertex(poses, index_from, index_to, new_vertex):
-    start_pose = poses[index_from]
-    for i in range(index_from, index_to+1, 50):
-        t = start_pose.inv() * poses[i]
-        print Edge3D(new_vertex, i, t.dof)
+    def printEdge(self, src_index, trg_index):
+        src_pose = self.original_poses[src_index]
+        trg_pose = self.original_poses[trg_index]
+        t = src_pose.inv() * self.reg_pose * trg_pose
+        print Edge3D(src_index, trg_index, t.dof)
+
+    def printEdges(self, src_index_from, src_index_to, trg_index_from, trg_index_to):
+        if src_index_from <= src_index_to and trg_index_from <= trg_index_to:
+            src_middle_index = (src_index_from + src_index_to) / 2
+            trg_middle_index = (trg_index_from + trg_index_to) / 2
+
+            self.printEdges(src_index_from, src_middle_index-1, trg_index_from, trg_middle_index-1)
+            self.printEdge(src_middle_index, trg_middle_index)
+            self.printEdges(src_middle_index+1, src_index_to, trg_middle_index+1, trg_index_to)
+
+    def printEdgesToNewVertex(self, poses, index_from, index_to, new_vertex):
+        start_pose = poses[index_from]
+        for i in range(index_from, index_to+1, 50):
+            t = start_pose.inv() * poses[i]
+            print Edge3D(new_vertex, i, t.dof)
+############ obsolete. ############
 
 parser = argparse.ArgumentParser(description="Pose from subsequence registration to EDGE3D")
 parser.add_argument("--src_index_from", dest="src_index_from", type=int, required=True)
@@ -54,6 +73,7 @@ parser.add_argument("--src_index_to", dest="src_index_to", type=int, required=Tr
 parser.add_argument("--trg_index_from", dest="trg_index_from", type=int, required=True)
 parser.add_argument("--trg_index_to", dest="trg_index_to", type=int, required=True)
 parser.add_argument("-p", "--poses", dest="poses", type=str, required=True)
+parser.add_argument("-o", "--original_poses", dest="original_poses", type=str, required=False)
 parser.add_argument("-r", "--registration_pose", dest="registration_pose", type=str, required=True)
 parser.add_argument("-g", "--graph_file", dest="graph_file", type=str, required=True)
 args = parser.parse_args()
@@ -63,16 +83,12 @@ assert len(reg_poses) == 1
 reg_pose = reg_poses[0]
 poses = load_kitti_poses(args.poses)
 
-printEdges(poses, reg_pose, args.src_index_from, args.src_index_to, args.trg_index_from, args.trg_index_to)
-sys.exit(0)
+if hasattr(args, "original_poses") and args.original_poses:
+    original_poses = load_kitti_poses(args.original_poses)
+else:
+    original_poses = poses
 
-#printEdge(poses, reg_pose, args.src_index_from, args.trg_index_from)
-#printEdge(poses, reg_pose, args.src_index_to, args.trg_index_to)
-
-#printClosestEdge(poses, reg_pose, args.src_index_from, args.src_index_to, args.trg_index_from, args.trg_index_to)
-
-new_src_vertex = get_max_vertex(args.graph_file)+1
-new_trg_vertex = new_src_vertex+1
-printEdgesToNewVertex(poses, args.src_index_from, args.src_index_to, args.src_index_from)
-printEdgesToNewVertex(poses, args.trg_index_from, args.trg_index_to, args.trg_index_from)
-print Edge3D(args.src_index_from, args.trg_index_from, reg_pose.dof)
+generator = EdgesGenerator(poses, original_poses, reg_pose, args.graph_file)
+edges = generator.genEdges(args.src_index_from, args.src_index_to, args.trg_index_from, args.trg_index_to)
+for e in edges:
+    print e

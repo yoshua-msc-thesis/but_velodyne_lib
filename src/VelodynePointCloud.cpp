@@ -473,4 +473,17 @@ VelodyneMultiFrame VelodyneFileSequence::getNext(void) {
   return VelodyneMultiFrame(frame_filenames, calibration, transform_pcd_files);
 }
 
+bool VelodyneFileSequence::hasPrev(void) {
+  return index - calibration.sensorsCount() >= 0;
+}
+
+VelodyneMultiFrame VelodyneFileSequence::getPrev(void) {
+  assert(hasPrev());
+  index -= calibration.sensorsCount();
+  vector<string>::const_iterator first = filenames.begin() + index;
+  vector<string>::const_iterator last = first + calibration.sensorsCount();
+  vector<string> frame_filenames(first, last);
+  return VelodyneMultiFrame(frame_filenames, calibration, transform_pcd_files);
+}
+
 }

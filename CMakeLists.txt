@@ -116,6 +116,9 @@ target_link_libraries(hor-align-and-defile but_velodyne)
 add_executable(normalize-intensity src/apps/normalize-intensity.cpp)
 target_link_libraries(normalize-intensity but_velodyne)
 
+add_executable(show-registration-in-seq src/apps/show-registration-in-seq.cpp)
+target_link_libraries(show-registration-in-seq but_velodyne)
+
 ########################## Loops detection/closure: ##########################
 
 add_executable(extract-vfh src/apps/extract-vfh.cpp)
