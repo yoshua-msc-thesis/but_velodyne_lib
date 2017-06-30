@@ -49,6 +49,7 @@ public:
     sequence(sequence_), poses(poses_), frames(seq_len_), step(step_) {
 
     vis.getViewer()->registerKeyboardCallback(&SeqViewer::keyCallback, *this);
+    vis.getViewer()->setBackgroundColor(0, 0, 0);
 
     for(int i = 0; i < seq_len_ && sequence.hasNext(); i++) {
       frames[i].reset(new PointCloud<PointXYZI>);

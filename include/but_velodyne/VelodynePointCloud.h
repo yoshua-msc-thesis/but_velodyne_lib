@@ -404,6 +404,8 @@ public:
 
   VelodyneMultiFrame getNext(void);
 
+  void next(void);
+
   bool hasPrev(void);
 
   VelodyneMultiFrame getPrev(void);

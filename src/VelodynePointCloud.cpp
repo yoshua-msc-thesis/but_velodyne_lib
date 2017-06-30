@@ -473,6 +473,10 @@ VelodyneMultiFrame VelodyneFileSequence::getNext(void) {
   return VelodyneMultiFrame(frame_filenames, calibration, transform_pcd_files);
 }
 
+void VelodyneFileSequence::next(void) {
+  index += calibration.sensorsCount();
+}
+
 bool VelodyneFileSequence::hasPrev(void) {
   return index - calibration.sensorsCount() >= 0;
 }
