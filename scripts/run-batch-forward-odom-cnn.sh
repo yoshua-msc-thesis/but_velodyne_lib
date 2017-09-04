@@ -1,12 +1,11 @@
 #! /bin/bash
 
-DEPLOY_PROTOTXT=${1:-~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_l335_b1_shifts56_rcls_comp_deploy_fixshift.prototxt}
-NET_LABEL=${2:-odometry_l335_b1_shifts56_rcls_comp_fixshift}
-TRAINED_MODEL=/home/ivelas/workspace/ivelas-git/sw/cnn-generator/NETS/$NET_LABEL/net_snapshot_iter_200000.caffemodel
-OUTPUT_DIR=/media/files/cnn_velodyne_data/results/13-$NET_LABEL-it200k-window
+DEPLOY_PROTOTXT=${1:-~/workspace/ivelas-git/sw/cnn-generator/deploy-definitions/odometry_l335_h6_b16_splitRt_deploy.prototxt}
+NET_LABEL=${2:-odometry_l335_h6_b16_rot_shuffled_eulerfix_II}
+TRAINED_MODEL=/home/ivelas/workspace/ivelas-git/sw/cnn-generator/NETS/$NET_LABEL/net_snapshot_iter_500000.caffemodel
+OUTPUT_DIR=/media/files/cnn_velodyne_data/results/30-$NET_LABEL-it500k
 
-#DATA_DIR=/media/kitti/dataset_odometry_velodyne_ground_fake_ann/00-10/
-DATA_DIR=/media/files/cnn_velodyne_data/2dMat_seq_3600deg
+DATA_DIR=/media/robodev1/kitti/data_velodyne_360d_range_y_int/sequences
 POSES_DIR=/media/files/cnn_velodyne_data/poses
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 

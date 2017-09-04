@@ -1,11 +1,11 @@
 #! /bin/bash
 
-DATA_LABEL=b16_h6_j2_360d_succ_skip_eulerfix
+DATA_LABEL=j2_h1_b3_rad_1800d_rcls56_eulerfix
 
 OUT_DIR=/media/files/cnn_velodyne_data/hdf_data/$DATA_LABEL
-MATYLDA_OUT_DIR=/mnt/matylda1/ivelas/cnn_velodyne_data/hdf_data/$DATA_LABEL
+#MATYLDA_OUT_DIR=/mnt/matylda1/ivelas/cnn_velodyne_data/hdf_data/$DATA_LABEL
 POSES=/media/files/cnn_velodyne_data/poses
-VELODYNE_SEQ=/media/robodev1/kitti/data_velodyne_360d_range_y_int/sequences
+VELODYNE_SEQ=/media/robodev1/kitti/data_velodyne_1800d_range_y_int/sequences
 
 SCRIPTS_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 

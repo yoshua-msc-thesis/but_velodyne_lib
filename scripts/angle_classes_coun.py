@@ -13,13 +13,20 @@ from odometry_cnn_data import get_delta_odometry
 from kitti_poses_rot_quantization import angles2classes
 from numpy_point_cloud import DEG_TO_RAD
 
-CLASSES_COUNTS=[13, 56, 13]
-MAX_ANGLES=[1.3*DEG_TO_RAD, 5.6*DEG_TO_RAD, 1.3*DEG_TO_RAD]
+rots_x = []
+rots_y = []
+rots_z = []
 
-odometries = []
 for file in sys.argv[1:]:
-    odometries += get_delta_odometry(load_kitti_poses(file))
+    odometries = get_delta_odometry(load_kitti_poses(file))
+    for o in odometries:
+        rots_x.append(o.dof[3])
+        rots_y.append(o.dof[4])
+        rots_z.append(o.dof[5])
 
-for odom in odometries:
-    classes = angles2classes(odom.dof[3:], MAX_ANGLES, CLASSES_COUNTS)
-    print classes[0], classes[1], classes[2]
+rots_x.sort()
+rots_y.sort()
+rots_z.sort()
+
+for i in range(len(rots_x)):
+    print "%s;%s;%s" % (rots_x[i]/DEG_TO_RAD, rots_y[i]/DEG_TO_RAD, rots_z[i]/DEG_TO_RAD)
