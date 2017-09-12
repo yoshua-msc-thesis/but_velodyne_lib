@@ -88,6 +88,21 @@ public:
  */
 std::ostream& operator<<(std::ostream &os, const PoseGraphEdge &obj);
 
+class PoseToLandmarkGraphEdge {
+public:
+  PoseToLandmarkGraphEdge(int sourceIdx_, int targetIdx_,
+      float dx_, float dy_, float dz_, cv::Mat covariance_) :
+        sourceIdx(sourceIdx_), targetIdx(targetIdx_), dx(dx_), dy(dy_), dz(dz_),
+        covariance(covariance_) {
+  }
+
+  const int sourceIdx, targetIdx;
+  const float dx, dy, dz;
+  const cv::Mat covariance;
+};
+
+std::ostream& operator<<(std::ostream &stream, const PoseToLandmarkGraphEdge &edge);
+
 } /* namespace but_velodyne */
 
 #endif /* POSELOOP_H_ */

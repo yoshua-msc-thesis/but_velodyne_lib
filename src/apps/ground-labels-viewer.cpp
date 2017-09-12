@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
   for (int i = 2; i < argc; i++) {
     vector<float> labels;
     if (i == 2) {
+      continue;
       float height_thresh = atof(argv[2]);
       labelsByHeight(cloud, height_thresh, labels);
     } else {
@@ -116,6 +117,11 @@ int main(int argc, char** argv) {
     vis.getViewer()->setBackgroundColor(1.0, 1.0, 1.0, viewport);
     vis.addColorPointCloud(clouds_to_show[clouds_to_show.size() - i - 1], Eigen::Matrix4f::Identity(), viewport);
   }
+  visualization::Camera camera;
+  vis.getViewer()->getCameraParameters(camera);
+  camera.window_size[0] = 600;
+  camera.window_size[1] = 300;
+  vis.getViewer()->setCameraParameters(camera);
   vis.show();
 
   return EXIT_SUCCESS;

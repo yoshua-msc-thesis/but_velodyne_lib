@@ -85,9 +85,9 @@ protected:
         pipeline_params.maxTimeSpent, pipeline_params.significantErrorDeviation,
         pipeline_params.targetError);
     Eigen::Matrix4f transformation = initial_transformation;
+    CollarLinesRegistration icl_fitting(source, target, registration_params,
+        transformation);
     while (!termination()) {
-      CollarLinesRegistration icl_fitting(source, target, registration_params,
-          transformation);
       float error = icl_fitting.refine();
       termination.addNewError(error);
       transformation = icl_fitting.getTransformation();
@@ -156,8 +156,6 @@ protected:
     pclVis->removeAllShapes();
     pclVis->removeAllPointClouds();
     visualizer.addColorPointCloud(sum_cloud);
-//    visualizer.setColor(255, 0, 0).addLines(*src_lines);
-//    visualizer.setColor(0, 0, 255).addLines(*trg_lines);
     for(int i = 0; i < src_indices.size(); i++) {
       visualizer.addArrow(PointCloudLine(src_lines.line_middles[src_indices[i]],
                                          trg_cloud_transformed[trg_indices[i]]));
@@ -185,6 +183,12 @@ protected:
         setDataToVisualizer();
       } else if(event.getKeySym() == "m") {
         runAutomaticRegistration(CollarLinesRegistration::MEDIAN_THRESHOLD);
+        setDataToVisualizer();
+      } else if(event.getKeySym() == "n") {
+        runAutomaticRegistration(CollarLinesRegistration::QUARTER_THRESHOLD);
+        setDataToVisualizer();
+      } else if(event.getKeySym() == "b") {
+        runAutomaticRegistration(CollarLinesRegistration::TENTH_THRESHOLD);
         setDataToVisualizer();
       }
     }

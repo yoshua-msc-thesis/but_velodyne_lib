@@ -52,7 +52,8 @@ add_library(but_velodyne SHARED src/CollarLinesRegistration.cpp src/CollarLinesR
 src/ImageLine.cpp src/KeypointsCorrespondenceProjector.cpp src/LineCloud.cpp src/MoveEstimation.cpp
 src/PointCloudLine.cpp src/PolarGridOfClouds.cpp src/PoseGraphEdge.cpp src/Termination.cpp
 src/VelodynePointCloud.cpp src/Visualizer2D.cpp src/Visualizer3D.cpp
-src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp src/GroundDetectionDataGenerator.cpp)
+src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp src/GroundDetectionDataGenerator.cpp
+src/EigenUtils.cpp src/GlobalOptimization.cpp)
 target_include_directories(but_velodyne PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(but_velodyne ${PCL_LIBRARIES})
 target_link_libraries(but_velodyne ${OpenCV_LIBS})
@@ -81,6 +82,12 @@ target_link_libraries(cls-reg-subsequences but_velodyne)
 add_executable(cluster-subsequences src/apps/cluster-subsequences.cpp)
 target_link_libraries(cluster-subsequences but_velodyne)
 
+add_executable(find-broken-subsequences src/apps/find-broken-subsequences.cpp)
+target_link_libraries(find-broken-subsequences but_velodyne)
+
+add_executable(pick-subsequences src/apps/pick-subsequences.cpp)
+target_link_libraries(pick-subsequences but_velodyne)
+
 add_executable(gicp src/apps/gicp.cpp)
 target_link_libraries(gicp but_velodyne)
 
@@ -89,6 +96,18 @@ target_link_libraries(transform-pcd but_velodyne)
 
 add_executable(cluster-collar-lines src/apps/cluster-collar-lines.cpp)
 target_link_libraries(cluster-collar-lines but_velodyne)
+
+add_executable(print-graph-from-cls-clusters src/apps/print-graph-from-cls-clusters.cpp)
+target_link_libraries(print-graph-from-cls-clusters but_velodyne)
+
+add_executable(cluster-velodyne-points src/apps/cluster-velodyne-points.cpp)
+target_link_libraries(cluster-velodyne-points but_velodyne)
+
+add_executable(print-graph-from-points-clusters src/apps/print-graph-from-points-clusters.cpp)
+target_link_libraries(print-graph-from-points-clusters but_velodyne)
+
+add_executable(print-graph-from-points-picked src/apps/print-graph-from-points-picked.cpp)
+target_link_libraries(print-graph-from-points-picked but_velodyne)
 
 ########################## Visualization apps: ###############################
 
@@ -118,6 +137,12 @@ target_link_libraries(normalize-intensity but_velodyne)
 
 add_executable(show-registration-in-seq src/apps/show-registration-in-seq.cpp)
 target_link_libraries(show-registration-in-seq but_velodyne)
+
+add_executable(visualize-global-graph src/apps/visualize-global-graph.cpp)
+target_link_libraries(visualize-global-graph but_velodyne)
+
+add_executable(visualize-part-clouds src/apps/visualize-part-clouds.cpp)
+target_link_libraries(visualize-part-clouds but_velodyne)
 
 ########################## Loops detection/closure: ##########################
 

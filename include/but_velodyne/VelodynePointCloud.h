@@ -28,6 +28,7 @@
 
 #include <pcl/point_cloud.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/filters/random_sample.h>
 #include <velodyne_pointcloud/point_types.h>
 
 #include <cv.h>
@@ -106,6 +107,26 @@ bool projectPoint(const velodyne_pointcloud::VelodynePoint &pt,
                   const cv::Mat &projection_matrix,
                   const cv::Rect &plane,
                   cv::Point2f &projected_pt);
+
+template <class PointType>
+void subsample_cloud(typename pcl::PointCloud<PointType>::Ptr cloud, float sampling_ratio) {
+  pcl::RandomSample<PointType> subsampling;
+  subsampling.setInputCloud(cloud);
+  subsampling.setSample(cloud->size()*sampling_ratio);
+  subsampling.filter(*cloud);
+}
+
+template <class PointType>
+void mask_cloud(pcl::PointCloud<PointType> &cloud, const std::vector<bool> &mask) {
+  int subsampled_i = 0;
+  for(int i = 0; i < mask.size(); i++) {
+    if(mask[i]) {
+      cloud.at(subsampled_i) = cloud.at(i);
+      subsampled_i++;
+    }
+  }
+  cloud.erase(cloud.begin()+subsampled_i, cloud.end());
+}
 
 velodyne_pointcloud::VelodynePoint operator +(const velodyne_pointcloud::VelodynePoint &p1,
                                            const velodyne_pointcloud::VelodynePoint &p2);
@@ -389,6 +410,8 @@ public:
 
   void joinTo(pcl::PointCloud<pcl::PointXYZ> &output);
 
+  void subsample(float ratio);
+
   std::vector<std::string> filenames;
   std::vector<VelodynePointCloud::Ptr> clouds;
   SensorsCalibration calibration;
@@ -403,6 +426,8 @@ public:
   bool hasNext(void);
 
   VelodyneMultiFrame getNext(void);
+
+  void reset(void);
 
   void next(void);
 

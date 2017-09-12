@@ -71,6 +71,8 @@ std::istream& operator>> (std::istream &in, CollarLinesRegistration::Threshold &
     thresholding = CollarLinesRegistration::MEAN_THRESHOLD;
   } else if (token == "NO_THRESHOLD") {
     thresholding = CollarLinesRegistration::NO_THRESHOLD;
+  } else if (token == "QUARTER_THRESHOLD") {
+    thresholding = CollarLinesRegistration::QUARTER_THRESHOLD;
   } else {
       throw boost::program_options::validation_error(boost::program_options::validation_error::invalid_option_value,
                                                      "lines_preserved_factor_by");
@@ -160,6 +162,10 @@ void CollarLinesRegistration::findClosestMatchesByMiddles() {
       effective_threshold = getMatchesMean();
     } else if(params.distance_threshold == MEDIAN_THRESHOLD) {
       effective_threshold = getMatchesMedian();
+    } else if(params.distance_threshold == QUARTER_THRESHOLD) {
+      effective_threshold = getMatchesPortion(0.25);
+    } else if(params.distance_threshold == TENTH_THRESHOLD) {
+      effective_threshold = getMatchesPortion(0.1);
     } else {
       assert(params.distance_threshold == NO_THRESHOLD);
       effective_threshold = INFINITY;
@@ -177,6 +183,15 @@ void CollarLinesRegistration::filterMatchesByThreshold(const float threshold) {
       rejected_matches.push_back(*m);
     }
   }
+}
+
+float CollarLinesRegistration::getMatchesPortion(float ratio) {
+  vector<float> acc(matches.size());
+  for(int i = 0; i < matches.size(); i++) {
+    acc[i] = matches[i].distance;
+  }
+  std::sort(acc.begin(), acc.end());
+  return acc[acc.size()*ratio];
 }
 
 float CollarLinesRegistration::getMatchesMedian() {

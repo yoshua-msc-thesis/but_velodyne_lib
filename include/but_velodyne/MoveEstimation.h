@@ -53,6 +53,14 @@ public:
     pcl::getEulerAngles(affine, roll, pitch, yaw);
   }
 
+  MoveParameters(const Eigen::Affine3f &t) {
+    pcl::getTranslationAndEulerAngles(t, x, y, z, roll, pitch, yaw);
+  }
+
+  Eigen::Affine3f toEigen(void) const {
+    return pcl::getTransformation(x, y, z, roll, pitch, yaw);
+  }
+
   MoveParameters operator +(const MoveParameters &other) const;
 
   MoveParameters operator *(float factor) const;

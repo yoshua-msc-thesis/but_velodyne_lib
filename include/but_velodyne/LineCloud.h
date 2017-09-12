@@ -98,6 +98,14 @@ public:
 
   void push_back(const PointCloudLine &line);
 
+  void save(const std::string &filename) const;
+
+  void load(const std::string &filename);
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr encode(void) const;
+
+  void decodeFrom(const pcl::PointCloud<pcl::PointXYZ> &cloud);
+
 protected:
   void generateLineCloudFromCell(const PolarGridOfClouds &polar_grid,
                                  const CellId &source_cell,

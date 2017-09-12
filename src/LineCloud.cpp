@@ -62,6 +62,35 @@ LineCloud::LineCloud(const PolarGridOfClouds &polar_grid,
   }
 }
 
+void LineCloud::save(const std::string &filename) const {
+  PointCloud<PointXYZ>::Ptr encoded_cloud = this->encode();
+  io::savePCDFileBinary(filename, *encoded_cloud);
+}
+
+void LineCloud::load(const std::string &filename) {
+  PointCloud<PointXYZ> encoded_cloud;
+  io::loadPCDFile(filename, encoded_cloud);
+  this->decodeFrom(encoded_cloud);
+}
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr LineCloud::encode(void) const {
+  PointCloud<PointXYZ>::Ptr encoded_cloud(new PointCloud<PointXYZ>(line_cloud.size(), 2));
+  for(int i = 0; i < line_cloud.size(); i++) {
+    const PointCloudLine &l = line_cloud[i];
+    encoded_cloud->at(i, 0).getVector3fMap() = l.point;
+    encoded_cloud->at(i, 1).getVector3fMap() = l.point + l.orientation;
+  }
+  return encoded_cloud;
+}
+
+void LineCloud::decodeFrom(const pcl::PointCloud<pcl::PointXYZ> &cloud) {
+  assert(cloud.height == 2);
+  for(int i = 0; i < cloud.width; i++) {
+    PointCloudLine l(cloud.at(i,0), cloud.at(i,1));
+    this->push_back(l);
+  }
+}
+
 void LineCloud::push_back(const PointCloudLine &line) {
   line_cloud.push_back(line);
   Eigen::Vector3f middle = line.middle();

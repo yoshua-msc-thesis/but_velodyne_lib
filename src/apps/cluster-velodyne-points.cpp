@@ -30,17 +30,10 @@
 
 #include <but_velodyne/Visualizer3D.h>
 #include <but_velodyne/KittiUtils.h>
-#include <but_velodyne/PoseGraphEdge.h>
-#include <but_velodyne/CollarLinesRegistration.h>
 
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/common/eigen.h>
 #include <pcl/common/transforms.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/random_sample.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/ml/kmeans.h>
-#include <pcl/segmentation/supervoxel_clustering.h>
 #include <pcl/features/normal_3d.h>
 
 #include <cv.h>
@@ -56,22 +49,17 @@ bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      SensorsCalibration &calibration,
                      vector<string> &clouds_to_process,
-                     int &avg_cluster_size,
-                     int &lines_generated,
-                     int &lines_preserved) {
+                     int &avg_cluster_size) {
   string pose_filename, sensor_poses_filename, skip_filename;
 
-  po::options_description desc("Collar Lines Clustering\n"
+  po::options_description desc("Velodyne Points Clustering\n"
       "======================================\n"
-      " * Reference(s): Velas et al, ICRA 2016\n"
       " * Allowed options");
   desc.add_options()
-      ("help,h", "produce help message")
-      ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
-      ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensors calibration file.")
-      ("cluster_size,c", po::value<int>(&avg_cluster_size)->default_value(1000), "Average cluster size.")
-      ("lines_generated,g", po::value<int>(&lines_generated)->default_value(5), "lines_generated")
-      ("lines_preserved,k", po::value<int>(&lines_preserved)->default_value(1), "lines_preserved (kept)")
+    ("help,h", "produce help message")
+    ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
+    ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensors calibration file.")
+    ("cluster_size,c", po::value<int>(&avg_cluster_size)->default_value(1000), "Average cluster size.")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -100,7 +88,7 @@ bool parse_arguments(int argc, char **argv,
   return true;
 }
 
-void cluster(const PointCloud<PointXYZ> &points, const vector<Eigen::Vector3f> &normals,
+void cluster(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> &normals,
     const int K, vector<int> &indices) {
   cerr << "Clustering " << points.size() << " points and " << normals.size() << " normals into " << K << " clusters" << endl;
 
@@ -124,18 +112,18 @@ void cluster(const PointCloud<PointXYZ> &points, const vector<Eigen::Vector3f> &
   labels.copyTo(indices);
 }
 
-void getNormals(const PointCloud<PointXYZ> &middles,
-    const PointCloud<PointXYZ> &original_points,
+void getNormals(const PointCloud<PointXYZI> &middles,
+    const PointCloud<PointXYZI> &original_points,
     vector<int> origins, PointCloud<PointXYZ> sensor_positions,
     vector<Eigen::Vector3f> &normals) {
   cerr << "Normal estimation" << endl;
 
   // Create the normal estimation class, and pass the input dataset to it
-  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+  pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> ne;
   ne.setInputCloud(middles.makeShared());
   ne.setSearchSurface(original_points.makeShared());
 
-  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+  pcl::search::KdTree<pcl::PointXYZI>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZI> ());
   ne.setSearchMethod (tree);
 
   ne.setRadiusSearch (0.1);
@@ -148,47 +136,6 @@ void getNormals(const PointCloud<PointXYZ> &middles,
     PointXYZ p = sensor_positions[origins[i]];
     flipNormalTowardsViewpoint(middles[i], p.x, p.y, p.z, n);
     normals.push_back(n.head(3));
-  }
-}
-
-void buildLineCloud(VelodyneFileSequence &cloud_sequence,
-    const vector<Eigen::Affine3f> &poses,
-    const SensorsCalibration &calibration,
-    int lines_per_cell_gen, int lines_per_cell_preserve,
-    LineCloud &out_lines,
-    vector<int> &lines_origins,
-    vector<Eigen::Vector3f> &normals) {
-  cerr << "Building line cloud" << endl;
-
-  LineCloud raw_lines;
-  vector<int> raw_origins;
-  vector<Eigen::Vector3f> raw_normals;
-
-  CollarLinesFilter filter(lines_per_cell_preserve);
-  PointCloud<PointXYZ> sum_cloud;
-  for(int frame_i = 0; cloud_sequence.hasNext(); frame_i++) {
-    VelodyneMultiFrame multiframe = cloud_sequence.getNext();
-    PointCloud<PointXYZ> joined;
-    multiframe.joinTo(joined);
-    transformPointCloud(joined, joined, poses[frame_i]);
-    sum_cloud += joined;
-    PolarGridOfClouds polar_grid(multiframe.clouds, calibration);
-    LineCloud line_cloud(polar_grid, lines_per_cell_gen, filter);
-    line_cloud.transform(poses[frame_i].matrix());
-    raw_lines += line_cloud;
-    vector<int> origin(line_cloud.line_cloud.size(), frame_i);
-    raw_origins.insert(raw_origins.end(), origin.begin(), origin.end());
-  }
-  getNormals(raw_lines.line_middles, sum_cloud,
-      raw_origins, Visualizer3D::posesToPoints(poses),
-      raw_normals);
-  for(int i = 0; i < raw_lines.line_middles.size(); i++) {
-    Eigen::Vector3f n = raw_normals[i];
-    if(isfinite(n(0)) && isfinite(n(1)) && isfinite(n(2))) {
-      out_lines.push_back(raw_lines.line_cloud[i]);
-      lines_origins.push_back(raw_origins[i]);
-      normals.push_back(raw_normals[i]);
-    }
   }
 }
 
@@ -209,17 +156,18 @@ void getClusters(const LineCloud &lines, const vector<int> &indices, const int K
   }
 }
 
-void saveClusters(const std::vector<LineCloud> &clustersLines,
-    const std::vector< std::vector<int> > &clustersLinesOrigins) {
-  ofstream clustersAndOrigins("clusters_origins.txt");
-  LineCloud allLines;
-  for(int c = 0; c < clustersLines.size(); c++) {
-    allLines += clustersLines[c];
-    for(vector<int>::const_iterator o = clustersLinesOrigins[c].begin(); o < clustersLinesOrigins[c].end(); o++) {
-      clustersAndOrigins << c << " " << *o << endl;
-    }
+void colorByClusters(const PointCloud<PointXYZI>::Ptr subsampled_cloud,
+    const vector<int> &cluster_indices, PointCloud<PointXYZI> &sum_cloud) {
+  pcl::search::KdTree<pcl::PointXYZI> index;
+  index.setInputCloud(subsampled_cloud);
+  vector<int> knn_indices(1);
+  vector<float> distances(1);
+  for(PointCloud<PointXYZI>::iterator query = sum_cloud.begin(); query < sum_cloud.end(); query++) {
+    index.nearestKSearch(*query, 1, knn_indices, distances);
+    int cluster = cluster_indices[knn_indices[0]];
+    query->intensity = cluster;
+    cout << cluster << endl;
   }
-  allLines.save("all_lines.pcd");
 }
 
 int main(int argc, char** argv) {
@@ -227,35 +175,58 @@ int main(int argc, char** argv) {
   vector<string> filenames;
   vector<Eigen::Affine3f> poses;
   SensorsCalibration calibration;
-  int avg_cluster_size, lines_generated, lines_preserved;
+  int avg_cluster_size;
 
   if(!parse_arguments(argc, argv,
       poses, calibration, filenames,
-      avg_cluster_size,
-      lines_generated, lines_preserved)) {
+      avg_cluster_size)) {
     return EXIT_FAILURE;
   }
 
   VelodyneFileSequence sequence(filenames, calibration);
 
-  LineCloud lines;
-  vector<int> lines_origins;
+  vector<int> subsampled_origins;
   vector<Eigen::Vector3f> normals;
-  buildLineCloud(sequence, poses, calibration, lines_generated, lines_preserved, lines, lines_origins, normals);
+
+  PointCloud<PointXYZI> sum_cloud;
+  PointCloud<PointXYZI>::Ptr subsampled_cloud(new PointCloud<PointXYZI>);
+  for(int frame_i = 0; sequence.hasNext(); frame_i++) {
+    VelodyneMultiFrame multiframe = sequence.getNext();
+    PointCloud<PointXYZI>::Ptr joined(new PointCloud<PointXYZI>);
+    multiframe.joinTo(*joined);
+    transformPointCloud(*joined, *joined, poses[frame_i]);
+    sum_cloud += *joined;
+    subsample_cloud<PointXYZI>(joined, 0.08);
+    *subsampled_cloud += *joined;
+    vector<int> origins(joined->size(), frame_i);
+    subsampled_origins.insert(subsampled_origins.end(), origins.begin(), origins.end());
+  }
+
+  getNormals(*subsampled_cloud, sum_cloud,
+      subsampled_origins, Visualizer3D::posesToPoints(poses),
+      normals);
+
+  vector<int>::iterator origins_it = subsampled_origins.begin();
+  PointCloud<PointXYZI>::iterator points_it = subsampled_cloud->begin();
+  for(vector<Eigen::Vector3f>::iterator normals_it = normals.begin(); normals_it < normals.end();) {
+    Eigen::Vector3f n = *normals_it;
+    if(isfinite(n(0)) && isfinite(n(1)) && isfinite(n(2))) {
+      normals_it++;
+      origins_it++;
+      points_it++;
+    } else {
+      normals_it = normals.erase(normals_it);
+      points_it = subsampled_cloud->erase(points_it);
+      origins_it = subsampled_origins.erase(origins_it);
+    }
+  }
 
   vector<int> indices;
-  int K = lines.line_middles.size()/avg_cluster_size;
-  cluster(lines.line_middles, normals, K, indices);
+  int K = subsampled_cloud->size()/avg_cluster_size;
+  cluster(*subsampled_cloud, normals, K, indices);
 
-  vector< PointCloud<PointXYZ> > clustersMiddles;
-  vector<LineCloud> clustersLines;
-  vector< vector<int> > clustersLinesOrigins;
-  getClusters(lines, indices, K, lines_origins, clustersLines, clustersMiddles, clustersLinesOrigins);
-
-  saveClusters(clustersLines, clustersLinesOrigins);
-
-  Visualizer3D vis;
-  vis.addPointClouds(clustersMiddles).show();
+  colorByClusters(subsampled_cloud, indices, sum_cloud);
+  io::savePCDFileBinary("clusters.pcd", sum_cloud);
 
   return EXIT_SUCCESS;
 }

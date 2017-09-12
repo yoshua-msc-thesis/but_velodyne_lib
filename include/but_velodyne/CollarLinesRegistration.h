@@ -60,6 +60,8 @@ public:
    */
   enum Threshold {
       MEDIAN_THRESHOLD,         // all matches with distance above median are discarded
+      QUARTER_THRESHOLD,
+      TENTH_THRESHOLD,
       MEAN_THRESHOLD,           // threshold = mean
       NO_THRESHOLD              // no thresholding - all matches are preserved
   };
@@ -187,6 +189,7 @@ protected:
   float sinOfAngleWithGround(const Eigen::Vector3f &orientation);
 
   float getMatchesMedian();
+  float getMatchesPortion(float ratio);
   float getMatchesMean();
 
 private:

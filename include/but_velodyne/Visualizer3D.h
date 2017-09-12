@@ -431,6 +431,8 @@ public:
    */
   Visualizer3D& addPosesDots(const vector<Eigen::Affine3f> &poses, int viewport = 0);
 
+  Visualizer3D& addPoses(const vector<Eigen::Affine3f> &poses, int viewport = 0);
+
   /**!
    * Add visualization of visual loops between 3D poses
    *

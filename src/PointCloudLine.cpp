@@ -96,7 +96,7 @@ PointCloudLine PointCloudLine::transform(const Eigen::Matrix3f &R, const Eigen::
   return transformed;
 }
 
-void PointCloudLine::closestPointsWith(const PointCloudLine &other,
+bool PointCloudLine::closestPointsWith(const PointCloudLine &other,
                        Eigen::Vector3f &this_pt, Eigen::Vector3f &other_pt) const {
   Eigen::Vector3f w0;
   float sc;
@@ -104,6 +104,7 @@ void PointCloudLine::closestPointsWith(const PointCloudLine &other,
   closestPointsCoefficients(other, w0, sc, tc);
   this_pt = this->point + this->orientation*sc;
   other_pt = other.point + other.orientation*tc;
+  return (0 < sc && sc < 1) && (0 < tc && tc < 1);
 }
 
 Eigen::Vector3f PointCloudLine::middle() const {

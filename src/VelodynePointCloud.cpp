@@ -42,6 +42,16 @@ using namespace cv;
 
 namespace but_velodyne {
 
+template<>
+void subsample_cloud<VelodynePoint>(typename pcl::PointCloud<VelodynePoint>::Ptr cloud, float sampling_ratio) {
+  int subsampled_size = cloud->size() * sampling_ratio;
+  vector<bool> true_mask(subsampled_size, true);
+  vector<bool> mask(cloud->size()-subsampled_size, false);
+  mask.insert(mask.end(), true_mask.begin(), true_mask.end());
+  random_shuffle(mask.begin(), mask.end());
+  mask_cloud(*cloud, mask);
+}
+
 VelodynePoint operator +(const VelodynePoint &p1, const VelodynePoint &p2) {
   VelodynePoint res;
   res.x = p1.x + p2.x;
@@ -451,6 +461,13 @@ void VelodyneMultiFrame::joinTo(PointCloud<PointXYZ> &output) {
   }
 }
 
+void VelodyneMultiFrame::subsample(float ratio) {
+  for(int i = 0; i < clouds.size(); i++) {
+    subsample_cloud<velodyne_pointcloud::VelodynePoint>(clouds[i], ratio);
+  }
+}
+
+
 VelodyneFileSequence::VelodyneFileSequence(const std::vector<std::string> &filenames_,
     const SensorsCalibration &calibration_,
     bool transform_pcd_files_) :
@@ -475,6 +492,10 @@ VelodyneMultiFrame VelodyneFileSequence::getNext(void) {
 
 void VelodyneFileSequence::next(void) {
   index += calibration.sensorsCount();
+}
+
+void VelodyneFileSequence::reset(void) {
+  index = 0;
 }
 
 bool VelodyneFileSequence::hasPrev(void) {

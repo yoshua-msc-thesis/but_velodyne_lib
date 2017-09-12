@@ -62,7 +62,6 @@ bool parse_arguments(int argc, char **argv,
       ("help,h", "produce help message")
       ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
       ("sampling_ratio,s", po::value<float>(&sampling_ratio)->default_value(0.1), "Reduce size with this ratio.")
-      ("output_file,o", po::value<string>(&output_file)->required(), "Output PCD file")
       ("skip_file,k", po::value<string>(&skip_filename)->default_value(""), "File with indices to skip")
       ("sensor_poses", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensor poses (calibration).")
   ;
@@ -102,34 +101,80 @@ bool parse_arguments(int argc, char **argv,
   return true;
 }
 
-void subsample_cloud2(PointCloud<PointXYZI> &cloud, float leaf_size, int upsampling_ratio) {
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud;
-  rgb_cloud = Visualizer3D::colorizeCloud(cloud, true);
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_to_downsample(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-  for(int i = 0; i < upsampling_ratio; i++) {
-    float offset = leaf_size / upsampling_ratio * i;
-    Eigen::Affine3f t = getTransformation(offset, offset, offset, 0, 0, 0);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_grid(new pcl::PointCloud<pcl::PointXYZRGB>);
-    transformPointCloud(*rgb_cloud, *cloud_grid, t);
-
-    pcl::VoxelGrid<PointXYZRGB> grid;
-    grid.setLeafSize(leaf_size, leaf_size, leaf_size);
-    grid.setInputCloud(cloud_grid);
-    grid.filter(*cloud_grid);
-
-    transformPointCloud(*cloud_grid, *cloud_grid, t.inverse());
-    *cloud_to_downsample += *cloud_grid;
-  }
-
-  cloud.clear();
-  for(pcl::PointCloud<pcl::PointXYZRGB>::iterator pt = cloud_to_downsample->begin(); pt < cloud_to_downsample->end(); pt++) {
-    PointXYZI pt_grey;
-    copyXYZ(*pt, pt_grey);
-    pt_grey.intensity = pt->r / 255.0;
-    cloud.push_back(pt_grey);
-  }
+void subsample_cloud(PointCloud<PointXYZI>::Ptr cloud, float sampling_ratio) {
+  pcl::RandomSample<PointXYZI> subsampling;
+  subsampling.setInputCloud(cloud);
+  subsampling.setSample(cloud->size()*sampling_ratio);
+  subsampling.filter(*cloud);
 }
+
+
+class ErrorHighlighter {
+public:
+  ErrorHighlighter(const PointCloud<PointXYZRGB>::Ptr &cloud_, const vector<int> &origins_) :
+    cloud(cloud_), origins(origins_) {
+    visualizer.getViewer()->setBackgroundColor(0.0, 0.0, 0.0);
+    visualizer.getViewer()->registerAreaPickingCallback(&ErrorHighlighter::pickPointsCallback, *this);
+    visualizer.getViewer()->registerKeyboardCallback(&ErrorHighlighter::keyCallback, *this);
+  }
+
+  void run() {
+    vector<int> indices;
+    sedDataToVisualizer(indices);
+
+    for(vector<int>::const_iterator hi = highlighted_clouds.begin(); hi < highlighted_clouds.end(); hi++) {
+      cout << *hi << endl;
+    }
+
+    visualizer.show();
+  }
+
+protected:
+
+  void sedDataToVisualizer(const vector<int> &indices) {
+    for(vector<int>::const_iterator i = indices.begin(); i < indices.end(); i++) {
+      highlighted_clouds.push_back(origins[*i]);
+    }
+    sort(highlighted_clouds.begin(), highlighted_clouds.end());
+    highlighted_clouds.erase(unique(highlighted_clouds.begin(), highlighted_clouds.end()), highlighted_clouds.end());
+
+    PointCloud<PointXYZRGB>::Ptr cloud_colored(new PointCloud<PointXYZRGB>);
+    *cloud_colored += *cloud;
+
+    for(vector<int>::const_iterator hi = highlighted_clouds.begin(); hi < highlighted_clouds.end(); hi++) {
+      cerr << *hi << endl;
+      for(int oi = 0; oi < origins.size(); oi++) {
+        while(*hi == origins[oi] && oi < origins.size()) {
+          cloud_colored->at(oi).r = 255;
+          cloud_colored->at(oi).g = cloud_colored->at(oi).b = 0;
+          oi++;
+        }
+      }
+    }
+
+    visualizer.addColorPointCloud(cloud_colored);
+  }
+
+  void pickPointsCallback(const pcl::visualization::AreaPickingEvent& event, void*) {
+    vector<int> indices;
+    if(event.getPointsIndices(indices)) {
+      sedDataToVisualizer(indices);
+    }
+  }
+
+  void keyCallback(const pcl::visualization::KeyboardEvent &event, void*) {
+    if(event.keyDown()) {
+      if(event.getKeySym() == "d") {
+      }
+    }
+  }
+
+private:
+  PointCloud<PointXYZRGB>::Ptr cloud;
+  Visualizer3D visualizer;
+  vector<int> highlighted_clouds;
+  const vector<int> origins;
+};
 
 int main(int argc, char** argv) {
 
@@ -151,6 +196,7 @@ int main(int argc, char** argv) {
   PointCloud<PointXYZI> sum_cloud;
   PointCloud<PointXYZI>::Ptr cloud(new PointCloud<PointXYZI>);
   VelodyneFileSequence file_sequence(filenames, calibration);
+  vector<int> points_origins;
   for (int frame_i = 0; file_sequence.hasNext(); frame_i++) {
     if(frame_i >= poses.size()) {
       std::cerr << "No remaining pose for cloud: " << frame_i << std::endl << std::flush;
@@ -161,29 +207,22 @@ int main(int argc, char** argv) {
     if(mask[frame_i]) {
       multiframe.joinTo(*cloud);
 
-/*      for(PointCloud<PointXYZI>::iterator p = cloud->begin(); p < cloud->end(); p++) {
-        p->intensity = frame_i*0.1;
-      }
-*/
-      subsample_cloud<PointXYZI>(cloud, sampling_ratio);
+      subsample_cloud(cloud, sampling_ratio);
       transformPointCloud(*cloud, *cloud, poses[frame_i]);
       sum_cloud += *cloud;
+
+      vector<int> new_origins(frame_i, cloud->size());
+      points_origins.insert(points_origins.end(), new_origins.begin(), new_origins.end());
+    } else {
+      cout << frame_i << endl;
     }
   }
-
-  //Visualizer3D::normalizeMinMaxIntensity(sum_cloud, sum_cloud, 0.0001, 0, 1);
 
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud;
   rgb_cloud = Visualizer3D::colorizeCloud(sum_cloud, true);
 
-  io::savePCDFileBinary(output_pcd_file, sum_cloud);
-  io::savePCDFileBinary(output_pcd_file + ".rgb.pcd", *rgb_cloud);
-
-  PointCloud<PointXYZ> poses_cloud;
-  for(vector<Eigen::Affine3f>::const_iterator p = poses.begin(); p < poses.end(); p++) {
-    poses_cloud.push_back(KittiUtils::positionFromPose(*p));
-  }
-  io::savePCDFileBinary(output_pcd_file + ".poses.pcd", poses_cloud);
+  ErrorHighlighter highlighter(rgb_cloud, points_origins);
+  highlighter.run();
 
   return EXIT_SUCCESS;
 }

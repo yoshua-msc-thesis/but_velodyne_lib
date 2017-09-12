@@ -83,10 +83,10 @@ int main(int argc, char** argv) {
   PointCloud<PointXYZI> cloud;
   pcl::io::loadPCDFile(input_file, cloud);
   Visualizer3D::normalizeMinMaxIntensity(cloud, cloud, skip_ratio, min_val, max_val);
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud = Visualizer3D::colorizeCloud(cloud, true);
+  //pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud = Visualizer3D::colorizeCloud(cloud, true);
 
   io::savePCDFileBinary(output_file, cloud);
-  io::savePCDFileBinary(output_file + ".rgb.pcd", *rgb_cloud);
+  //io::savePCDFileBinary(output_file + ".rgb.pcd", *rgb_cloud);
 
   return EXIT_SUCCESS;
 }

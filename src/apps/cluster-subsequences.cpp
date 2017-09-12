@@ -168,11 +168,18 @@ int main(int argc, char** argv) {
   int attempts = 2;
   cv::kmeans(data, cluster_count, labels, termination, attempts, cv::KMEANS_PP_CENTERS);
 
+  vector< PointCloud<PointXYZI> > subclouds(cluster_count);
+  sequence.reset();
   vector< PointCloud<PointXYZ> > clusters(cluster_count);
   vector<StartEnd> cluster_borders(cluster_count);
   PointCloud<PointXYZ> poses_points = Visualizer3D::posesToPoints(poses);
   for (int i = 0; i < labels.cols*labels.rows; i++) {
     int label = labels.at<int>(i);
+    VelodyneMultiFrame frame = sequence.getNext();
+    PointCloud<PointXYZI> cloud;
+    frame.joinTo(cloud);
+    transformPointCloud(cloud, cloud, poses[i]);
+    subclouds[label] += cloud;
     clusters[label].push_back(poses_points[i]);
     cluster_borders[label].start = MIN(cluster_borders[label].start, i);
     cluster_borders[label].end = MAX(cluster_borders[label].end, i);
@@ -190,6 +197,9 @@ int main(int argc, char** argv) {
     stringstream ss;
     ss << "poses_cluster." << c << ".pcd";
     io::savePCDFileBinary(ss.str(), clusters[cluster_borders[c].idx]);
+    ss.str("");
+    ss << "clouds_cluster." << c << ".pcd";
+    io::savePCDFileBinary(ss.str(), subclouds[c]);
 
     uchar r = rng(256);
     uchar g = rng(256);

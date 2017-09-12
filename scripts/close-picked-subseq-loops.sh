@@ -12,17 +12,16 @@ function slampp {
 	$BUT_BINS/slampp-solution-to-poses < $(dirname $in)/solution.txt
 }
 
-if [ $# -ne 6 ]; then
-	echo "ERROR, expected usage: $0 <pcd-dir> <original-poses.txt> <input-pose.graph> <subseq-count> <output-dir> <calibration.poses>" >&2
+if [ $# -ne 5 ]; then
+	echo "ERROR, expected usage: $0 <pcd-dir> <original-poses.txt> <input-pose.graph> <output-dir> <calibration.poses>" >&2
 	exit 1
 fi
 
 PCD_DIR=$1
 ORIGINAL_POSE_FILE=$2
 INPUT_POSE_GRAPH=$3
-CLUSTERS=$4
-OUTPUT_DIR=$5
-CALIBRATION=$6
+OUTPUT_DIR=$4
+CALIBRATION=$5
 
 poses_cnt=$(wc -l < $ORIGINAL_POSE_FILE)
 
@@ -33,19 +32,17 @@ sensors_count=$(wc -l < $CALIBRATION)
 
 new_poses=$OUTPUT_DIR/new-poses.txt
 slampp $INPUT_POSE_GRAPH | head -n $poses_cnt > $new_poses
-echo "Clustering ..."
-$BUT_BINS/cluster-subsequences -p $new_poses -k $CLUSTERS -c $CALIBRATION $(ls $PCD_DIR/*.pcd | sort) | tee $OUTPUT_DIR/subsequences.txt
 
-echo "Source index:"
-read src_subseq_idx
+$BUT_BINS/pick-subsequences -p $new_poses | tee $OUTPUT_DIR/subsequences.txt
+
+src_subseq_idx=0
 src_poses=$OUTPUT_DIR/subseq.$src_subseq_idx.poses
 src_clouds=$OUTPUT_DIR/subseq.$src_subseq_idx.clouds
 from_to=$($BUT_SCRIPTS/get-subsequences.sh $OUTPUT_DIR/subsequences.txt $src_subseq_idx $ORIGINAL_POSE_FILE $PCD_DIR $sensors_count $src_poses $src_clouds)
 src_idx_from=$(echo $from_to | cut -d" " -f1)
 src_idx_to=$(echo $from_to | cut -d" " -f2)
 
-echo "Target index:"
-read trg_subseq_idx
+trg_subseq_idx=1
 trg_poses=$OUTPUT_DIR/subseq.$trg_subseq_idx.poses
 trg_clouds=$OUTPUT_DIR/subseq.$trg_subseq_idx.clouds
 from_to=$($BUT_SCRIPTS/get-subsequences.sh $OUTPUT_DIR/subsequences.txt $trg_subseq_idx $ORIGINAL_POSE_FILE $PCD_DIR $sensors_count $trg_poses $trg_clouds)

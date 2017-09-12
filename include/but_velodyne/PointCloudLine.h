@@ -185,8 +185,9 @@ public:
    * @param other second line segment
    * @param this_pt [output] the closest point found on this line
    * @param other_pt [output] the closest point found on the other line
+   * @return true iff both points belong to the line segments
    */
-  void closestPointsWith(const PointCloudLine &other,
+  bool closestPointsWith(const PointCloudLine &other,
                          Eigen::Vector3f &this_pt, Eigen::Vector3f &other_pt) const;
 
   /**!

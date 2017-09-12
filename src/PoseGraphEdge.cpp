@@ -90,4 +90,24 @@ std::istream& operator>>(std::istream& is, PoseGraphEdge& edge) {
   return is;
 }
 
+std::ostream& operator<<(std::ostream &stream, const PoseToLandmarkGraphEdge &edge) {
+  stream << "EDGE_SE3_XYZ" << " " <<
+      edge.sourceIdx << " " << edge.targetIdx << " " <<
+      edge.dx << " " << edge.dy << " " << edge.dz;
+
+  Eigen::MatrixXf eigenCovariance;
+  cv2eigen(edge.covariance, eigenCovariance);
+
+  Eigen::MatrixXf precision = eigenCovariance.inverse();
+
+  for(int row = 0; row < edge.covariance.rows; row++) {
+    for(int col = 0; col < edge.covariance.cols; col++) {
+      if(row <= col) {
+        stream << " " << precision(row, col);
+      }
+    }
+  }
+  return stream;
+}
+
 } /* namespace but_velodyne */

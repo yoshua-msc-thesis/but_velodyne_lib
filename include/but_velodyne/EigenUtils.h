@@ -28,6 +28,10 @@
 #include <fstream>
 #include <exception>
 
+#include <Eigen/Core>
+
+#include <pcl/point_cloud.h>
+
 namespace but_velodyne {
 
 /**!
@@ -127,7 +131,19 @@ public:
   inline static bool allFinite(const Eigen::DenseBase<Derived> &o) {
     return !(hasNaN(o.derived()-o.derived()));
   }
+
 };
+
+template<typename PointT>
+void computeCentroidAndCovariance(const pcl::PointCloud<PointT> &points,
+    Eigen::Vector3f &centroid, Eigen::Matrix3f &covariance) {
+  Eigen::Vector4f centroid4;
+  compute3DCentroid(points, centroid4);
+  computeCovarianceMatrix(points, centroid4, covariance);
+  centroid = centroid4.head(3);
+}
+
+void getEigenvalues(const Eigen::Matrix3f &covariance, std::vector<float> &eigenvalues);
 
 }
 
