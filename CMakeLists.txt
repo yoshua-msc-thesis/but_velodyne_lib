@@ -156,6 +156,9 @@ target_link_libraries(visualize-global-graph but_velodyne)
 add_executable(visualize-part-clouds src/apps/visualize-part-clouds.cpp)
 target_link_libraries(visualize-part-clouds but_velodyne)
 
+add_executable(showroom-demo src/apps/showroom-demo.cpp)
+target_link_libraries(showroom-demo but_velodyne)
+
 ########################## Loops detection/closure: ##########################
 
 add_executable(extract-vfh src/apps/extract-vfh.cpp)
