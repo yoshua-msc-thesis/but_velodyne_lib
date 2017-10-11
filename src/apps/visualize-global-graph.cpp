@@ -70,7 +70,7 @@ public:
 
   void run() {
     vector<int> init_indices;
-    for(int i = 0; i < correspondences.line_cloud.size(); i+=100) {
+    for(int i = 0; i < correspondences.line_cloud.size(); i+=10) {
       init_indices.push_back(i);
     }
     setDataToVisualizer(init_indices);

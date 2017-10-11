@@ -42,6 +42,7 @@
 #include <pcl/filters/random_sample.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/ml/kmeans.h>
+#include <pcl/common/geometry.h>
 
 #include <cv.h>
 #include <cxeigen.hpp>
@@ -51,6 +52,10 @@ using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 namespace po = boost::program_options;
+
+float SUBSAMPLE_RATE = 0.01;
+//float SUBSAMPLE_RATE = 1.0;
+float QUERY_TO_TRAIN_RATE = 0.1;
 
 bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
@@ -98,22 +103,57 @@ public:
   GraphFromPickedPoints(const PointCloud<PointXYZI> &points_, const vector<Origin> &origins_,
       const vector<Eigen::Affine3f> &poses_, const SensorsCalibration &calibration_) :
     points(points_), origins(origins_), poses(poses_), calibration(calibration_),
-    preserved_indices(points_.size()), new_vertex(0) {
-    for(int i = 0; i < preserved_indices.size(); i++) {
-      preserved_indices[i] = i;
-    }
+    new_vertex(0), finish(false) {
     visualizer.getViewer()->setBackgroundColor(0.0, 0.0, 0.0);
     visualizer.getViewer()->registerAreaPickingCallback(&GraphFromPickedPoints::pickPointsCallback, *this);
     visualizer.getViewer()->registerKeyboardCallback(&GraphFromPickedPoints::keyCallback, *this);
+    printPosesEdges();
   }
 
-  void run(void) {
+  bool run(void) {
+    preserved_indices.resize(points.size());
+    for(int i = 0; i < preserved_indices.size(); i++) {
+      preserved_indices[i] = i;
+    }
+    indices_to_delete.clear();
+
     visualizeData();
-    printPosesEdges();
     visualizer.show();
+
+    cerr << "Generating landmark edges" << endl;
+    PointCloud<PointXYZI> points_picked;
+    copyPointCloud(points, preserved_indices, points_picked);
+    PointCloud<PointXYZI>::Ptr projectedCluster(new PointCloud<PointXYZI>);
+    Eigen::Vector3f centroid;
+    Eigen::Matrix3f covariance;
+    computeCentroidAndCovariance(points_picked, centroid, covariance);
+    reduceWeakestDimension(points_picked, covariance, *projectedCluster);
+    vector<cv::DMatch> matches;
+    //getClosestMatches<PointXYZI>(projectedCluster, QUERY_TO_TRAIN_RATE, matches);
+    getClosestMatches(points_picked, *projectedCluster, matches);
+    cerr << matches.size() << " landmark edges found" << endl;
+
+    printLandmarkEdges(matches);
+    visualizer.addMatches(matches, points_picked, points_picked).show();
+    visualizer.getViewer()->removeAllShapes();
+
+    return finish;
   }
 
 protected:
+
+  void getClosestMatches(const PointCloud<PointXYZI> &points_picked,
+      const PointCloud<PointXYZI> &points_projected, vector<cv::DMatch> &matches) {
+    for(int i = 0; i < points_picked.size(); i++) {
+      for(int j = 0; j < i; j++) {
+        float original_distance = geometry::distance(points_picked[i], points_picked[j]);
+        float projected_distance = geometry::distance(points_projected[i], points_projected[j]);
+        if(original_distance > 10*projected_distance) {
+          matches.push_back(cv::DMatch(i, j, original_distance));
+        }
+      }
+    }
+  }
 
   void visualizeData() {
     PointCloud<PointXYZRGB>::Ptr points_to_vis(new PointCloud<PointXYZRGB>);
@@ -147,32 +187,47 @@ protected:
         for(vector<int>::iterator di = indices_to_delete.begin(); di < indices_to_delete.end(); di++) {
           preserved_indices[*di] = -1;
         }
+        indices_to_delete.clear();
         for(vector<int>::iterator pi = preserved_indices.begin(); pi < preserved_indices.end();) {
-          if(preserved_indices[*pi] < 0) {
+          if(*pi < 0) {
             pi = preserved_indices.erase(pi);
           } else {
             pi++;
           }
         }
         visualizeData();
-      } else if(event.getKeySym() == "p") {
-        cerr << "Generating landmark edges" << endl;
-        PointCloud<PointXYZI> points_picked;
-        copyPointCloud(points, preserved_indices, points_picked);
-        PointCloud<PointXYZI>::Ptr projectedCluster(new PointCloud<PointXYZI>);
-        Eigen::Vector3f centroid;
-        Eigen::Matrix3f covariance;
-        computeCentroidAndCovariance(points_picked, centroid, covariance);
-        reduceWeakestDimension(points_picked, covariance, *projectedCluster);
-        vector<cv::DMatch> matches;
-        getClosestMatches<PointXYZI>(projectedCluster, 0.01, matches);
-        printLandmarkEdges(matches);
-        visualizer.addMatches(matches, points_picked, points_picked);
+      } else if(event.getKeySym() == "f") {
+        finish = true;
       }
     }
   }
 
   void printPosesEdges() {
+    for(int pi = 1; pi < poses.size(); pi++) {
+      Eigen::Affine3f delta_pose = poses[pi-1].inverse() * poses[pi];
+      std::cout << PoseGraphEdge(pi-1, pi, delta_pose.matrix(), POSES_COVARIANCE) << std::endl;
+    }
+    new_vertex = poses.size();
+  }
+
+  void printLandmarkEdges(const vector<cv::DMatch> &matches) {
+    cerr << "Printing matches (" << matches.size() << ")" << endl;
+    for(std::vector<cv::DMatch>::const_iterator m = matches.begin(); m < matches.end(); m++) {
+      int i1 = preserved_indices[m->trainIdx];
+      int i2 = preserved_indices[m->queryIdx];
+      Origin o1 = origins[i1];
+      Origin o2 = origins[i2];
+      Eigen::Affine3f t1 = poses[o1.pose_id];
+      Eigen::Affine3f t2 = poses[o2.pose_id];
+      PointXYZI pt1 = transformPoint(points[i1], t1.inverse());
+      PointXYZI pt2 = transformPoint(points[i2], t2.inverse());
+      std::cout << PoseToLandmarkGraphEdge(o1.pose_id, new_vertex, pt1.x, pt1.y, pt1.z, LANDMARK_COVARIANCE) << std::endl;
+      std::cout << PoseToLandmarkGraphEdge(o2.pose_id, new_vertex, pt2.x, pt2.y, pt2.z, LANDMARK_COVARIANCE) << std::endl;
+      new_vertex++;
+    }
+  }
+
+  void printPosesEdgesWithCalibration() {
     for(int pi = 1; pi < poses.size(); pi++) {
       Eigen::Affine3f delta_pose = poses[pi-1].inverse() * poses[pi];
       std::cout << PoseGraphEdge(pi-1, pi, delta_pose.matrix(), POSES_COVARIANCE) << std::endl;
@@ -185,14 +240,17 @@ protected:
     new_vertex = poses.size()*calibration.sensorsCount();
   }
 
-  void printLandmarkEdges(const vector<cv::DMatch> &matches) {
+  void printPosesEdgesWithCalibration(const vector<cv::DMatch> &matches) {
+    cerr << "Printing matches (" << matches.size() << ")" << endl;
     for(std::vector<cv::DMatch>::const_iterator m = matches.begin(); m < matches.end(); m++) {
       int i1 = preserved_indices[m->trainIdx];
       int i2 = preserved_indices[m->queryIdx];
       Origin o1 = origins[i1];
       Origin o2 = origins[i2];
-      PointXYZI pt1 = transformPoint(points[i1], (poses[o1.pose_id]*calibration.ofSensor(o1.sensor_id)).inverse());
-      PointXYZI pt2 = transformPoint(points[i2], (poses[o2.pose_id]*calibration.ofSensor(o2.sensor_id)).inverse());
+      Eigen::Affine3f t1 = poses[o1.pose_id]*calibration.ofSensor(o1.sensor_id);
+      Eigen::Affine3f t2 = poses[o2.pose_id]*calibration.ofSensor(o2.sensor_id);
+      PointXYZI pt1 = transformPoint(points[i1], t1.inverse());
+      PointXYZI pt2 = transformPoint(points[i2], t2.inverse());
       std::cout << PoseToLandmarkGraphEdge(o1.edgeIdx(poses.size()), new_vertex, pt1.x, pt1.y, pt1.z, LANDMARK_COVARIANCE) << std::endl;
       std::cout << PoseToLandmarkGraphEdge(o2.edgeIdx(poses.size()), new_vertex, pt2.x, pt2.y, pt2.z, LANDMARK_COVARIANCE) << std::endl;
       new_vertex++;
@@ -208,6 +266,7 @@ private:
   vector<int> indices_to_delete;
   vector<int> preserved_indices;
   int new_vertex;
+  bool finish;
 
   static const cv::Mat POSES_COVARIANCE;
   static const cv::Mat LANDMARK_COVARIANCE;
@@ -238,7 +297,7 @@ int main(int argc, char** argv) {
 
     PointCloud<PointXYZI> cloud;
     VelodyneMultiFrame multiframe = file_sequence.getNext();
-    multiframe.subsample(0.01);
+    multiframe.subsample(SUBSAMPLE_RATE);
     multiframe.joinTo(cloud);
     transformPointCloud(cloud, cloud, poses[frame_i]);
     sum_cloud += cloud;
@@ -251,7 +310,8 @@ int main(int argc, char** argv) {
   }
 
   GraphFromPickedPoints graph_printer(sum_cloud, sum_origins, poses, calibration);
-  graph_printer.run();
+  while(!graph_printer.run())
+    ;
 
   return EXIT_SUCCESS;
 }

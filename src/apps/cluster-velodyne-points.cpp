@@ -38,18 +38,22 @@
 
 #include <cv.h>
 #include <cxeigen.hpp>
+#include <ml.h>
 
 using namespace std;
 using namespace pcl;
 using namespace velodyne_pointcloud;
 using namespace but_velodyne;
+using namespace cv;
+using namespace cv::ml;
+
 namespace po = boost::program_options;
 
 bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      SensorsCalibration &calibration,
                      vector<string> &clouds_to_process,
-                     int &avg_cluster_size) {
+                     int &clusters_count) {
   string pose_filename, sensor_poses_filename, skip_filename;
 
   po::options_description desc("Velodyne Points Clustering\n"
@@ -59,7 +63,7 @@ bool parse_arguments(int argc, char **argv,
     ("help,h", "produce help message")
     ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
     ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensors calibration file.")
-    ("cluster_size,c", po::value<int>(&avg_cluster_size)->default_value(1000), "Average cluster size.")
+    ("clusters_count,c", po::value<int>(&clusters_count)->default_value(1000), "Clusters count.")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -88,18 +92,47 @@ bool parse_arguments(int argc, char **argv,
   return true;
 }
 
-void cluster(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> &normals,
-    const int K, vector<int> &indices) {
-  cerr << "Clustering " << points.size() << " points and " << normals.size() << " normals into " << K << " clusters" << endl;
+inline float sq(const float x) {
+  return x*x;
+}
 
-  cv::Mat data(points.size(), 6, CV_32F);
+void getPlaneCoefficients(const Eigen::Vector3f &normal, const Eigen::Vector3f pt,
+    float &a, float &b, float &c, float &d) {
+  /*a = normal(0);
+  b = normal(1);
+  c = normal(2);
+  d = -normal.dot(pt);*/
+
+  float n1 = normal(0);
+  float n2 = normal(1);
+  float n3 = normal(2);
+  float x1 = pt(0);
+  float x2 = pt(1);
+  float x3 = pt(2);
+  float nx1 = n1*x1;
+  float nx2 = n2*x2;
+  float nx3 = n3*x3;
+
+  float k = sqrt(sq(n1) + sq(n2) + sq(n3) + sq(nx1) + sq(nx2) + sq(nx3) + 2*nx1*(nx2+nx3) + 2*nx2*nx3);
+
+  a = n1/k;
+  b = n2/k;
+  c = n3/k;
+
+  d = -(a*x1 + b*x2 + c*x3);
+}
+
+void clusterKMeans(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> &normals,
+    const int K, vector<int> &indices) {
+  cerr << "Clustering " << points.size() << " points and " << normals.size() << " normals into " << K << " clusters using k-means" << endl;
+
+  cv::Mat data(points.size(), 4, CV_32F);
   for (int i = 0; i < points.size(); i++) {
-    data.at<float>(i, 0) = points[i].x;
-    data.at<float>(i, 1) = points[i].y;
-    data.at<float>(i, 2) = points[i].z;
-    data.at<float>(i, 3) = normals[i](0);
-    data.at<float>(i, 4) = normals[i](1);
-    data.at<float>(i, 5) = normals[i](2);
+    getPlaneCoefficients(normals[i], points[i].getVector3fMap(),
+        data.at<float>(i, 0),
+        data.at<float>(i, 1),
+        data.at<float>(i, 2),
+        data.at<float>(i, 3));
   }
   cv::Mat labels(points.size(), 1, CV_32SC1);
   cv::TermCriteria termination(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 0.1);
@@ -110,6 +143,36 @@ void cluster(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> 
   cerr << "Kmeans finished" << endl;
 
   labels.copyTo(indices);
+}
+
+void clusterEM(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> &normals,
+    const int K, vector<int> &indices, vector<float> &clusterProbs) {
+  cerr << "Clustering " << points.size() << " points and " << normals.size() << " normals into " << K << " GMMs" << endl;
+
+  cv::Mat data(points.size(), 4, CV_32F);
+  for (int i = 0; i < points.size(); i++) {
+    getPlaneCoefficients(normals[i], points[i].getVector3fMap(),
+        data.at<float>(i, 0),
+        data.at<float>(i, 1),
+        data.at<float>(i, 2),
+        data.at<float>(i, 3));
+  }
+
+  Ptr<EM> em_model = EM::create();
+  em_model->setClustersNumber(K);
+  em_model->setCovarianceMatrixType(EM::COV_MAT_GENERIC);
+  em_model->setTermCriteria(TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 0.1));
+
+  cv::Mat labels(points.size(), 1, CV_32SC1);
+  cv::Mat probs(points.size(), K, CV_64FC1);
+  em_model->trainEM(data, noArray(), labels, probs);
+
+  labels.copyTo(indices);
+
+  clusterProbs.resize(indices.size());
+  for(int i = 0; i < indices.size(); i++) {
+    clusterProbs[i] = probs.at<double>(i, indices[i]);
+  }
 }
 
 void getNormals(const PointCloud<PointXYZI> &middles,
@@ -157,7 +220,7 @@ void getClusters(const LineCloud &lines, const vector<int> &indices, const int K
 }
 
 void colorByClusters(const PointCloud<PointXYZI>::Ptr subsampled_cloud,
-    const vector<int> &cluster_indices, PointCloud<PointXYZI> &sum_cloud) {
+    const vector<int> &cluster_indices, const vector<float> &cluster_probs, PointCloud<PointXYZI> &sum_cloud) {
   pcl::search::KdTree<pcl::PointXYZI> index;
   index.setInputCloud(subsampled_cloud);
   vector<int> knn_indices(1);
@@ -166,7 +229,7 @@ void colorByClusters(const PointCloud<PointXYZI>::Ptr subsampled_cloud,
     index.nearestKSearch(*query, 1, knn_indices, distances);
     int cluster = cluster_indices[knn_indices[0]];
     query->intensity = cluster;
-    cout << cluster << endl;
+    cout << cluster << " " << cluster_probs[knn_indices[0]] << endl;
   }
 }
 
@@ -175,11 +238,11 @@ int main(int argc, char** argv) {
   vector<string> filenames;
   vector<Eigen::Affine3f> poses;
   SensorsCalibration calibration;
-  int avg_cluster_size;
+  int clusters_count;
 
   if(!parse_arguments(argc, argv,
       poses, calibration, filenames,
-      avg_cluster_size)) {
+      clusters_count)) {
     return EXIT_FAILURE;
   }
 
@@ -222,10 +285,10 @@ int main(int argc, char** argv) {
   }
 
   vector<int> indices;
-  int K = subsampled_cloud->size()/avg_cluster_size;
-  cluster(*subsampled_cloud, normals, K, indices);
+  vector<float> probabilities;
+  clusterEM(*subsampled_cloud, normals, clusters_count, indices, probabilities);
 
-  colorByClusters(subsampled_cloud, indices, sum_cloud);
+  colorByClusters(subsampled_cloud, indices, probabilities, sum_cloud);
   io::savePCDFileBinary("clusters.pcd", sum_cloud);
 
   return EXIT_SUCCESS;

@@ -76,7 +76,7 @@ public:
     findLargestPlane();
 
     Eigen::Vector3f expected_y(coefficients.values[0], coefficients.values[1], coefficients.values[2]);
-    if(expected_y(1) < 0) {
+    if(expected_y(1) > 0) {
       // preserve Y up/down orientation
       expected_y *= -1.0;
     }

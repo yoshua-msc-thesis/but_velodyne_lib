@@ -34,6 +34,7 @@
 #include <but_velodyne/PoseGraphEdge.h>
 #include <but_velodyne/CollarLinesRegistration.h>
 #include <but_velodyne/GlobalOptimization.h>
+#include <but_velodyne/common.h>
 
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/common/eigen.h>
@@ -52,19 +53,10 @@ using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 namespace po = boost::program_options;
 
-template <typename T>
-void load_vector_from_file(const string &filename, vector<T> &output) {
-  ifstream file(filename.c_str());
-  T element;
-  while(file >> element) {
-    output.push_back(element);
-  }
-}
-
 bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      SensorsCalibration &calibration,
-                     vector<int> &cluster_labels,
+                     vector<int> &cluster_labels, vector<float> &probabilities,
                      vector<string> &clouds_to_process) {
   string pose_filename, cluster_labels_filename, sensor_poses_filename;
 
@@ -94,7 +86,7 @@ bool parse_arguments(int argc, char **argv,
   }
 
   poses = KittiUtils::load_kitti_poses(pose_filename);
-  load_vector_from_file(cluster_labels_filename, cluster_labels);
+  load_vectors_from_file(cluster_labels_filename, cluster_labels, probabilities);
 
   if(!sensor_poses_filename.empty()) {
     calibration = SensorsCalibration(sensor_poses_filename);
@@ -106,7 +98,7 @@ bool parse_arguments(int argc, char **argv,
 }
 
 template <typename PointT>
-void printPoseGraph(const std::vector<Eigen::Affine3f> &poses,
+void printPoseGraphWithCalibration(const std::vector<Eigen::Affine3f> &poses,
     const SensorsCalibration &calibration,
     const std::vector< pcl::PointCloud<PointT> > &points_clusters,
     const std::vector< std::vector<Origin> > &origins_clusters,
@@ -142,20 +134,70 @@ void printPoseGraph(const std::vector<Eigen::Affine3f> &poses,
   }
 }
 
+template <typename PointT>
+void printPoseGraph(const std::vector<Eigen::Affine3f> &poses,
+    const std::vector< pcl::PointCloud<PointT> > &points_clusters,
+    const std::vector< std::vector<Origin> > &origins_clusters,
+    const std::vector< std::vector<cv::DMatch> > &matches_clusters) {
+
+  static const cv::Mat POSES_COVARIANCE = cv::Mat::eye(6, 6, CV_32FC1)*0.1;
+  static const cv::Mat LANDMARK_COVARIANCE = cv::Mat::eye(3, 3, CV_32FC1)*0.001;
+
+  for(int pi = 1; pi < poses.size(); pi++) {
+    Eigen::Affine3f delta_pose = poses[pi-1].inverse() * poses[pi];
+    std::cout << PoseGraphEdge(pi-1, pi, delta_pose.matrix(), POSES_COVARIANCE) << std::endl;
+  }
+  int new_vertex = poses.size();
+  for(int ci = 0; ci < points_clusters.size(); ci++) {
+    const pcl::PointCloud<PointT> &points = points_clusters[ci];
+    const std::vector<Origin> &origins = origins_clusters[ci];
+    const std::vector<cv::DMatch> &matches = matches_clusters[ci];
+    for(std::vector<cv::DMatch>::const_iterator m = matches.begin(); m < matches.end(); m++) {
+      Origin o1 = origins[m->trainIdx];
+      Origin o2 = origins[m->queryIdx];
+      PointT pt1 = transformPoint(points[m->trainIdx], poses[o1.pose_id].inverse());
+      PointT pt2 = transformPoint(points[m->queryIdx], poses[o2.pose_id].inverse());
+      std::cout << PoseToLandmarkGraphEdge(o1.pose_id, new_vertex, pt1.x, pt1.y, pt1.z, LANDMARK_COVARIANCE) << std::endl;
+      std::cout << PoseToLandmarkGraphEdge(o2.pose_id, new_vertex, pt2.x, pt2.y, pt2.z, LANDMARK_COVARIANCE) << std::endl;
+      new_vertex++;
+    }
+  }
+}
+
+float computeMAD(vector< vector<cv::DMatch> > matches_clusters) {
+  vector<float> distances;
+  for(vector< vector<cv::DMatch> >::iterator cluster = matches_clusters.begin(); cluster < matches_clusters.end(); cluster++) {
+    for(vector<cv::DMatch>::iterator m = cluster->begin(); m < cluster->end(); m++) {
+      distances.push_back(m->distance);
+    }
+  }
+
+  sort(distances.begin(), distances.end());
+  float median = distances[distances.size()/2];
+  for(vector<float>::iterator d = distances.begin(); d < distances.end(); d++) {
+    *d = fabs(*d-median);
+  }
+
+  sort(distances.begin(), distances.end());
+  return distances[distances.size()/2];
+}
+
 int main(int argc, char** argv) {
 
   vector<Eigen::Affine3f> poses;
   vector<int> cluster_labels;
+  vector<float> probabilities;
   vector<string> pcd_files;
   SensorsCalibration calibration;
   if(!parse_arguments(argc, argv,
-      poses, calibration, cluster_labels, pcd_files)) {
+      poses, calibration, cluster_labels, probabilities, pcd_files)) {
     return EXIT_FAILURE;
   }
 
   int clusters_count = *max_element(cluster_labels.begin(), cluster_labels.end()) + 1;
 
   vector< PointCloud<PointXYZI> > points_clusters(clusters_count);
+  PointCloud<PointXYZI> outliers;
   vector< vector<Origin> > origins_clusters(clusters_count);
   VelodyneFileSequence file_sequence(pcd_files, calibration);
   int past_frames_points = 0;
@@ -177,20 +219,25 @@ int main(int argc, char** argv) {
         sensor_i++;
       }
       int label = cluster_labels[past_frames_points+i];
-      points_clusters[label].push_back(cloud[i]);
-      origins_clusters[label].push_back(Origin(frame_i, sensor_i));
+      float prob = probabilities[past_frames_points+i];
+      if(prob > 0.99) {
+        points_clusters[label].push_back(cloud[i]);
+        origins_clusters[label].push_back(Origin(frame_i, sensor_i));
+      } else {
+        outliers.push_back(cloud[i]);
+      }
     }
     past_frames_points += cloud.size();
   }
 
-  /*Visualizer3D vis;
+  Visualizer3D vis;
   for(vector< PointCloud<PointXYZI> >::iterator cluster = points_clusters.begin(); cluster < points_clusters.end(); cluster++) {
     PointCloud<PointXYZI>::Ptr sub_cluster(new PointCloud<PointXYZI>);
     *sub_cluster += *cluster;
     subsample_cloud<PointXYZI>(sub_cluster, 0.1);
     vis.addPointCloud(*sub_cluster);
   }
-  vis.show();*/
+  vis.setColor(150, 150, 150).addPointCloud(outliers).show();
 
   vector< vector<cv::DMatch> > matches_clusters(clusters_count);
   for(int ci = 0; ci < points_clusters.size(); ci++) {
@@ -210,7 +257,11 @@ int main(int argc, char** argv) {
     }
   }
 
-  printPoseGraph(poses, calibration, points_clusters, origins_clusters, matches_clusters);
+  printPoseGraph(poses, points_clusters, origins_clusters, matches_clusters);
+
+  float mad = computeMAD(matches_clusters);
+  cerr << "MAD: " << mad << endl;
+  cerr << "MAD*1.4826: " << mad*1.4826 << endl;
 
   return EXIT_SUCCESS;
 }

@@ -29,6 +29,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/random_sample.h>
+#include <pcl/filters/extract_indices.h>
 #include <velodyne_pointcloud/point_types.h>
 
 #include <cv.h>
@@ -114,6 +115,26 @@ void subsample_cloud(typename pcl::PointCloud<PointType>::Ptr cloud, float sampl
   subsampling.setInputCloud(cloud);
   subsampling.setSample(cloud->size()*sampling_ratio);
   subsampling.filter(*cloud);
+}
+
+template <class PointType1, class PointType2>
+void subsample_clouds(typename pcl::PointCloud<PointType1>::Ptr cloud1,
+    typename pcl::PointCloud<PointType2>::Ptr cloud2, float sampling_ratio) {
+  pcl::RandomSample<PointType1> subsampling;
+  subsampling.setInputCloud(cloud1);
+  subsampling.setSample(cloud1->size()*sampling_ratio);
+  pcl::PointIndices::Ptr indices(new pcl::PointIndices);
+  subsampling.filter(indices->indices);
+
+  pcl::ExtractIndices<PointType1> extract1;
+  extract1.setInputCloud(cloud1);
+  extract1.setIndices(indices);
+  extract1.filter(*cloud1);
+
+  pcl::ExtractIndices<PointType2> extract2;
+  extract2.setInputCloud(cloud2);
+  extract2.setIndices(indices);
+  extract2.filter(*cloud2);
 }
 
 template <class PointType>

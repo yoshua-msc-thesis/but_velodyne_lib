@@ -40,7 +40,6 @@
 #include <pcl/point_types.h>
 #include <pcl/features/vfh.h>
 #include <pcl/features/normal_3d.h>
-#include <pcl/keypoints/uniform_sampling.h>
 #include <pcl/io/pcd_io.h>
 
 using namespace std;

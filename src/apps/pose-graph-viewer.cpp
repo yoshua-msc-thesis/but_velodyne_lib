@@ -47,11 +47,20 @@ namespace po = boost::program_options;
 
 int main(int argc, char** argv) {
 
+  string clouds_dir;
+  SensorsCalibration calibration;
+  if(argc > 2) {
+    clouds_dir = argv[1];
+    calibration = SensorsCalibration(argv[2]);
+  }
+
   string line;
   vector<Eigen::Affine3f> poses;
   poses.push_back(Eigen::Affine3f::Identity());
   int expected_index = 1;
   Visualizer3D vis;
+  vis.getViewer()->setBackgroundColor(0, 0, 0);
+  bool poses_added = false;
   cv::RNG &rng = cv::theRNG();
   while(getline(cin, line)) {
     int src_i, trg_i;
@@ -63,23 +72,47 @@ int main(int argc, char** argv) {
       poses.push_back(poses.back()*t);
       expected_index++;
     } else {
+      if(!poses_added) {
+        vis.setColor(50, 200, 200).addPosesDots(poses);
+        poses_added = true;
+      }
       cerr << "Loop " << src_i << " -> " << trg_i << endl;
       if(src_i >= poses.size() || trg_i >= poses.size()) {
         cerr << "  WARGING: there are only " << poses.size() << " poses in graph - skipping" << endl;
       } else {
-        const PointXYZ &src = KittiUtils::positionFromPose(poses[src_i]);
-        PointXYZ src_transformed = KittiUtils::positionFromPose(poses[src_i]*t);
-        const PointXYZ &trg = KittiUtils::positionFromPose(poses[trg_i]);
-        PointCloudLine loop(src, trg);
-        PointCloudLine expectation(src_transformed, trg);
-        uchar r = rng(256);
-        uchar g = rng(256);
-        uchar b = rng(256);
-        vis.setColor(b, g, r).addLine(loop).setColor(b, g, r).addArrow(expectation);
+        if((abs(src_i-trg_i) > 10 && (src_i+trg_i)%50 == 0)) {
+          const PointXYZ &src = KittiUtils::positionFromPose(poses[src_i]);
+          PointXYZ src_transformed = KittiUtils::positionFromPose(poses[src_i]*t);
+          const PointXYZ &trg = KittiUtils::positionFromPose(poses[trg_i]);
+          PointCloudLine loop(trg, src);
+          PointCloudLine expectation(trg, src_transformed);
+          uchar r = rng(256);
+          uchar g = rng(256);
+          uchar b = rng(256);
+          vis.setColor(b, g, r).addLine(loop).setColor(b, g, r).addArrow(expectation);
+
+          if(!clouds_dir.empty()) {
+            PointCloud<PointXYZ> src_cloud, trg_cloud;
+            vector<string> src_filenames, trg_filenames;
+            src_filenames.push_back(clouds_dir + "/" + KittiUtils::getKittiFrameName(src_i, ".pcd", 1));
+            src_filenames.push_back(clouds_dir + "/" + KittiUtils::getKittiFrameName(src_i, ".pcd", 2));
+            VelodyneMultiFrame src_frame(src_filenames, calibration);
+            src_frame.joinTo(src_cloud);
+            trg_filenames.push_back(clouds_dir + "/" + KittiUtils::getKittiFrameName(trg_i, ".pcd", 1));
+            trg_filenames.push_back(clouds_dir + "/" + KittiUtils::getKittiFrameName(trg_i, ".pcd", 2));
+            VelodyneMultiFrame trg_frame(trg_filenames, calibration);
+            trg_frame.joinTo(trg_cloud);
+            vis.setColor(200, 50, 50).addPointCloud(src_cloud, poses[src_i].matrix());
+            vis.setColor(50, 50, 200).addPointCloud(trg_cloud, poses[trg_i].matrix());
+            vis.setColor(50, 200, 50).addPointCloud(trg_cloud, (poses[src_i]*t).matrix());
+          }
+          if((src_i+trg_i)%500 == 0) {
+            vis.show();
+          }
+        }
       }
     }
   }
-  vis.addPosesDots(poses).show();
 
   return EXIT_SUCCESS;
 }

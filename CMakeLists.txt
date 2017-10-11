@@ -53,7 +53,7 @@ src/ImageLine.cpp src/KeypointsCorrespondenceProjector.cpp src/LineCloud.cpp src
 src/PointCloudLine.cpp src/PolarGridOfClouds.cpp src/PoseGraphEdge.cpp src/Termination.cpp
 src/VelodynePointCloud.cpp src/Visualizer2D.cpp src/Visualizer3D.cpp
 src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp src/GroundDetectionDataGenerator.cpp
-src/EigenUtils.cpp src/GlobalOptimization.cpp)
+src/EigenUtils.cpp src/GlobalOptimization.cpp src/common.cpp)
 target_include_directories(but_velodyne PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(but_velodyne ${PCL_LIBRARIES})
 target_link_libraries(but_velodyne ${OpenCV_LIBS})
@@ -108,6 +108,18 @@ target_link_libraries(print-graph-from-points-clusters but_velodyne)
 
 add_executable(print-graph-from-points-picked src/apps/print-graph-from-points-picked.cpp)
 target_link_libraries(print-graph-from-points-picked but_velodyne)
+
+add_executable(estimate-planar-noise src/apps/estimate-planar-noise.cpp)
+target_link_libraries(estimate-planar-noise but_velodyne)
+
+add_executable(overlaping-frames src/apps/overlaping-frames.cpp)
+target_link_libraries(overlaping-frames but_velodyne)
+
+add_executable(print-graph-from-ransac-planes src/apps/print-graph-from-ransac-planes.cpp)
+target_link_libraries(print-graph-from-ransac-planes but_velodyne)
+
+add_executable(normals-estimation src/apps/normals-estimation.cpp)
+target_link_libraries(normals-estimation but_velodyne)
 
 ########################## Visualization apps: ###############################
 

@@ -77,7 +77,7 @@ void getClosestMatches(const typename pcl::PointCloud<PointT>::Ptr points, float
     kdtree.nearestKSearch(points->at(qi), 1, knn_indices, distances);
     matches[i].queryIdx = qi;
     matches[i].trainIdx = knn_indices[0];
-    matches[i].distance = distances[0];
+    matches[i].distance = sqrt(distances[0]);
   }
 }
 

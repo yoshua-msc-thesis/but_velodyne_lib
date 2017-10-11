@@ -253,9 +253,9 @@ Visualizer3D& Visualizer3D::addPoses(const vector<Eigen::Affine3f> &poses, int v
 }
 
 Visualizer3D& Visualizer3D::setColor(unsigned r, unsigned g, unsigned b) {
-  color_stack.push_back(r);
-  color_stack.push_back(g);
   color_stack.push_back(b);
+  color_stack.push_back(g);
+  color_stack.push_back(r);
   return *this;
 }
 
