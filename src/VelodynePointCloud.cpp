@@ -52,6 +52,14 @@ void subsample_cloud<VelodynePoint>(typename pcl::PointCloud<VelodynePoint>::Ptr
   mask_cloud(*cloud, mask);
 }
 
+template<>
+void regular_subsampling<VelodynePoint>(typename pcl::PointCloud<VelodynePoint>::ConstPtr full_cloud, const float sampling_rate,
+    pcl::PointIndices::Ptr indices, typename pcl::PointCloud<VelodynePoint>::Ptr subsampled_cloud);
+
+template<>
+void regular_subsampling<PointXYZI>(typename pcl::PointCloud<PointXYZI>::ConstPtr full_cloud, const float sampling_rate,
+    pcl::PointIndices::Ptr indices, typename pcl::PointCloud<PointXYZI>::Ptr subsampled_cloud);
+
 VelodynePoint operator +(const VelodynePoint &p1, const VelodynePoint &p2) {
   VelodynePoint res;
   res.x = p1.x + p2.x;

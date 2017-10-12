@@ -72,6 +72,10 @@ void load_vectors_from_file(const std::string &filename, std::vector<T1> &output
   }
 }
 
+float sq(const float x);
+
+float get_rand(float maxval);
+
 }
 
 #endif /* COMMON_H_ */

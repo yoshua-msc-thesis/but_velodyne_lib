@@ -30,6 +30,8 @@
 
 #include <but_velodyne/Visualizer3D.h>
 #include <but_velodyne/KittiUtils.h>
+#include <but_velodyne/Clustering.h>
+#include <but_velodyne/NormalsEstimation.h>
 
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/common/eigen.h>
@@ -92,116 +94,6 @@ bool parse_arguments(int argc, char **argv,
   return true;
 }
 
-inline float sq(const float x) {
-  return x*x;
-}
-
-void getPlaneCoefficients(const Eigen::Vector3f &normal, const Eigen::Vector3f pt,
-    float &a, float &b, float &c, float &d) {
-  /*a = normal(0);
-  b = normal(1);
-  c = normal(2);
-  d = -normal.dot(pt);*/
-
-  float n1 = normal(0);
-  float n2 = normal(1);
-  float n3 = normal(2);
-  float x1 = pt(0);
-  float x2 = pt(1);
-  float x3 = pt(2);
-  float nx1 = n1*x1;
-  float nx2 = n2*x2;
-  float nx3 = n3*x3;
-
-  float k = sqrt(sq(n1) + sq(n2) + sq(n3) + sq(nx1) + sq(nx2) + sq(nx3) + 2*nx1*(nx2+nx3) + 2*nx2*nx3);
-
-  a = n1/k;
-  b = n2/k;
-  c = n3/k;
-
-  d = -(a*x1 + b*x2 + c*x3);
-}
-
-void clusterKMeans(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> &normals,
-    const int K, vector<int> &indices) {
-  cerr << "Clustering " << points.size() << " points and " << normals.size() << " normals into " << K << " clusters using k-means" << endl;
-
-  cv::Mat data(points.size(), 4, CV_32F);
-  for (int i = 0; i < points.size(); i++) {
-    getPlaneCoefficients(normals[i], points[i].getVector3fMap(),
-        data.at<float>(i, 0),
-        data.at<float>(i, 1),
-        data.at<float>(i, 2),
-        data.at<float>(i, 3));
-  }
-  cv::Mat labels(points.size(), 1, CV_32SC1);
-  cv::TermCriteria termination(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 0.1);
-  int attempts = 1;
-
-  cerr << "Kmeans started" << endl;
-  cv::kmeans(data, K, labels, termination, attempts, cv::KMEANS_PP_CENTERS);
-  cerr << "Kmeans finished" << endl;
-
-  labels.copyTo(indices);
-}
-
-void clusterEM(const PointCloud<PointXYZI> &points, const vector<Eigen::Vector3f> &normals,
-    const int K, vector<int> &indices, vector<float> &clusterProbs) {
-  cerr << "Clustering " << points.size() << " points and " << normals.size() << " normals into " << K << " GMMs" << endl;
-
-  cv::Mat data(points.size(), 4, CV_32F);
-  for (int i = 0; i < points.size(); i++) {
-    getPlaneCoefficients(normals[i], points[i].getVector3fMap(),
-        data.at<float>(i, 0),
-        data.at<float>(i, 1),
-        data.at<float>(i, 2),
-        data.at<float>(i, 3));
-  }
-
-  Ptr<EM> em_model = EM::create();
-  em_model->setClustersNumber(K);
-  em_model->setCovarianceMatrixType(EM::COV_MAT_GENERIC);
-  em_model->setTermCriteria(TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 0.1));
-
-  cv::Mat labels(points.size(), 1, CV_32SC1);
-  cv::Mat probs(points.size(), K, CV_64FC1);
-  em_model->trainEM(data, noArray(), labels, probs);
-
-  labels.copyTo(indices);
-
-  clusterProbs.resize(indices.size());
-  for(int i = 0; i < indices.size(); i++) {
-    clusterProbs[i] = probs.at<double>(i, indices[i]);
-  }
-}
-
-void getNormals(const PointCloud<PointXYZI> &middles,
-    const PointCloud<PointXYZI> &original_points,
-    vector<int> origins, PointCloud<PointXYZ> sensor_positions,
-    vector<Eigen::Vector3f> &normals) {
-  cerr << "Normal estimation" << endl;
-
-  // Create the normal estimation class, and pass the input dataset to it
-  pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> ne;
-  ne.setInputCloud(middles.makeShared());
-  ne.setSearchSurface(original_points.makeShared());
-
-  pcl::search::KdTree<pcl::PointXYZI>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZI> ());
-  ne.setSearchMethod (tree);
-
-  ne.setRadiusSearch (0.1);
-
-  pcl::PointCloud<pcl::Normal> cloud_normals;
-  ne.compute (cloud_normals);
-
-  for(int i = 0; i < middles.size(); i++) {
-    Eigen::Vector4f n = cloud_normals[i].getNormalVector4fMap();
-    PointXYZ p = sensor_positions[origins[i]];
-    flipNormalTowardsViewpoint(middles[i], p.x, p.y, p.z, n);
-    normals.push_back(n.head(3));
-  }
-}
-
 void getClusters(const LineCloud &lines, const vector<int> &indices, const int K, const vector<int> &origins,
     vector<LineCloud> &clustersLines, vector< PointCloud<PointXYZ> > &clustersMiddles, vector< vector<int> > &clustersOrigins) {
   clustersLines.resize(K);
@@ -249,7 +141,6 @@ int main(int argc, char** argv) {
   VelodyneFileSequence sequence(filenames, calibration);
 
   vector<int> subsampled_origins;
-  vector<Eigen::Vector3f> normals;
 
   PointCloud<PointXYZI> sum_cloud;
   PointCloud<PointXYZI>::Ptr subsampled_cloud(new PointCloud<PointXYZI>);
@@ -265,15 +156,15 @@ int main(int argc, char** argv) {
     subsampled_origins.insert(subsampled_origins.end(), origins.begin(), origins.end());
   }
 
+  PointCloud<Normal> normals;
   getNormals(*subsampled_cloud, sum_cloud,
       subsampled_origins, Visualizer3D::posesToPoints(poses),
       normals);
 
   vector<int>::iterator origins_it = subsampled_origins.begin();
   PointCloud<PointXYZI>::iterator points_it = subsampled_cloud->begin();
-  for(vector<Eigen::Vector3f>::iterator normals_it = normals.begin(); normals_it < normals.end();) {
-    Eigen::Vector3f n = *normals_it;
-    if(isfinite(n(0)) && isfinite(n(1)) && isfinite(n(2))) {
+  for(PointCloud<Normal>::iterator normals_it = normals.begin(); normals_it < normals.end();) {
+    if(isfinite(normals_it->normal_x) && isfinite(normals_it->normal_y) && isfinite(normals_it->normal_z)) {
       normals_it++;
       origins_it++;
       points_it++;
@@ -286,7 +177,8 @@ int main(int argc, char** argv) {
 
   vector<int> indices;
   vector<float> probabilities;
-  clusterEM(*subsampled_cloud, normals, clusters_count, indices, probabilities);
+  Clustering<PointXYZI> clustering;
+  clustering.clusterEM(*subsampled_cloud, normals, clusters_count, indices, probabilities);
 
   colorByClusters(subsampled_cloud, indices, probabilities, sum_cloud);
   io::savePCDFileBinary("clusters.pcd", sum_cloud);

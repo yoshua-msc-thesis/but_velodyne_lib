@@ -30,12 +30,16 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/random_sample.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/kdtree/kdtree_flann.h>
+
 #include <velodyne_pointcloud/point_types.h>
 
 #include <cv.h>
 
 #include <but_velodyne/VelodyneSpecification.h>
 #include <but_velodyne/KittiUtils.h>
+#include <but_velodyne/common.h>
 
 namespace but_velodyne {
 
@@ -135,6 +139,35 @@ void subsample_clouds(typename pcl::PointCloud<PointType1>::Ptr cloud1,
   extract2.setInputCloud(cloud2);
   extract2.setIndices(indices);
   extract2.filter(*cloud2);
+}
+
+template <class PointType>
+void regular_subsampling(typename pcl::PointCloud<PointType>::ConstPtr full_cloud, const float sampling_rate,
+    pcl::PointIndices::Ptr indices, typename pcl::PointCloud<PointType>::Ptr subsampled_cloud) {
+  static const float LEAF_SIZE = 0.2;
+  pcl::VoxelGrid<PointType> grid;
+  grid.setLeafSize(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE);
+  typename pcl::PointCloud<PointType>::Ptr cumulated_grid_clouds(new pcl::PointCloud<PointType>);
+  srand(time(NULL));
+  while(cumulated_grid_clouds->size() < full_cloud->size()*sampling_rate) {
+    Eigen::Affine3f t = pcl::getTransformation(get_rand(LEAF_SIZE), get_rand(LEAF_SIZE), get_rand(LEAF_SIZE), 0, 0, 0);
+    typename pcl::PointCloud<PointType>::Ptr tmp_cloud(new pcl::PointCloud<PointType>);
+    transformPointCloud(*full_cloud, *tmp_cloud, t);
+    grid.setInputCloud(tmp_cloud);
+    grid.filter(*tmp_cloud);
+    pcl::transformPointCloud(*tmp_cloud, *tmp_cloud, t.inverse());
+    *cumulated_grid_clouds += *tmp_cloud;
+  }
+
+  pcl::KdTreeFLANN<PointType> index;
+  index.setInputCloud(full_cloud);
+  for(typename pcl::PointCloud<PointType>::const_iterator p = cumulated_grid_clouds->begin(); p < cumulated_grid_clouds->end(); p++) {
+    std::vector<int> idxs(1);
+    std::vector<float> dist(1);
+    index.nearestKSearch(*p, 1, idxs, dist);
+    indices->indices.push_back(idxs.front());
+    subsampled_cloud->push_back(full_cloud->at(idxs.front()));
+  }
 }
 
 template <class PointType>

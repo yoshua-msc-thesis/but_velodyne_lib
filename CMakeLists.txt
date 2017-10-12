@@ -53,7 +53,7 @@ src/ImageLine.cpp src/KeypointsCorrespondenceProjector.cpp src/LineCloud.cpp src
 src/PointCloudLine.cpp src/PolarGridOfClouds.cpp src/PoseGraphEdge.cpp src/Termination.cpp
 src/VelodynePointCloud.cpp src/Visualizer2D.cpp src/Visualizer3D.cpp
 src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp src/GroundDetectionDataGenerator.cpp
-src/EigenUtils.cpp src/GlobalOptimization.cpp src/common.cpp)
+src/EigenUtils.cpp src/GlobalOptimization.cpp src/common.cpp src/Clustering.cpp src/NormalsEstimation.cpp)
 target_include_directories(but_velodyne PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(but_velodyne ${PCL_LIBRARIES})
 target_link_libraries(but_velodyne ${OpenCV_LIBS})
@@ -93,9 +93,6 @@ target_link_libraries(gicp but_velodyne)
 
 add_executable(transform-pcd src/apps/transform-pcd.cpp)
 target_link_libraries(transform-pcd but_velodyne)
-
-add_executable(cluster-collar-lines src/apps/cluster-collar-lines.cpp)
-target_link_libraries(cluster-collar-lines but_velodyne)
 
 add_executable(print-graph-from-cls-clusters src/apps/print-graph-from-cls-clusters.cpp)
 target_link_libraries(print-graph-from-cls-clusters but_velodyne)

@@ -21,5 +21,13 @@ void random_indices(const int total_count, const int new_count, vector<int> &out
   output.resize(new_count);
 }
 
+float sq(const float x) {
+  return x*x;
+}
+
+float get_rand(float maxval) {
+  return rand()/(RAND_MAX/maxval/2)-maxval;
+}
+
 }
 

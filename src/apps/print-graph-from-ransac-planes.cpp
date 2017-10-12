@@ -228,6 +228,15 @@ int main(int argc, char** argv) {
   vector<Origin> subsampled_origins;
   extract_indices(sum_origins, indices->indices, subsampled_origins);
 
+  /*PointCloud<PointXYZI> curvatures;
+  curvatures.resize(subsampled_normals->size());
+  for(int i = 0; i < subsampled_normals->size(); i++) {
+    copyXYZ(subsampled_cloud->at(i), curvatures[i]);
+    curvatures[i].intensity = subsampled_normals->at(i).curvature;
+  }
+  Visualizer3D::normalizeMinMaxIntensity(curvatures, curvatures, 0.01, 0.0, 1.0);
+  vis.addColorPointCloud(Visualizer3D::colorizeCloud(curvatures)).show();*/
+
   /*vis.keepOnlyClouds(0).setColor(150, 150, 150).addPointCloud(*subsampled_cloud);
   for(int i = 0; i < subsampled_cloud->size(); i+=1000) {
     Eigen::Vector3f start = subsampled_cloud->at(i).getVector3fMap();
@@ -253,6 +262,8 @@ int main(int argc, char** argv) {
   seg.setDistanceThreshold(inlier_tolerance);
   seg.setNormalDistanceWeight(normal_dist_weight);
 
+  printPoseGraphPrefix(poses);
+
   Visualizer3D vis;
   vis.getViewer()->registerKeyboardCallback(keyCallback);
   while(!DONE) {
@@ -264,10 +275,10 @@ int main(int argc, char** argv) {
 
     PointCloud<PointXYZI>::Ptr plane(new PointCloud<PointXYZI>);
     extract_indices(subsampled_cloud, subsampled_inliers, *plane);
+    vector<Origin> plane_origins;
+    extract_indices(subsampled_origins, subsampled_inliers->indices, plane_origins);
     vis.keepOnlyClouds(0).setColor(150, 150, 150).addPointCloud(*subsampled_cloud);
-    vis.setColor(50, 200, 200).addPointCloud(*plane).show();
-    extract_indices(subsampled_cloud, subsampled_inliers, *subsampled_cloud, false);
-    extract_indices(subsampled_origins, indices->indices, subsampled_origins, false);
+    vis.addPointCloud(*plane).show();
 
     if(!IGNORE) {
       Eigen::Vector3f centroid;
@@ -279,10 +290,15 @@ int main(int argc, char** argv) {
 
       vector<cv::DMatch> matches;
       getClosestMatches<PointXYZI>(projectedPlane, 0.1, matches);
-      printPoseGraphMatches(poses, *sum_cloud, sum_origins, matches);
+      //vis.addMatches(matches, *plane, *plane).show();
+      printPoseGraphMatches(poses, *plane, plane_origins, matches);
     } else {
       IGNORE = false;
     }
+
+    extract_indices(subsampled_cloud, subsampled_inliers, *subsampled_cloud, true);
+    extract_indices(subsampled_normals, subsampled_inliers, *subsampled_normals, true);
+    extract_indices(subsampled_origins, subsampled_inliers->indices, subsampled_origins, true);
   }
 
   return EXIT_SUCCESS;
