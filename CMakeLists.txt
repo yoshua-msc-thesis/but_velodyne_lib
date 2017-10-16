@@ -118,6 +118,12 @@ target_link_libraries(print-graph-from-ransac-planes but_velodyne)
 add_executable(normals-estimation src/apps/normals-estimation.cpp)
 target_link_libraries(normals-estimation but_velodyne)
 
+add_executable(refined-clustering src/apps/refined-clustering.cpp)
+target_link_libraries(refined-clustering but_velodyne)
+
+add_executable(reduce-plane-thickness src/apps/reduce-plane-thickness)
+target_link_libraries(reduce-plane-thickness but_velodyne)
+
 ########################## Visualization apps: ###############################
 
 add_executable(show-kitti-poses src/apps/show-kitti-poses.cpp)

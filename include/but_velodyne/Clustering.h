@@ -23,8 +23,13 @@ public:
   void clusterKMeans(const pcl::PointCloud<PointT> &points, const pcl::PointCloud<pcl::Normal> &normals,
       const int K, std::vector<int> &indices);
 
+  void clusterKMeans(const pcl::PointCloud<PointT> &points, const int K, std::vector<int> &indices);
+
   void clusterEM(const pcl::PointCloud<PointT> &points, const pcl::PointCloud<pcl::Normal> &normals,
       const int K, std::vector<int> &indices, std::vector<float> &clusterProbs);
+
+  void refineByKMeans(const pcl::PointCloud<PointT> &points, //const pcl::PointCloud<pcl::Normal> &normals,
+      const int cluster_size, std::vector<int> &init_indices, std::vector<int> &refined_indices);
 
 };
 
