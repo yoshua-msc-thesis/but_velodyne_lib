@@ -5,10 +5,13 @@
  *      Author: ivelas
  */
 
+#include <pcl/common/common.h>
+
 #include <but_velodyne/common.h>
 #include <algorithm>
 
 using namespace std;
+using namespace pcl;
 
 namespace but_velodyne {
 
@@ -27,6 +30,17 @@ float sq(const float x) {
 
 float get_rand(float maxval) {
   return rand()/(RAND_MAX/maxval/2)-maxval;
+}
+
+void invert_indices(const vector<int> &labels, vector< PointIndices::Ptr > &inverted_indices) {
+  int max_label = *max_element(labels.begin(), labels.end());
+  inverted_indices.resize(max_label+1);
+  for(int c = 0; c <= max_label; c++) {
+    inverted_indices[c].reset(new PointIndices);
+  }
+  for(int i = 0; i < labels.size(); i++) {
+    inverted_indices[labels[i]]->indices.push_back(i);
+  }
 }
 
 }

@@ -20,6 +20,9 @@ CUMULATED_FRAMES=$5
 THRESH=$6
 MIN_IDX_DIFF=$7
 CALIBRATION=/media/files/4recon/velodyne_data/2Velodynes-upgm-kancl/calibration/calibration.txt
+#CALIBRATION=/media/files/4recon/identitiy.txt
+
+sensors_cnt=$(wc -l < $CALIBRATION)
 
 src_clouds=$(mktemp)
 trg_clouds=$(mktemp)
@@ -39,17 +42,18 @@ do
 	then
 		get_batch $src_i $CUMULATED_FRAMES < $INIT_POSES > $src_pose_file
 		get_batch $trg_i $CUMULATED_FRAMES < $INIT_POSES > $trg_pose_file
-		ls $CLOUDS_DIR/*.pcd | sort | get_batch $(($src_i*2)) $(($CUMULATED_FRAMES*2)) > $src_clouds
-		ls $CLOUDS_DIR/*.pcd | sort | get_batch $(($trg_i*2)) $(($CUMULATED_FRAMES*2)) > $trg_clouds
+		ls $CLOUDS_DIR/*.pcd | sort | get_batch $(($src_i*$sensors_cnt)) $(($CUMULATED_FRAMES*$sensors_cnt)) > $src_clouds
+		ls $CLOUDS_DIR/*.pcd | sort | get_batch $(($trg_i*$sensors_cnt)) $(($CUMULATED_FRAMES*$sensors_cnt)) > $trg_clouds
 
 		echo -n "$src_i $trg_i "
 		$BUT_VELODYNE_LIB/bin/cls-reg-subsequences --source_clouds_list $src_clouds --source_poses_file $src_pose_file --target_clouds_list $trg_clouds --target_poses_file $trg_pose_file -c $CALIBRATION -g 2 -p 1 --max_time_for_registration 100 --max_iterations 1000 --target_error 0.001
 	fi
-done | pairs.registered
+done > pairs.registered
 
 $BUT_VELODYNE_LIB/scripts/poses_pairs_to_graph.py --poses $INIT_POSES --corrections pairs.registered | cat $POSE_GRAPH - > whole.graph
 ~/apps/SLAM_plus_plus_v2.10/bin/slam_plus_plus -i whole.graph
 $BUT_VELODYNE_LIB/bin/slampp-solution-to-poses < solution.txt > solution.txt.poses
 $BUT_VELODYNE_LIB/bin/build-3d-model -p solution.txt.poses -s1.0 -o solution.txt.poses.pcd --sensor_poses $CALIBRATION $(ls $CLOUDS_DIR/*.pcd | sort)
+pdal translate solution.txt.poses.pcd solution.txt.poses.laz
 
 rm $src_clouds $trg_clouds $src_pose_file $trg_pose_file

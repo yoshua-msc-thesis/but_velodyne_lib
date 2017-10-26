@@ -76,6 +76,8 @@ float sq(const float x);
 
 float get_rand(float maxval);
 
+void invert_indices(const std::vector<int> &labels, std::vector< pcl::PointIndices::Ptr > &inverted_indices);
+
 }
 
 #endif /* COMMON_H_ */

@@ -25,6 +25,7 @@ void getNormals(const pcl::PointCloud<PointT> &subsampled_points,
     const pcl::PointCloud<PointT> &original_points,
     const std::vector<int> origins,
     const pcl::PointCloud<pcl::PointXYZ> sensor_positions,
+    const float radius,
     pcl::PointCloud<pcl::Normal> &normals) {
 
   pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> ne;
@@ -33,7 +34,7 @@ void getNormals(const pcl::PointCloud<PointT> &subsampled_points,
 
   pcl::search::KdTree<pcl::PointXYZI>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZI> ());
   ne.setSearchMethod (tree);
-  ne.setRadiusSearch (0.1);
+  ne.setRadiusSearch (radius);
   ne.compute(normals);
 
   for(int i = 0; i < subsampled_points.size(); i++) {

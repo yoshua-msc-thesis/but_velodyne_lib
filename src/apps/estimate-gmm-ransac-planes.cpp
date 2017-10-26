@@ -35,6 +35,7 @@
 #include <but_velodyne/CollarLinesRegistration.h>
 #include <but_velodyne/GlobalOptimization.h>
 #include <but_velodyne/common.h>
+#include <but_velodyne/Clustering.h>
 
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/common/eigen.h>
@@ -57,14 +58,14 @@ using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 namespace po = boost::program_options;
 
-bool DONE = false;
-bool IGNORE = false;
+bool IGNORE;
 
 bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      SensorsCalibration &calibration,
+                     float &gmm_prob_threshold,
                      float &inlier_tolerance, float &normal_dist_weight,
-                     string &normals_filename, string &indices_filename,
+                     string &normals_filename, string &indices_filename, string &labeled_cloud_filename,
                      vector<string> &clouds_to_process) {
   string pose_filename, sensor_poses_filename;
 
@@ -74,11 +75,13 @@ bool parse_arguments(int argc, char **argv,
   desc.add_options()
     ("help,h", "produce help message")
     ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
-    ("normals_filename,n", po::value<string>(&normals_filename)->required(), "Normals filename.")
-    ("indices_filename,i", po::value<string>(&indices_filename)->required(), "Indices filename.")
+    ("gmm_prob_threshold,g", po::value<float>(&gmm_prob_threshold)->default_value(0.99), "Gmm probability threshold.")
     ("inlier_tolerance,t", po::value<float>(&inlier_tolerance)->default_value(0.2), "Inlier tolerance.")
     ("normal_dist_weight,w", po::value<float>(&normal_dist_weight)->default_value(0.5), "Weight of normals angular distance.")
     ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensor poses (calibration).")
+    ("normals_filename,n", po::value<string>(&normals_filename)->required(), "Normals filename.")
+    ("indices_filename,i", po::value<string>(&indices_filename)->required(), "Indices filename.")
+    ("clusters_filename,c", po::value<string>(&labeled_cloud_filename)->required(), "Labels by clustering filename.")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -107,53 +110,11 @@ bool parse_arguments(int argc, char **argv,
   return true;
 }
 
-void spreadInliers(const vector< vector<int> > &impact,
-    PointIndices::ConstPtr subsampled_inliers, PointIndices::Ptr sum_inliers) {
-  for(vector<int>::const_iterator subsampled_inlier = subsampled_inliers->indices.begin();
-      subsampled_inlier < subsampled_inliers->indices.begin();
-      subsampled_inlier++) {
-    for(vector<int>::const_iterator sum_inlier = impact[*subsampled_inlier].begin();
-        sum_inlier < impact[*subsampled_inlier].end();
-        sum_inlier++) {
-      sum_inliers->indices.push_back(*sum_inlier);
-    }
-  }
-}
-
-void processInliers(PointCloud<PointXYZI>::Ptr subsampled_cloud,
-    PointCloud<PointXYZI>::ConstPtr sum_cloud,
-    vector< vector<int> > &impact,
-    PointIndices::ConstPtr inliers,
-    PointCloud<PointXYZI>::Ptr plane) {
-  vector<bool> delete_mask(subsampled_cloud->size(), false);
-  for(vector<int>::const_iterator i = inliers->indices.begin(); i < inliers->indices.end(); i++) {
-    delete_mask[*i] = true;
-    for(vector<int>::const_iterator sum_i = impact[*i].begin(); sum_i < impact[*i].end(); sum_i++) {
-      plane->push_back(sum_cloud->at(*sum_i));
-    }
-  }
-
-  PointCloud<PointXYZI>::iterator subsampled_it = subsampled_cloud->begin();
-  vector< vector<int> >::iterator impact_it = impact.begin();
-  for(vector<bool>::iterator d = delete_mask.begin(); d < delete_mask.end(); d++) {
-    if(*d) {
-      subsampled_it = subsampled_cloud->erase(subsampled_it);
-      impact_it = impact.erase(impact_it);
-    } else {
-      subsampled_it++;
-      impact_it++;
-    }
-  }
-}
-
 void keyCallback(const pcl::visualization::KeyboardEvent &event, void*) {
   if(event.keyDown()) {
-    if(event.getKeySym() == "d") {
-      DONE = true;
-    } else if(event.getKeySym() == "i") {
+    if(event.getKeySym() == "i") {
       IGNORE = true;
     }
-
   }
 }
 
@@ -162,11 +123,13 @@ int main(int argc, char** argv) {
   vector<Eigen::Affine3f> poses;
   vector<string> pcd_files;
   SensorsCalibration calibration;
-  string normals_filename, indices_filename;
-  float inlier_tolerance, normal_dist_weight;
+  string normals_filename, indices_filename, labeled_cloud_filename;
+  float inlier_tolerance, normal_dist_weight, gmm_prob_threshold;
   if(!parse_arguments(argc, argv,
-      poses, calibration, inlier_tolerance, normal_dist_weight,
-      normals_filename, indices_filename,
+      poses, calibration,
+      gmm_prob_threshold,
+      inlier_tolerance, normal_dist_weight,
+      normals_filename, indices_filename, labeled_cloud_filename,
       pcd_files)) {
     return EXIT_FAILURE;
   }
@@ -192,13 +155,25 @@ int main(int argc, char** argv) {
   PointCloud<Normal>::Ptr subsampled_normals(new PointCloud<Normal>);
   io::loadPCDFile(normals_filename, *subsampled_normals);
 
-  cerr << "Loading indices & subsampling ..." << endl;
+  cerr << "Loading indices, labels & subsampling ..." << endl;
   PointIndices::Ptr indices(new PointIndices);
   load_vector_from_file(indices_filename, indices->indices);
   PointCloud<PointXYZI>::Ptr subsampled_cloud(new PointCloud<PointXYZI>);
   extract_indices(sum_cloud, indices, *subsampled_cloud);
   vector<Origin> subsampled_origins;
   extract_indices(sum_origins, indices->indices, subsampled_origins);
+
+  PointCloud<LabeledPoint>::Ptr labeled_subsampled_cloud(new PointCloud<LabeledPoint>);
+  io::loadPCDFile(labeled_cloud_filename, *labeled_subsampled_cloud);
+
+  vector<int> labels(labeled_subsampled_cloud->size());
+  int expected_planes = -1;
+  for(int i = 0; i < labels.size(); i++) {
+    labels[i] = labeled_subsampled_cloud->at(i).label;
+    expected_planes = MAX(expected_planes, labels[i]+1);
+  }
+  vector< PointIndices::Ptr > indices_clusters;
+  invert_indices(labels, indices_clusters);
 
   SACSegmentationFromNormals<PointXYZI, Normal> seg;
   seg.setOptimizeCoefficients(true);
@@ -210,19 +185,48 @@ int main(int argc, char** argv) {
   printPoseGraphPrefix(poses);
 
   Visualizer3D vis;
+
+  vector< PointCloud<LabeledPoint> > clusters(expected_planes);
+  for(int i = 0; i < labeled_subsampled_cloud->size(); i++) {
+    LabeledPoint pt = labeled_subsampled_cloud->at(i);
+    clusters[pt.label].push_back(pt);
+  }
+  vis.addPointClouds(clusters).show();
+  vis.keepOnlyClouds(0);
+
   vis.getViewer()->registerKeyboardCallback(keyCallback);
-  while(!DONE) {
-    seg.setInputCloud(subsampled_cloud);
-    seg.setInputNormals(subsampled_normals);
-    PointIndices::Ptr subsampled_inliers(new PointIndices);
+  for(int plane_i = 0; plane_i < expected_planes; plane_i++) {
+
+    for(vector<int>::iterator i = indices_clusters[plane_i]->indices.begin(); i < indices_clusters[plane_i]->indices.end();) {
+      if(labeled_subsampled_cloud->at(*i).prob > gmm_prob_threshold) {
+        i++;
+      } else {
+        i = indices_clusters[plane_i]->indices.erase(i);
+      }
+    }
+
+    PointCloud<PointXYZI>::Ptr points_cluster(new PointCloud<PointXYZI>);
+    extract_indices(subsampled_cloud, indices_clusters[plane_i], *points_cluster);
+
+    PointCloud<Normal>::Ptr normals_cluster(new PointCloud<Normal>);
+    extract_indices(subsampled_normals, indices_clusters[plane_i], *normals_cluster);
+
+    vector<Origin> origins_clusters;
+    extract_indices(subsampled_origins, indices_clusters[plane_i]->indices, origins_clusters);
+
+    seg.setInputCloud(points_cluster);
+    seg.setInputNormals(normals_cluster);
+    PointIndices::Ptr plane_inliers(new PointIndices);
     ModelCoefficients coefficients;
-    seg.segment(*subsampled_inliers, coefficients);
+    seg.segment(*plane_inliers, coefficients);
 
     PointCloud<PointXYZI>::Ptr plane(new PointCloud<PointXYZI>);
-    extract_indices(subsampled_cloud, subsampled_inliers, *plane);
+    extract_indices(points_cluster, plane_inliers, *plane);
     vector<Origin> plane_origins;
-    extract_indices(subsampled_origins, subsampled_inliers->indices, plane_origins);
-    vis.keepOnlyClouds(0).setColor(150, 150, 150).addPointCloud(*subsampled_cloud);
+    extract_indices(subsampled_origins, plane_inliers->indices, plane_origins);
+
+    IGNORE = false;
+    vis.keepOnlyClouds(0).setColor(150, 150, 150).addPointCloud(*points_cluster);
     vis.addPointCloud(*plane).show();
 
     if(!IGNORE) {
@@ -235,15 +239,8 @@ int main(int argc, char** argv) {
 
       vector<cv::DMatch> matches;
       getClosestMatches<PointXYZI>(projectedPlane, 0.1, matches);
-      //vis.addMatches(matches, *plane, *plane).show();
       printPoseGraphMatches(poses, *plane, plane_origins, matches);
-    } else {
-      IGNORE = false;
     }
-
-    extract_indices(subsampled_cloud, subsampled_inliers, *subsampled_cloud, true);
-    extract_indices(subsampled_normals, subsampled_inliers, *subsampled_normals, true);
-    extract_indices(subsampled_origins, subsampled_inliers->indices, subsampled_origins, true);
   }
 
   return EXIT_SUCCESS;

@@ -51,6 +51,7 @@ void getNormals<PointXYZI>(const PointCloud<PointXYZI> &subsampled_points,
     const PointCloud<PointXYZI> &original_points,
     const vector<int> origins,
     const PointCloud<PointXYZ> sensor_positions,
+    const float radius,
     pcl::PointCloud<pcl::Normal> &normals);
 
 } /* namespace but_velodyne */

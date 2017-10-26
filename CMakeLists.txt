@@ -124,6 +124,12 @@ target_link_libraries(refined-clustering but_velodyne)
 add_executable(reduce-plane-thickness src/apps/reduce-plane-thickness)
 target_link_libraries(reduce-plane-thickness but_velodyne)
 
+add_executable(estimate-gmm-ransac-planes src/apps/estimate-gmm-ransac-planes)
+target_link_libraries(estimate-gmm-ransac-planes but_velodyne)
+
+add_executable(pcl_labels_viewer src/apps/pcl_labels_viewer)
+target_link_libraries(pcl_labels_viewer but_velodyne)
+
 ########################## Visualization apps: ###############################
 
 add_executable(show-kitti-poses src/apps/show-kitti-poses.cpp)

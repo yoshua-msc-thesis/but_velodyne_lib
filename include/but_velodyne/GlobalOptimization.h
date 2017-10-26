@@ -92,6 +92,34 @@ public:
   }
 };
 
+void printPoseGraphPrefix(const std::vector<Eigen::Affine3f> &poses) {
+  static const cv::Mat POSES_COVARIANCE = cv::Mat::eye(6, 6, CV_32FC1)*0.1;
+  for(int pi = 1; pi < poses.size(); pi++) {
+    Eigen::Affine3f delta_pose = poses[pi-1].inverse() * poses[pi];
+    std::cout << PoseGraphEdge(pi-1, pi, delta_pose.matrix(), POSES_COVARIANCE) << std::endl;
+  }
+}
+
+template <typename PointT>
+void printPoseGraphMatches(const std::vector<Eigen::Affine3f> &poses,
+    const pcl::PointCloud<PointT> &points,
+    const std::vector<Origin> &origins,
+    const std::vector<cv::DMatch> &matches) {
+
+  static const cv::Mat LANDMARK_COVARIANCE = cv::Mat::eye(3, 3, CV_32FC1)*0.001;
+
+  static int new_vertex = poses.size();
+  for(std::vector<cv::DMatch>::const_iterator m = matches.begin(); m < matches.end(); m++) {
+    Origin o1 = origins[m->trainIdx];
+    Origin o2 = origins[m->queryIdx];
+    PointT pt1 = transformPoint(points[m->trainIdx], poses[o1.pose_id].inverse());
+    PointT pt2 = transformPoint(points[m->queryIdx], poses[o2.pose_id].inverse());
+    std::cout << PoseToLandmarkGraphEdge(o1.pose_id, new_vertex, pt1.x, pt1.y, pt1.z, LANDMARK_COVARIANCE) << std::endl;
+    std::cout << PoseToLandmarkGraphEdge(o2.pose_id, new_vertex, pt2.x, pt2.y, pt2.z, LANDMARK_COVARIANCE) << std::endl;
+    new_vertex++;
+  }
+}
+
 }
 
 #endif /* GLOBALOPTIMIZATION_H_ */

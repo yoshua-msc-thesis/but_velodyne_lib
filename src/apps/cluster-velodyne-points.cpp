@@ -32,6 +32,7 @@
 #include <but_velodyne/KittiUtils.h>
 #include <but_velodyne/Clustering.h>
 #include <but_velodyne/NormalsEstimation.h>
+#include <but_velodyne/GlobalOptimization.h>
 
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/common/eigen.h>
@@ -55,7 +56,9 @@ bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      SensorsCalibration &calibration,
                      vector<string> &clouds_to_process,
-                     int &clusters_count) {
+                     string &normals_filename, string &indices_filename,
+                     int &clusters_count,
+                     string &output_filename) {
   string pose_filename, sensor_poses_filename, skip_filename;
 
   po::options_description desc("Velodyne Points Clustering\n"
@@ -66,6 +69,9 @@ bool parse_arguments(int argc, char **argv,
     ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
     ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensors calibration file.")
     ("clusters_count,c", po::value<int>(&clusters_count)->default_value(1000), "Clusters count.")
+    ("normals_filename,n", po::value<string>(&normals_filename)->required(), "Normals filename.")
+    ("indices_filename,i", po::value<string>(&indices_filename)->required(), "Indices filename.")
+    ("output_filename,o", po::value<string>(&output_filename)->required(), "Ouput filename.")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -130,58 +136,50 @@ int main(int argc, char** argv) {
   vector<string> filenames;
   vector<Eigen::Affine3f> poses;
   SensorsCalibration calibration;
+  string normals_filename, indices_filename, output_filename;
   int clusters_count;
 
   if(!parse_arguments(argc, argv,
       poses, calibration, filenames,
-      clusters_count)) {
+      normals_filename, indices_filename,
+      clusters_count,
+      output_filename)) {
     return EXIT_FAILURE;
   }
 
   VelodyneFileSequence sequence(filenames, calibration);
-
-  vector<int> subsampled_origins;
-
-  PointCloud<PointXYZI> sum_cloud;
-  PointCloud<PointXYZI>::Ptr subsampled_cloud(new PointCloud<PointXYZI>);
+  PointCloud<PointXYZI>::Ptr sum_cloud(new PointCloud<PointXYZI>);
   for(int frame_i = 0; sequence.hasNext(); frame_i++) {
     VelodyneMultiFrame multiframe = sequence.getNext();
     PointCloud<PointXYZI>::Ptr joined(new PointCloud<PointXYZI>);
     multiframe.joinTo(*joined);
     transformPointCloud(*joined, *joined, poses[frame_i]);
-    sum_cloud += *joined;
-    subsample_cloud<PointXYZI>(joined, 0.08);
-    *subsampled_cloud += *joined;
-    vector<int> origins(joined->size(), frame_i);
-    subsampled_origins.insert(subsampled_origins.end(), origins.begin(), origins.end());
+    *sum_cloud += *joined;
   }
 
-  PointCloud<Normal> normals;
-  getNormals(*subsampled_cloud, sum_cloud,
-      subsampled_origins, Visualizer3D::posesToPoints(poses),
-      normals);
+  cerr << "Loading normals ... ";
+  PointCloud<Normal>::Ptr subsampled_normals(new PointCloud<Normal>);
+  io::loadPCDFile(normals_filename, *subsampled_normals);
 
-  vector<int>::iterator origins_it = subsampled_origins.begin();
-  PointCloud<PointXYZI>::iterator points_it = subsampled_cloud->begin();
-  for(PointCloud<Normal>::iterator normals_it = normals.begin(); normals_it < normals.end();) {
-    if(isfinite(normals_it->normal_x) && isfinite(normals_it->normal_y) && isfinite(normals_it->normal_z)) {
-      normals_it++;
-      origins_it++;
-      points_it++;
-    } else {
-      normals_it = normals.erase(normals_it);
-      points_it = subsampled_cloud->erase(points_it);
-      origins_it = subsampled_origins.erase(origins_it);
-    }
-  }
+  cerr << "[DONE]" << endl << "Loading indices & subsampling ... ";
+  PointIndices::Ptr subsampling_indices(new PointIndices);
+  load_vector_from_file(indices_filename, subsampling_indices->indices);
+  PointCloud<PointXYZI>::Ptr subsampled_cloud(new PointCloud<PointXYZI>);
+  extract_indices(sum_cloud, subsampling_indices, *subsampled_cloud);
 
-  vector<int> indices;
+  cerr << "[DONE]" << endl << "Clustering ... " << endl;
+  vector<int> labels;
   vector<float> probabilities;
   Clustering<PointXYZI> clustering;
-  clustering.clusterEM(*subsampled_cloud, normals, clusters_count, indices, probabilities);
+  clustering.clusterEM(*subsampled_cloud, *subsampled_normals, clusters_count, labels, probabilities);
 
-  colorByClusters(subsampled_cloud, indices, probabilities, sum_cloud);
-  io::savePCDFileBinary("clusters.pcd", sum_cloud);
+  cerr << "[DONE]" << endl << "Saving ... " << endl;
+
+  PointCloud<LabeledPoint> out_cloud;
+  colorByClusters(*subsampled_cloud, labels, probabilities, out_cloud);
+  io::savePCDFileBinary(output_filename, out_cloud);
+
+  cerr << "[DONE]" << endl;
 
   return EXIT_SUCCESS;
 }

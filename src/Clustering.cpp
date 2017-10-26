@@ -54,14 +54,30 @@ void Clustering<PointT>::clusterKMeans(const pcl::PointCloud<PointT> &points, co
 
 template <class PointT>
 void Clustering<PointT>::clusterEM(const pcl::PointCloud<PointT> &points, const pcl::PointCloud<pcl::Normal> &normals,
-    const int K, std::vector<int> &indices, std::vector<float> &clusterProbs) {
-  cv::Mat data(points.size(), 4, CV_32F);
-  for (int i = 0; i < points.size(); i++) {
-    getPlaneCoefficients(normals[i], points[i].getVector3fMap(),
-        data.at<float>(i, 0),
-        data.at<float>(i, 1),
-        data.at<float>(i, 2),
-        data.at<float>(i, 3));
+    const int K, std::vector<int> &indices, std::vector<float> &clusterProbs, const float train_ratio) {
+  assert(train_ratio <= 1.000000001 && train_ratio > 0.0f);
+
+  int train_size = points.size() * train_ratio;
+  vector<bool> mask(points.size(), false);
+  for(int i = 0; i < train_size; i++) {
+    mask[i] = true;
+  }
+  random_shuffle(mask.begin(), mask.end());
+
+  cv::Mat train_data(train_size, 4, CV_32F);
+  cv::Mat all_data(points.size(), 4, CV_32F);
+  int train_i = 0;
+  for (int points_i = 0; points_i < points.size(); points_i++) {
+    getPlaneCoefficients(normals[points_i], points[points_i].getVector3fMap(),
+        all_data.at<float>(points_i, 0),
+        all_data.at<float>(points_i, 1),
+        all_data.at<float>(points_i, 2),
+        all_data.at<float>(points_i, 3));
+    if(mask[points_i]) {
+      all_data.row(points_i).copyTo(
+          train_data.row(train_i));
+      train_i++;
+    }
   }
 
   cv::Ptr<cv::ml::EM> em_model = cv::ml::EM::create();
@@ -69,15 +85,15 @@ void Clustering<PointT>::clusterEM(const pcl::PointCloud<PointT> &points, const 
   em_model->setCovarianceMatrixType(cv::ml::EM::COV_MAT_GENERIC);
   em_model->setTermCriteria(cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 1000, 0.1));
 
-  cv::Mat labels(points.size(), 1, CV_32SC1);
-  cv::Mat probs(points.size(), K, CV_64FC1);
-  em_model->trainEM(data, cv::noArray(), labels, probs);
+  em_model->trainEM(train_data);
 
-  labels.copyTo(indices);
-
-  clusterProbs.resize(indices.size());
-  for(int i = 0; i < indices.size(); i++) {
-    clusterProbs[i] = probs.at<double>(i, indices[i]);
+  indices.resize(points.size());
+  clusterProbs.resize(points.size());
+  for(int i = 0; i < points.size(); i++) {
+    cv::Mat probs(1, K, CV_64FC1);
+    cv::Vec2d likelyhood_idx = em_model->predict2(all_data.row(i), probs);
+    indices[i] = likelyhood_idx(1);
+    clusterProbs[i] = probs.at<double>(indices[i]);
   }
 }
 

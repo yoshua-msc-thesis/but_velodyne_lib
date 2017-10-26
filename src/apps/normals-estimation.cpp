@@ -56,7 +56,7 @@ bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      SensorsCalibration &calibration,
                      vector<string> &clouds_to_process,
-                     float &subsampling_rate) {
+                     float &subsampling_rate, float &radius) {
   string pose_filename, sensor_poses_filename;
 
   po::options_description desc("Velodyne Points Clustering\n"
@@ -67,6 +67,7 @@ bool parse_arguments(int argc, char **argv,
     ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
     ("sensor_poses,s", po::value<string>(&sensor_poses_filename)->default_value(""), "Sensors calibration file.")
     ("subsampling_rate,r", po::value<float>(&subsampling_rate)->default_value(0.1), "Subsampling rate.")
+    ("radius", po::value<float>(&radius)->default_value(0.1), "Radius to consider.")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -100,11 +101,11 @@ int main(int argc, char** argv) {
   vector<string> filenames;
   vector<Eigen::Affine3f> poses;
   SensorsCalibration calibration;
-  float subsampling_rate;
+  float subsampling_rate, radius;
 
   if(!parse_arguments(argc, argv,
       poses, calibration, filenames,
-      subsampling_rate)) {
+      subsampling_rate, radius)) {
     return EXIT_FAILURE;
   }
 
@@ -128,25 +129,16 @@ int main(int argc, char** argv) {
   regular_subsampling<PointXYZI>(sum_cloud, subsampling_rate, indices, subsampled_cloud);
   extract_indices(sum_origins, indices->indices, subsampled_origins);
 
-  /*Visualizer3D vis;
-  vis.setColor(150, 150, 150).addPointCloud(*subsampled_cloud).show();*/
-
   PointCloud<Normal> subsampled_normals;
   getNormals(*subsampled_cloud, *sum_cloud,
       subsampled_origins, Visualizer3D::posesToPoints(poses),
+      radius,
       subsampled_normals);
 
   PointIndices::Ptr filtered_indices(new PointIndices);
   removeNaNNormalsFromPointCloud(subsampled_normals, subsampled_normals, filtered_indices->indices);
   extract_indices(subsampled_cloud, filtered_indices, *subsampled_cloud);
   extract_indices(indices->indices, filtered_indices->indices, indices->indices);
-
-  /*for(int i = 0; i < subsampled_cloud->size(); i+=100) {
-    Eigen::Vector3f start = subsampled_cloud->at(i).getVector3fMap();
-    Eigen::Vector3f orient = subsampled_normals[i].getNormalVector3fMap();
-    vis.addArrow(PointCloudLine(start, orient));
-  }
-  vis.show();*/
 
   io::savePCDFileBinary("normals.pcd", subsampled_normals);
   save_vector(indices->indices, "normals.indices");

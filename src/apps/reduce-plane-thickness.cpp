@@ -153,6 +153,10 @@ int main(int argc, char** argv) {
 
   remove_nonplanar(clusters, non_plane);
 
+  Visualizer3D vis;
+  vis.setColor(150, 150, 150).addPointCloud(non_plane).show();
+  vis.addPointClouds(clusters).show();
+
   PointCloud<PointXYZI> out_cloud;
   copyPointCloud(non_plane, out_cloud);
   for(vector< PointCloud<LabeledPoint> >::iterator c = clusters.begin(); c < clusters.end(); c++) {

@@ -48,7 +48,7 @@ bool parse_arguments(int argc, char **argv,
                      string &input_fn,
                      string &normals_fn,
                      string &indices_fn,
-                     int &gmms_count, int &cluster_size,
+                     int &gmms_count, float &gmm_train_ratio, int &cluster_size,
                      string &output_fn) {
 
   po::options_description desc("Optimization of the wall thickness\n"
@@ -59,6 +59,7 @@ bool parse_arguments(int argc, char **argv,
     ("input_cloud,i", po::value<string>(&input_fn)->required(), "Input pcd file.")
     ("input_normals,n", po::value<string>(&normals_fn)->required(), "File with input normals (subsampled).")
     ("input_indices", po::value<string>(&indices_fn)->required(), "Indices of subsampling.")
+    ("gmm_train_ratio,r", po::value<float>(&gmm_train_ratio)->default_value(0.1), "GMM train ratio.")
     ("gmms_count,g", po::value<int>(&gmms_count)->default_value(12), "Number of GMMs used.")
     ("cluster_size,c", po::value<int>(&cluster_size)->default_value(1000), "Expected points within final cluster.")
     ("output_cloud,o", po::value<string>(&output_fn)->required(), "Output pcd file.")
@@ -81,26 +82,15 @@ bool parse_arguments(int argc, char **argv,
   return true;
 }
 
-void colorByClusters(const PointCloud<PointXYZI> &in_cloud,
-    const vector<int> &cluster_indices, const vector<float> &cluster_probs,
-    PointCloud<LabeledPoint> &out_cloud) {
-  out_cloud.resize(in_cloud.size());
-  for(int i = 0; i < in_cloud.size(); i++) {
-    copyXYZ(in_cloud[i], out_cloud[i]);
-    out_cloud[i].intensity = in_cloud[i].intensity;
-    out_cloud[i].label = cluster_indices[i];
-    out_cloud[i].prob = cluster_probs[i];
-  }
-}
-
 int main(int argc, char** argv) {
 
   string input_fn, indices_fn, normals_fn, output_fn;
   int gmms_count, cluster_size;
+  float gmm_train_ratio;
 
   if(!parse_arguments(argc, argv,
       input_fn, normals_fn, indices_fn,
-      gmms_count, cluster_size,
+      gmms_count, gmm_train_ratio, cluster_size,
       output_fn)) {
     return EXIT_FAILURE;
   }
@@ -124,8 +114,9 @@ int main(int argc, char** argv) {
   vector<int> indices;
   vector<float> probabilities;
   Clustering<PointXYZI> clustering;
-  clustering.clusterEM(*subsampled_cloud, *subsampled_normals, gmms_count, indices, probabilities);
+  clustering.clusterEM(*subsampled_cloud, *subsampled_normals, gmms_count, indices, probabilities, gmm_train_ratio);
 
+  cerr << "[DONE]" << endl << "Refining ... ";
   vector<int> refined_indices;
   clustering.refineByKMeans(*subsampled_cloud, cluster_size, indices, refined_indices);
 
