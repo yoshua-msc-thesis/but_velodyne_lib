@@ -2,6 +2,7 @@ junk/
 bin/
 lib/
 *~
+.idea
 .cproject
 .project
 .settings/
