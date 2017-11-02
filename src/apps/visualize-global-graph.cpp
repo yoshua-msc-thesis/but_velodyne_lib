@@ -73,6 +73,10 @@ public:
     for(int i = 0; i < correspondences.line_cloud.size(); i+=10) {
       init_indices.push_back(i);
     }
+    if(init_indices.size() > 1000) {
+      random_shuffle(init_indices.begin(), init_indices.end());
+      init_indices.erase(init_indices.begin()+1000, init_indices.end());
+    }
     setDataToVisualizer(init_indices);
     visualizer.show();
   }
