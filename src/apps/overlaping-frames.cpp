@@ -118,15 +118,29 @@ void buildLineClouds(VelodyneFileSequence &cloud_sequence,
   }
 }
 
-float getDistance(const PointCloud<PointXYZ> &cloud, const KdTreeFLANN<PointXYZ> &tree) {
-  float distance = 0;
+void save_normalized_matrix(const string &filename, cv::Mat distances) {
+  cv::normalize(distances, distances, 0.0, 255.0, cv::NORM_MINMAX);
+  cv::Mat distances_gray;
+  distances.convertTo(distances_gray, CV_8UC1);
+  cv::imwrite(filename, distances_gray);
+}
+
+void getDistance(const PointCloud<PointXYZ> &cloud, const KdTreeFLANN<PointXYZ> &tree,
+    float &out_mean, float &out_median, float &out_quarter) {
+  out_mean = 0.0;
   vector<int> idx_found(1);
   vector<float> dist_found(1);
-  for(PointCloud<PointXYZ>::const_iterator p = cloud.begin(); p < cloud.end(); p++) {
-    tree.nearestKSearch(*p, 1, idx_found, dist_found);
-    distance += sqrt(dist_found.front());
+  vector<float> distances(cloud.size());
+  for(int i = 0; i < cloud.size(); i++) {
+    tree.nearestKSearch(cloud[i], 1, idx_found, dist_found);
+    float dist = sqrt(dist_found.front());
+    out_mean += dist;
+    distances[i] = dist;
   }
-  return distance / cloud.size();
+  out_mean /= cloud.size();
+  sort(distances.begin(), distances.end());
+  out_median = distances[distances.size()/2];
+  out_quarter = distances[distances.size()/4];
 }
 
 int main(int argc, char** argv) {
@@ -149,23 +163,30 @@ int main(int argc, char** argv) {
   buildLineClouds(sequence, poses, calibration, frames_cumulated,
       lines_generated, lines_preserved, line_clouds, line_trees);
 
-  cv::Mat distances(line_clouds.size(), line_clouds.size(), CV_32FC1);
+  cv::Mat mean_distances(line_clouds.size(), line_clouds.size(), CV_32FC1);
+  cv::Mat median_distances(line_clouds.size(), line_clouds.size(), CV_32FC1);
+  cv::Mat quarter_distances(line_clouds.size(), line_clouds.size(), CV_32FC1);
   for(int i = 0; i < line_clouds.size(); i++) {
-    distances.at<float>(i, i) = 0.0;
+    mean_distances.at<float>(i, i) = 0.0;
     for(int j = 0; j < i; j++) {
-      float dist = getDistance(line_clouds[i].line_middles, line_trees[j]);
-      distances.at<float>(i, j) = distances.at<float>(j, i) = dist;
-      cout << "(" << i*frames_cumulated << "," << j*frames_cumulated << "): " << dist << endl;
+      float mean, median, quarter;
+      getDistance(line_clouds[i].line_middles, line_trees[j], mean, median, quarter);
+      mean_distances.at<float>(i, j) = mean_distances.at<float>(j, i) = mean;
+      median_distances.at<float>(i, j) = median_distances.at<float>(j, i) = median;
+      quarter_distances.at<float>(i, j) = quarter_distances.at<float>(j, i) = quarter;
+      cout << i*frames_cumulated << " " << j*frames_cumulated << " "
+          << mean << " " << median << " " << quarter << endl;
     }
   }
 
   cv::FileStorage fs("distances.yaml", cv::FileStorage::WRITE);
-  fs << "distances" << distances;
+  fs << "mean_distances" << mean_distances;
+  fs << "median_distances" << median_distances;
+  fs << "quarter_distances" << quarter_distances;
 
-  cv::normalize(distances, distances, 0.0, 255.0, cv::NORM_MINMAX);
-  cv::Mat distances_gray;
-  distances.convertTo(distances_gray, CV_8UC1);
-  cv::imwrite("distances.png", distances_gray);
+  save_normalized_matrix("mean_distances.png", mean_distances);
+  save_normalized_matrix("median_distances.png", median_distances);
+  save_normalized_matrix("quarter_distances.png", quarter_distances);
 
   return EXIT_SUCCESS;
 }
