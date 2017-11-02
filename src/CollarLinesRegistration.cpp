@@ -39,6 +39,8 @@ using namespace Eigen;
 using namespace pcl;
 using namespace boost;
 
+namespace po = boost::program_options;
+
 namespace but_velodyne
 {
 
@@ -73,6 +75,10 @@ std::istream& operator>> (std::istream &in, CollarLinesRegistration::Threshold &
     thresholding = CollarLinesRegistration::NO_THRESHOLD;
   } else if (token == "QUARTER_THRESHOLD") {
     thresholding = CollarLinesRegistration::QUARTER_THRESHOLD;
+  } else if (token == "TENTH_THRESHOLD") {
+    thresholding = CollarLinesRegistration::TENTH_THRESHOLD;
+  } else if (token == "VALUE_THRESHOLD") {
+    thresholding = CollarLinesRegistration::VALUE_THRESHOLD;
   } else {
       throw boost::program_options::validation_error(boost::program_options::validation_error::invalid_option_value,
                                                      "lines_preserved_factor_by");
@@ -80,6 +86,24 @@ std::istream& operator>> (std::istream &in, CollarLinesRegistration::Threshold &
   return in;
 }
 
+void CollarLinesRegistration::Parameters::prepareForLoading(po::options_description &options_desc) {
+  options_desc.add_options()
+      ("matching_threshold", po::value<CollarLinesRegistration::Threshold>(&this->distance_threshold)->default_value(this->distance_threshold),
+          "How the value of line matching threshold is estimated (mean/median/... of line pairs distance). Possible values: MEDIAN_THRESHOLD|MEAN_THRESHOLD|QUARTER_THRESHOLD|TENTH_THRESHOLD|VALUE_THRESHOLD|NO_THRESHOLD")
+      ("matching_threshold_value", po::value<float>(&this->distance_threshold_value)->default_value(this->distance_threshold_value),
+          "Value of mathing lines threshold in case of VALUE_THRESHOLD option is used")
+      ("line_weightning", po::value<CollarLinesRegistration::Weights>(&this->weighting)->default_value(this->weighting),
+          "How the weights are assigned to the line matches - prefer vertical lines, close or treat matches as equal. Possible values: DISTANCE_WEIGHTS|VERTICAL_ANGLE_WEIGHTS|NO_WEIGHTS")
+      ("shifts_per_match", po::value<int>(&this->correnspPerLineMatch)->default_value(this->correnspPerLineMatch),
+          "[Experimental] How many shift vectors (for SVD) are generated per line match - each is amended by small noise")
+      ("shifts_noise_sigma", po::value<float>(&this->lineCorrenspSigma)->default_value(this->lineCorrenspSigma),
+          "[Experimental] Deviation of noise generated for shift vectors (see above)")
+      ("translation_only", po::bool_switch(&this->estimate_translation_only),
+          "Estimate only the translation (rotation should be presented as the initial pose)")
+      ("nearest_neighbors", po::value<int>(&this->nearestNeighbors)->default_value(this->nearestNeighbors),
+        "How many nearest neighbors (matches) are found for each line of source frame.")
+  ;
+}
 
 float CollarLinesRegistration::refine() {
   Stopwatch watch;
@@ -166,6 +190,12 @@ void CollarLinesRegistration::findClosestMatchesByMiddles() {
       effective_threshold = getMatchesPortion(0.25);
     } else if(params.distance_threshold == TENTH_THRESHOLD) {
       effective_threshold = getMatchesPortion(0.1);
+    } else if(params.distance_threshold == VALUE_THRESHOLD) {
+      assert(!isnan(params.distance_threshold_value));
+      if(isnan(params.distance_threshold_value)) {
+        cerr << "Warning: distance_threshold_value was not set!" << endl;
+      }
+      effective_threshold = params.distance_threshold_value;
     } else {
       assert(params.distance_threshold == NO_THRESHOLD);
       effective_threshold = INFINITY;

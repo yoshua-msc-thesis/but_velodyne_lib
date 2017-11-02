@@ -143,15 +143,15 @@ public:
 
     int linesPerCellGenerated;  /// how many collar lines are generated per polar bin
     int linesPerCellPreserved;  /// how many collar lines are preserved within each bin
-
     int minIterations;                  /// minimal number of algorithm iterations
     int maxIterations;                  /// algorithm is terminated after maxIterations is reached
     int maxTimeSpent;                   /// algorithm is terminated after maxTimeSpent seconds
     int iterationsPerSampling;          /// point cloud is re-sampled by collar lines after N iterations
     float targetError;                  /// algorithm is terminated when error is smaller
     float significantErrorDeviation;    /// algorithm is terminated when standard deviation of error is smaller
-
     int historySize;                    /// number of previous frames used for multi-view approach
+
+    void prepareForLoading(boost::program_options::options_description &options_desc);
 
   } pipeline_params;
 

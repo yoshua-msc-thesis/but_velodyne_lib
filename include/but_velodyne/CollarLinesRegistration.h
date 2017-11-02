@@ -29,6 +29,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/kdtree/kdtree_flann.h>
 
+#include <boost/program_options.hpp>
+
 #include <but_velodyne/LineCloud.h>
 #include <but_velodyne/Visualizer3D.h>
 
@@ -62,6 +64,7 @@ public:
       MEDIAN_THRESHOLD,         // all matches with distance above median are discarded
       QUARTER_THRESHOLD,
       TENTH_THRESHOLD,
+      VALUE_THRESHOLD,
       MEAN_THRESHOLD,           // threshold = mean
       NO_THRESHOLD              // no thresholding - all matches are preserved
   };
@@ -76,12 +79,14 @@ public:
   public:
     Parameters(
         Threshold distance_threshold_ = MEDIAN_THRESHOLD,
+        float distance_threshold_value_ = NAN,
         Weights weighting_ = NO_WEIGHTS,
         int correnspPerLineMatch_ = 1,
         float lineCorrenspSigma_ = 0.0001,
         int nearestNeighbors_ = 1,
         bool estimate_translation_only_ = false) :
         distance_threshold(distance_threshold_),
+        distance_threshold_value(distance_threshold_value_),
         weighting(weighting_),
         correnspPerLineMatch(correnspPerLineMatch_),
         lineCorrenspSigma(lineCorrenspSigma_),
@@ -89,11 +94,15 @@ public:
         estimate_translation_only(estimate_translation_only_) {
     }
     Threshold distance_threshold;       /// how is the threshold of line matches distance estimated
+    float distance_threshold_value;
     Weights weighting;                  /// optional weighting of line matches
     int correnspPerLineMatch;           /// [Experimental] how many corresponding points are generated per line match
     float lineCorrenspSigma;            /// [Experimental] deviation of Gaussian noise added to the point correspondences
     int nearestNeighbors;
     bool estimate_translation_only;
+
+    void prepareForLoading(boost::program_options::options_description &options_desc);
+
   } params;
 
   /**!

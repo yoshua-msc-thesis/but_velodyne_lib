@@ -31,8 +31,33 @@ using namespace pcl;
 using namespace cv;
 using namespace velodyne_pointcloud;
 
+namespace po = boost::program_options;
+
 namespace but_velodyne
 {
+
+void CollarLinesRegistrationPipeline::Parameters::prepareForLoading(po::options_description &options_desc) {
+  options_desc.add_options()
+      ("lines_per_bin_generated,g", po::value<int>(&this->linesPerCellGenerated)->default_value(this->linesPerCellGenerated),
+          "How many collar lines are generated per single polar bin")
+      ("lines_per_bin_preserved,p", po::value<int>(&this->linesPerCellPreserved)->default_value(this->linesPerCellPreserved),
+          "How many collar lines are preserved per single polar bin after filtering")
+      ("min_iterations", po::value<int>(&this->minIterations)->default_value(this->minIterations),
+          "Minimal number of registration iterations (similar to ICP iterations)")
+      ("max_iterations", po::value<int>(&this->maxIterations)->default_value(this->maxIterations),
+          "Maximal number of registration iterations")
+      ("max_time_for_registration", po::value<int>(&this->maxTimeSpent)->default_value(this->maxTimeSpent),
+          "Maximal time for registration [sec]")
+      ("iterations_per_sampling", po::value<int>(&this->iterationsPerSampling)->default_value(this->iterationsPerSampling),
+          "After how many iterations the cloud should be re-sampled by the new collar line segments")
+      ("target_error", po::value<float>(&this->targetError)->default_value(this->targetError),
+          "Minimal error (average distance of line matches) causing termination of registration")
+      ("significant_error_deviation", po::value<float>(&this->significantErrorDeviation)->default_value(this->significantErrorDeviation),
+          "If standard deviation of error from last N=min_iterations iterations if below this value - registration is terminated")
+      ("history_size,m", po::value<int>(&this->historySize)->default_value(this->historySize),
+          "How many previous frames are used for registration (multi-view CLS-M approach described in the paper)")
+  ;
+}
 
 Eigen::Matrix4f CollarLinesRegistrationPipeline::registerTwoGrids(const PolarGridOfClouds &source,
                                                const PolarGridOfClouds &target,

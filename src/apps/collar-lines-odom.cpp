@@ -122,43 +122,22 @@ bool parse_arguments(int argc, char **argv,
       " * Allowed options");
   desc.add_options()
       ("help,h", "produce help message")
-      ("matching_threshold", po::value<CollarLinesRegistration::Threshold>(&registration_parameters.distance_threshold)->default_value(registration_parameters.distance_threshold),
-          "How the value of line matching threshold is estimated (mean/median/... of line pairs distance). Possible values: MEDIAN_THRESHOLD|MEAN_THRESHOLD|NO_THRESHOLD")
-      ("line_weightning", po::value<CollarLinesRegistration::Weights>(&registration_parameters.weighting)->default_value(registration_parameters.weighting),
-          "How the weights are assigned to the line matches - prefer vertical lines, close or treat matches as equal. Possible values: DISTANCE_WEIGHTS|VERTICAL_ANGLE_WEIGHTS|NO_WEIGHTS")
-      ("shifts_per_match", po::value<int>(&registration_parameters.correnspPerLineMatch)->default_value(registration_parameters.correnspPerLineMatch),
-          "[Experimental] How many shift vectors (for SVD) are generated per line match - each is amended by small noise")
-      ("shifts_noise_sigma", po::value<float>(&registration_parameters.lineCorrenspSigma)->default_value(registration_parameters.lineCorrenspSigma),
-          "[Experimental] Deviation of noise generated for shift vectors (see above)")
-      ("lines_per_bin_generated,g", po::value<int>(&pipeline_parameters.linesPerCellGenerated)->default_value(pipeline_parameters.linesPerCellGenerated),
-          "How many collar lines are generated per single polar bin")
-      ("lines_per_bin_preserved,p", po::value<int>(&pipeline_parameters.linesPerCellPreserved)->default_value(pipeline_parameters.linesPerCellPreserved),
-          "How many collar lines are preserved per single polar bin after filtering")
-      ("min_iterations", po::value<int>(&pipeline_parameters.minIterations)->default_value(pipeline_parameters.minIterations),
-          "Minimal number of registration iterations (similar to ICP iterations)")
-      ("max_iterations", po::value<int>(&pipeline_parameters.maxIterations)->default_value(pipeline_parameters.maxIterations),
-          "Maximal number of registration iterations")
-      ("max_time_for_registration", po::value<int>(&pipeline_parameters.maxTimeSpent)->default_value(pipeline_parameters.maxTimeSpent),
-          "Maximal time for registration [sec]")
-      ("iterations_per_sampling", po::value<int>(&pipeline_parameters.iterationsPerSampling)->default_value(pipeline_parameters.iterationsPerSampling),
-          "After how many iterations the cloud should be re-sampled by the new collar line segments")
-      ("target_error", po::value<float>(&pipeline_parameters.targetError)->default_value(pipeline_parameters.targetError),
-          "Minimal error (average distance of line matches) causing termination of registration")
-      ("significant_error_deviation", po::value<float>(&pipeline_parameters.significantErrorDeviation)->default_value(pipeline_parameters.significantErrorDeviation),
-          "If standard deviation of error from last N=min_iterations iterations if below this value - registration is terminated")
-      ("history_size,m", po::value<int>(&pipeline_parameters.historySize)->default_value(pipeline_parameters.historySize),
-          "How many previous frames are used for registration (multi-view CLS-M approach described in the paper)")
+  ;
+
+  registration_parameters.prepareForLoading(desc);
+
+  pipeline_parameters.prepareForLoading(desc);
+
+  desc.add_options()
       ("linear_estimator", po::value<int>(&linear_estimator)->default_value(0),
           "Use last N frames for linear odometry prediction - can not be combined with kalman_estimator switch or init_poses_estimator")
       ("init_poses_estimator", po::value<string>(&init_poses)->default_value(""),
           "Use precomputed poses as a prediction - can not be combined with kalman_estimator switch or linear_estimator")
       ("kalman_estimator", po::bool_switch(&use_kalman),
           "Use Kalman filter instead of linear predictor or precomputed poses for estimation of odometry")
-      ("translation_only", po::bool_switch(&registration_parameters.estimate_translation_only),
-          "Estimate only the translation (rotation should be presented as the initial pose)")
       ("sensors_pose_file", po::value<string>(&sensors_pose_file)->default_value(""),
           "Extrinsic calibration parameters, when multiple Velodyne LiDARs are used")
-   ;
+  ;
 
     po::variables_map vm;
     po::parsed_options parsed = po::parse_command_line(argc, argv, desc);

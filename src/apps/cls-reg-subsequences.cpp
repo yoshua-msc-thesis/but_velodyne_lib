@@ -246,28 +246,13 @@ bool parse_arguments(int argc, char **argv,
       " * Allowed options");
   desc.add_options()
     ("help,h", "produce help message")
-    ("matching_threshold", po::value<CollarLinesRegistration::Threshold>(&registration_parameters.distance_threshold)->default_value(registration_parameters.distance_threshold),
-      "How the value of line matching threshold is estimated (mean/median/... of line pairs distance). Possible values: MEDIAN_THRESHOLD|MEAN_THRESHOLD|NO_THRESHOLD")
-    ("line_weightning", po::value<CollarLinesRegistration::Weights>(&registration_parameters.weighting)->default_value(registration_parameters.weighting),
-      "How the weights are assigned to the line matches - prefer vertical lines, close or treat matches as equal. Possible values: DISTANCE_WEIGHTS|VERTICAL_ANGLE_WEIGHTS|NO_WEIGHTS")
-    ("shifts_per_match", po::value<int>(&registration_parameters.correnspPerLineMatch)->default_value(registration_parameters.correnspPerLineMatch),
-      "[Experimental] How many shift vectors (for SVD) are generated per line match - each is amended by small noise")
-    ("shifts_noise_sigma", po::value<float>(&registration_parameters.lineCorrenspSigma)->default_value(registration_parameters.lineCorrenspSigma),
-      "[Experimental] Deviation of noise generated for shift vectors (see above)")
-    ("lines_per_bin_generated,g", po::value<int>(&pipeline_parameters.linesPerCellGenerated)->default_value(pipeline_parameters.linesPerCellGenerated),
-      "How many collar lines are generated per single polar bin")
-    ("lines_per_bin_preserved,p", po::value<int>(&pipeline_parameters.linesPerCellPreserved)->default_value(pipeline_parameters.linesPerCellPreserved),
-      "How many collar lines are preserved per single polar bin after filtering")
-    ("min_iterations", po::value<int>(&pipeline_parameters.minIterations)->default_value(pipeline_parameters.minIterations),
-      "Minimal number of registration iterations (similar to ICP iterations)")
-    ("max_iterations", po::value<int>(&pipeline_parameters.maxIterations)->default_value(pipeline_parameters.maxIterations),
-      "Maximal number of registration iterations")
-    ("max_time_for_registration", po::value<int>(&pipeline_parameters.maxTimeSpent)->default_value(pipeline_parameters.maxTimeSpent),
-      "Maximal time for registration [sec]")
-    ("target_error", po::value<float>(&pipeline_parameters.targetError)->default_value(pipeline_parameters.targetError),
-      "Minimal error (average distance of line matches) causing termination of registration")
-    ("significant_error_deviation", po::value<float>(&pipeline_parameters.significantErrorDeviation)->default_value(pipeline_parameters.significantErrorDeviation),
-      "If standard deviation of error from last N=min_iterations iterations if below this value - registration is terminated")
+  ;
+
+  registration_parameters.prepareForLoading(desc);
+
+  pipeline_parameters.prepareForLoading(desc);
+
+  desc.add_options()
     ("source_clouds_list", po::value<string>(&source_clouds_list)->required(),
       "List of source point clouds")
     ("target_clouds_list", po::value<string>(&target_clouds_list)->required(),
@@ -276,8 +261,6 @@ bool parse_arguments(int argc, char **argv,
       "File with source poses")
     ("target_poses_file", po::value<string>(&target_poses_file)->required(),
       "File with poses of target clouds for initialisation")
-    ("nearest_neighbors", po::value<int>(&registration_parameters.nearestNeighbors)->default_value(registration_parameters.nearestNeighbors),
-      "How many nearest neighbors (matches) are found for each line of source frame.")
     ("init_transform,i", po::value<string>(&init_transform_filename)->default_value(""),
       "Transform for initialisation (pose file)")
     ("manual", po::bool_switch(&manual),
@@ -361,7 +344,6 @@ int main(int argc, char** argv) {
   }
 
   LineCloud src_lines, trg_lines;
-  VelodynePointCloud src_cloud, trg_cloud;
   buildLineCloud(src_clouds_filenames, src_poses,
       calibration,
       pipeline_parameters.linesPerCellGenerated, pipeline_parameters.linesPerCellPreserved,
