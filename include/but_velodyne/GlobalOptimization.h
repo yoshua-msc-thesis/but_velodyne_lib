@@ -92,8 +92,9 @@ public:
   }
 };
 
-void printPoseGraphPrefix(const std::vector<Eigen::Affine3f> &poses) {
-  static const cv::Mat POSES_COVARIANCE = cv::Mat::eye(6, 6, CV_32FC1)*0.1;
+void printPoseGraphPrefix(const std::vector<Eigen::Affine3f> &poses,
+    float covariance_diagonal = 0.1) {
+  static const cv::Mat POSES_COVARIANCE = cv::Mat::eye(6, 6, CV_32FC1)*covariance_diagonal;
   for(int pi = 1; pi < poses.size(); pi++) {
     Eigen::Affine3f delta_pose = poses[pi-1].inverse() * poses[pi];
     std::cout << PoseGraphEdge(pi-1, pi, delta_pose.matrix(), POSES_COVARIANCE) << std::endl;
@@ -104,9 +105,10 @@ template <typename PointT>
 void printPoseGraphMatches(const std::vector<Eigen::Affine3f> &poses,
     const pcl::PointCloud<PointT> &points,
     const std::vector<Origin> &origins,
-    const std::vector<cv::DMatch> &matches) {
+    const std::vector<cv::DMatch> &matches,
+    float covariance_diagonal = 0.001) {
 
-  static const cv::Mat LANDMARK_COVARIANCE = cv::Mat::eye(3, 3, CV_32FC1)*0.001;
+  static const cv::Mat LANDMARK_COVARIANCE = cv::Mat::eye(3, 3, CV_32FC1)*covariance_diagonal;
 
   static int new_vertex = poses.size();
   for(std::vector<cv::DMatch>::const_iterator m = matches.begin(); m < matches.end(); m++) {
