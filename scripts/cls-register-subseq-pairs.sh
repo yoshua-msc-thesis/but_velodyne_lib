@@ -66,7 +66,7 @@ done
 wait
 
 for id in $(seq $threads); do
-	$BUT_VELODYNE_LIB/scripts/poses_pairs_to_graph.py --poses $INIT_POSES --corrections $OUT_DIR/pairs.registered.$id
+	$BUT_VELODYNE_LIB/scripts/poses_pairs_to_graph.py --poses $INIT_POSES --corrections $OUT_DIR/pairs.registered.$id --cumulated_frames $CUMULATED_FRAMES
 done | cat $POSE_GRAPH - > $OUT_DIR/with-overlaps.graph
 
 pushd $OUT_DIR
