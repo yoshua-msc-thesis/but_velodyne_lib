@@ -54,6 +54,8 @@ namespace but_velodyne
 class Visualizer3D
 {
 public:
+  typedef boost::shared_ptr<Visualizer3D> Ptr;
+
   Visualizer3D();
 
   ~Visualizer3D();

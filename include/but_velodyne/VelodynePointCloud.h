@@ -494,8 +494,10 @@ public:
   }
 
   int getIndex() const {
-    return index / calibration.sensorsCount();
+    return index;
   }
+
+  VelodyneMultiFrame operator[](const int i) const;
 
 private:
   const std::vector<std::string> filenames;

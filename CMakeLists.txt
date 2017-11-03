@@ -53,7 +53,8 @@ src/ImageLine.cpp src/KeypointsCorrespondenceProjector.cpp src/LineCloud.cpp src
 src/PointCloudLine.cpp src/PolarGridOfClouds.cpp src/PoseGraphEdge.cpp src/Termination.cpp
 src/VelodynePointCloud.cpp src/Visualizer2D.cpp src/Visualizer3D.cpp
 src/VelodyneSpecification.cpp src/CollarLinesFilter.cpp src/GroundDetectionDataGenerator.cpp
-src/EigenUtils.cpp src/GlobalOptimization.cpp src/common.cpp src/Clustering.cpp src/NormalsEstimation.cpp)
+src/EigenUtils.cpp src/GlobalOptimization.cpp src/common.cpp src/Clustering.cpp src/NormalsEstimation.cpp
+src/SubseqRegistration.cpp)
 target_include_directories(but_velodyne PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(but_velodyne ${PCL_LIBRARIES})
 target_link_libraries(but_velodyne ${OpenCV_LIBS})
@@ -129,6 +130,9 @@ target_link_libraries(estimate-gmm-ransac-planes but_velodyne)
 
 add_executable(pcl_labels_viewer src/apps/pcl_labels_viewer)
 target_link_libraries(pcl_labels_viewer but_velodyne)
+
+add_executable(cls-registration-of-picked-frames src/apps/cls-registration-of-picked-frames)
+target_link_libraries(cls-registration-of-picked-frames but_velodyne)
 
 ########################## Visualization apps: ###############################
 

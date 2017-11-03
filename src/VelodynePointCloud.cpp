@@ -486,20 +486,25 @@ VelodyneFileSequence::VelodyneFileSequence(const std::vector<std::string> &filen
 }
 
 bool VelodyneFileSequence::hasNext(void) {
-  return index + calibration.sensorsCount() <= filenames.size();
+  return (index+1)*calibration.sensorsCount() <= filenames.size();
 }
 
-VelodyneMultiFrame VelodyneFileSequence::getNext(void) {
-  assert(hasNext());
-  vector<string>::const_iterator first = filenames.begin() + index;
+VelodyneMultiFrame VelodyneFileSequence::operator[](const int i) const {
+  vector<string>::const_iterator first = filenames.begin() + i*calibration.sensorsCount();
   vector<string>::const_iterator last = first + calibration.sensorsCount();
-  index += calibration.sensorsCount();
   vector<string> frame_filenames(first, last);
   return VelodyneMultiFrame(frame_filenames, calibration, transform_pcd_files);
 }
 
+VelodyneMultiFrame VelodyneFileSequence::getNext(void) {
+  assert(hasNext());
+  VelodyneMultiFrame frame = (*this)[index];
+  index++;
+  return frame;
+}
+
 void VelodyneFileSequence::next(void) {
-  index += calibration.sensorsCount();
+  index++;
 }
 
 void VelodyneFileSequence::reset(void) {
@@ -507,16 +512,13 @@ void VelodyneFileSequence::reset(void) {
 }
 
 bool VelodyneFileSequence::hasPrev(void) {
-  return index - calibration.sensorsCount() >= 0;
+  return index - 1 >= 0;
 }
 
 VelodyneMultiFrame VelodyneFileSequence::getPrev(void) {
   assert(hasPrev());
-  index -= calibration.sensorsCount();
-  vector<string>::const_iterator first = filenames.begin() + index;
-  vector<string>::const_iterator last = first + calibration.sensorsCount();
-  vector<string> frame_filenames(first, last);
-  return VelodyneMultiFrame(frame_filenames, calibration, transform_pcd_files);
+  index--;
+  return (*this)[index];
 }
 
 }

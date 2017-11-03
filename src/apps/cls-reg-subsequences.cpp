@@ -38,13 +38,13 @@
 #include <pcl/common/eigen.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/registration/transformation_estimation_svd.h>
 
 #include <but_velodyne/VelodynePointCloud.h>
 #include <but_velodyne/EigenUtils.h>
 #include <but_velodyne/KittiUtils.h>
 #include <but_velodyne/PoseGraphEdge.h>
 #include <but_velodyne/CollarLinesRegistrationPipeline.h>
+#include <but_velodyne/SubseqRegistration.h>
 
 using namespace std;
 using namespace cv;
@@ -53,172 +53,6 @@ using namespace velodyne_pointcloud;
 using namespace but_velodyne;
 
 namespace po = boost::program_options;
-
-class SubseqRegistration {
-public:
-  SubseqRegistration(const LineCloud &src_lines_, const LineCloud &trg_lines_,
-      const Eigen::Affine3f &init_transform_,
-      CollarLinesRegistrationPipeline::Parameters &params_,
-      CollarLinesRegistration::Parameters &registration_params_) :
-    src_lines(src_lines_), trg_lines(trg_lines_),
-    params(params_), registration_params(registration_params_),
-    estimated_transform(init_transform_) {
-  }
-
-  virtual ~SubseqRegistration() {}
-
-  virtual Eigen::Affine3f run() {
-    return Eigen::Affine3f(
-        registerLineClouds(src_lines, trg_lines,
-                           estimated_transform.matrix(),
-                           registration_params, params));
-  }
-
-protected:
-
-  Eigen::Matrix4f registerLineClouds(
-      const LineCloud &source, const LineCloud &target,
-      const Eigen::Matrix4f &initial_transformation,
-      CollarLinesRegistration::Parameters registration_params,
-      CollarLinesRegistrationPipeline::Parameters pipeline_params) {
-    Termination termination(pipeline_params.minIterations, pipeline_params.maxIterations,
-        pipeline_params.maxTimeSpent, pipeline_params.significantErrorDeviation,
-        pipeline_params.targetError);
-    Eigen::Matrix4f transformation = initial_transformation;
-    CollarLinesRegistration icl_fitting(source, target, registration_params,
-        transformation);
-    while (!termination()) {
-      float error = icl_fitting.refine();
-      termination.addNewError(error);
-      transformation = icl_fitting.getTransformation();
-    }
-    return transformation;
-  }
-
-  Eigen::Affine3f estimated_transform;
-  LineCloud src_lines, trg_lines;
-  CollarLinesRegistrationPipeline::Parameters params;
-  CollarLinesRegistration::Parameters registration_params;
-};
-
-class ManualSubseqRegistration : public SubseqRegistration {
-public:
-  ManualSubseqRegistration(const LineCloud &src_lines_, const LineCloud &trg_lines_,
-      const Eigen::Affine3f &init_transform_,
-      CollarLinesRegistrationPipeline::Parameters &params_,
-      CollarLinesRegistration::Parameters &registration_params_) :
-    SubseqRegistration(src_lines_, trg_lines_,
-        init_transform_,
-        params_, registration_params_),
-    split_idx(src_lines_.line_cloud.size()) {
-
-    pclVis = visualizer.getViewer();
-    pclVis->registerPointPickingCallback(&ManualSubseqRegistration::pickPointCallback, *this);
-    pclVis->registerKeyboardCallback(&ManualSubseqRegistration::keyCallback, *this);
-  }
-
-  Eigen::Affine3f run() {
-    setDataToVisualizer();
-    visualizer.show();
-    return estimated_transform;
-  }
-
-protected:
-
-  void pickPointCallback(const pcl::visualization::PointPickingEvent& event, void*) {
-    int idx = event.getPointIndex();
-    if (idx == -1)
-      return;
-
-    if(idx < split_idx) {
-      if(src_indices.size() < trg_indices.size()) {
-        src_indices.push_back(idx);
-        setDataToVisualizer();
-      } else {
-        PCL_WARN("Clicked source point but expected target - ignoring\n");
-      }
-    } else {
-      if(src_indices.size() == trg_indices.size()) {
-        trg_indices.push_back(idx-split_idx);
-        setDataToVisualizer();
-      } else {
-        PCL_WARN("Clicked target point but expected source - ignoring\n");
-      }
-    }
-  }
-
-  void setDataToVisualizer() {
-    PointCloud<PointXYZRGB>::Ptr sum_cloud(new PointCloud<PointXYZRGB>);
-    *sum_cloud += *Visualizer3D::colorizeCloud(src_lines.line_middles, 255, 0, 0);
-    PointCloud<PointXYZ> trg_cloud_transformed;
-    transformPointCloud(trg_lines.line_middles, trg_cloud_transformed, estimated_transform);
-    *sum_cloud += *Visualizer3D::colorizeCloud(trg_cloud_transformed, 0, 0, 255);
-    pclVis->removeAllShapes();
-    pclVis->removeAllPointClouds();
-    visualizer.addColorPointCloud(sum_cloud);
-    for(int i = 0; i < src_indices.size(); i++) {
-      visualizer.addArrow(PointCloudLine(src_lines.line_middles[src_indices[i]],
-                                         trg_cloud_transformed[trg_indices[i]]));
-    }
-    if(src_indices.size() < trg_indices.size()) {
-      pclVis->addSphere(trg_cloud_transformed[trg_indices.back()], 0.1, "sphere");
-    }
-  }
-
-  void keyCallback(const pcl::visualization::KeyboardEvent &event, void*) {
-    if(event.keyDown()) {
-      if(event.getKeySym() == "s") {
-        PCL_DEBUG("Running transformation estimation using SVD ...\n");
-        estimateManualTransform();
-        setDataToVisualizer();
-      } else if(event.getKeySym() == "u") {
-        if(src_indices.size() < trg_indices.size() && !trg_indices.empty()) {
-          trg_indices.pop_back();
-        } else if(!src_indices.empty()) {
-          src_indices.pop_back();
-        }
-        setDataToVisualizer();
-      } else if(event.getKeySym() == "a") {
-        runAutomaticRegistration(CollarLinesRegistration::NO_THRESHOLD);
-        setDataToVisualizer();
-      } else if(event.getKeySym() == "m") {
-        runAutomaticRegistration(CollarLinesRegistration::MEDIAN_THRESHOLD);
-        setDataToVisualizer();
-      } else if(event.getKeySym() == "n") {
-        runAutomaticRegistration(CollarLinesRegistration::QUARTER_THRESHOLD);
-        setDataToVisualizer();
-      } else if(event.getKeySym() == "b") {
-        runAutomaticRegistration(CollarLinesRegistration::TENTH_THRESHOLD);
-        setDataToVisualizer();
-      }
-    }
-  }
-
-  void estimateManualTransform() {
-    if(src_indices.size() > 2) {
-      pcl::registration::TransformationEstimationSVD<pcl::PointXYZ, pcl::PointXYZ> tfe;
-      Eigen::Matrix4f t;
-      tfe.estimateRigidTransformation(trg_lines.line_middles, trg_indices,
-          src_lines.line_middles, src_indices, t);
-      estimated_transform = Eigen::Affine3f(t);
-    } else {
-      PCL_WARN("Unable to estimate transformation with less than 3 matches - skipping.\n");
-    }
-  }
-
-  void runAutomaticRegistration(CollarLinesRegistration::Threshold th_type) {
-    PCL_DEBUG("Running automatic transformation estimation using CLS ...\n");
-    registration_params.distance_threshold = th_type;
-    estimated_transform = Eigen::Affine3f(registerLineClouds(src_lines, trg_lines,
-        estimated_transform.matrix(), registration_params, params));
-  }
-
-  int split_idx;
-  Visualizer3D visualizer;
-  pcl::visualization::PCLVisualizer::Ptr pclVis;
-  vector<int> src_indices;
-  vector<int> trg_indices;
-};
 
 void read_lines(const string &fn, vector<string> &lines) {
   ifstream file(fn.c_str());
