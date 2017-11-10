@@ -49,8 +49,9 @@ void getPlaneCoefficients(const pcl::Normal &normal, const Eigen::Vector3f pt,
 template<>
 void getNormals<PointXYZI>(const PointCloud<PointXYZI> &subsampled_points,
     const PointCloud<PointXYZI> &original_points,
-    const vector<int> origins,
-    const PointCloud<PointXYZ> sensor_positions,
+    const vector<Origin> origins,
+    const vector<Eigen::Affine3f> poses,
+    const SensorsCalibration &calibration,
     const float radius,
     pcl::PointCloud<pcl::Normal> &normals);
 

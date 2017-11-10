@@ -447,6 +447,8 @@ public:
     return sensors_poses.size();
   }
 
+  Eigen::Affine3f getSensorPose(const Eigen::Affine3f system_pose, const int sensor_id) const;
+
 private:
   std::vector<Eigen::Affine3f> sensors_poses;
 };
@@ -458,7 +460,7 @@ public:
       const SensorsCalibration &calibration_,
       bool transform_pcd_files_ = false);
 
-  void joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output);
+  void joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output, bool distinguish_rings = false);
 
   void joinTo(pcl::PointCloud<pcl::PointXYZI> &output);
 

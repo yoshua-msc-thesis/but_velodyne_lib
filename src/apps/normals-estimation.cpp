@@ -32,6 +32,7 @@
 #include <but_velodyne/KittiUtils.h>
 #include <but_velodyne/common.h>
 #include <but_velodyne/NormalsEstimation.h>
+#include <but_velodyne/GlobalOptimization.h>
 
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/common/eigen.h>
@@ -109,7 +110,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  vector<int> sum_origins;
+  vector<Origin> sum_origins;
   PointCloud<PointXYZI>::Ptr sum_cloud(new PointCloud<PointXYZI>);
 
   VelodyneFileSequence sequence(filenames, calibration);
@@ -119,11 +120,13 @@ int main(int argc, char** argv) {
     multiframe.joinTo(*joined);
     transformPointCloud(*joined, *joined, poses[frame_i]);
     *sum_cloud += *joined;
-    vector<int> origins(joined->size(), frame_i);
-    sum_origins.insert(sum_origins.end(), origins.begin(), origins.end());
+    for(int sensor_i = 0; sensor_i < calibration.sensorsCount(); sensor_i++) {
+      vector<Origin> origins(multiframe.clouds[sensor_i]->size(), Origin(frame_i, sensor_i));
+      sum_origins.insert(sum_origins.end(), origins.begin(), origins.end());
+    }
   }
 
-  vector<int> subsampled_origins;
+  vector<Origin> subsampled_origins;
   PointCloud<PointXYZI>::Ptr subsampled_cloud(new PointCloud<PointXYZI>);
   PointIndices::Ptr indices(new PointIndices);
   regular_subsampling<PointXYZI>(sum_cloud, subsampling_rate, indices, subsampled_cloud);
@@ -131,7 +134,7 @@ int main(int argc, char** argv) {
 
   PointCloud<Normal> subsampled_normals;
   getNormals(*subsampled_cloud, *sum_cloud,
-      subsampled_origins, Visualizer3D::posesToPoints(poses),
+      subsampled_origins, poses, calibration,
       radius,
       subsampled_normals);
 

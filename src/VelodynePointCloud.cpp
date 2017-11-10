@@ -426,6 +426,10 @@ std::vector<int> VelodynePointCloud::removeNanPoints() {
   return filtered_indices;
 }
 
+Eigen::Affine3f SensorsCalibration::getSensorPose(const Eigen::Affine3f system_pose, const int sensor_id) const {
+  return system_pose * sensors_poses[sensor_id];
+}
+
 VelodyneMultiFrame::VelodyneMultiFrame(const std::vector<std::string> &filenames_,
     const SensorsCalibration &calibration_,
     bool transform_pcd_files) :
@@ -442,10 +446,20 @@ VelodyneMultiFrame::VelodyneMultiFrame(const std::vector<std::string> &filenames
   }
 }
 
-void VelodyneMultiFrame::joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output) {
+void VelodyneMultiFrame::joinTo(pcl::PointCloud<velodyne_pointcloud::VelodynePoint> &output, bool distinguish_rings) {
+  int rings_count = 0;
   for(int i = 0; i < clouds.size(); i++) {
     VelodynePointCloud transformed;
     pcl::transformPointCloud(*clouds[i], transformed, calibration.ofSensor(i));
+    if(distinguish_rings) {
+      transformed.estimateModel();
+      if(i > 0) {
+        for(VelodynePointCloud::iterator pt = transformed.begin(); pt < transformed.end(); pt++) {
+          pt->ring += rings_count;
+        }
+      }
+      rings_count += transformed.ringCount();
+    }
     output += transformed;
   }
 }

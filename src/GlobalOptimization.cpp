@@ -26,4 +26,13 @@ void reduceWeakestDimension(const pcl::PointCloud<PointType> &input, const Eigen
 template<>
 void getClosestMatches<PointType>(const pcl::PointCloud<PointType>::Ptr points, float query_ratio, std::vector<cv::DMatch> &matches);
 
+void printPoseGraphPrefix(const std::vector<Eigen::Affine3f> &poses,
+    float covariance_diagonal) {
+  static const cv::Mat POSES_COVARIANCE = cv::Mat::eye(6, 6, CV_32FC1)*covariance_diagonal;
+  for(int pi = 1; pi < poses.size(); pi++) {
+    Eigen::Affine3f delta_pose = poses[pi-1].inverse() * poses[pi];
+    std::cout << PoseGraphEdge(pi-1, pi, delta_pose.matrix(), POSES_COVARIANCE) << std::endl;
+  }
+}
+
 }

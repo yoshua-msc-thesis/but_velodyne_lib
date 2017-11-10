@@ -6,6 +6,7 @@
  */
 
 #include <but_velodyne/common.h>
+#include <but_velodyne/GlobalOptimization.h>
 
 #include <pcl/common/eigen.h>
 #include <pcl/point_cloud.h>
@@ -23,8 +24,9 @@ void getPlaneCoefficients(const pcl::Normal &normal, const Eigen::Vector3f pt,
 template <typename PointT>
 void getNormals(const pcl::PointCloud<PointT> &subsampled_points,
     const pcl::PointCloud<PointT> &original_points,
-    const std::vector<int> origins,
-    const pcl::PointCloud<pcl::PointXYZ> sensor_positions,
+    const std::vector<Origin> origins,
+    const std::vector<Eigen::Affine3f> poses,
+    const SensorsCalibration &calibration,
     const float radius,
     pcl::PointCloud<pcl::Normal> &normals) {
 
@@ -39,8 +41,8 @@ void getNormals(const pcl::PointCloud<PointT> &subsampled_points,
 
   for(int i = 0; i < subsampled_points.size(); i++) {
     pcl::Normal &n = normals[i];
-    const pcl::PointXYZ &p = sensor_positions[origins[i]];
-    flipNormalTowardsViewpoint(subsampled_points[i], p.x, p.y, p.z,
+    Eigen::Vector3f source = calibration.getSensorPose(poses[origins[i].pose_id], origins[i].sensor_id).translation();
+    flipNormalTowardsViewpoint(subsampled_points[i], source(0), source(1), source(2),
         n.normal_x, n.normal_y, n.normal_z);
   }
 }
