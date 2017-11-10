@@ -140,6 +140,18 @@ def load_kitti_poses(file):
         poses.append(o)
     return poses
 
+def load_poses_corrections(in_file):
+    corrections = []
+    if not hasattr(in_file, "readlines"):
+        in_file = open(in_file)
+    for line in in_file.readlines():
+        tokens = line.split()
+        src_i, trg_i = map(int, tokens[0:2])
+        kitti_pose = map(float, tokens[2:])
+        o = Odometry(kitti_pose)
+        corrections.append({"src_i":src_i, "trg_i":trg_i, "pose":o})
+    return corrections
+
 def get_delta_odometry(odometries):
     output = [Odometry()]
     for i in range(1, len(odometries)):

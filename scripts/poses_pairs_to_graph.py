@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import argparse
-from odometry_cnn_data import Odometry, Edge3D, load_kitti_poses
+from odometry_cnn_data import Odometry, Edge3D, load_kitti_poses, load_poses_corrections
 
 parser = argparse.ArgumentParser(description="Registered frames pairs to EDGE3D")
 parser.add_argument("--poses", dest="poses", type=str, required=True)
@@ -10,12 +10,11 @@ parser.add_argument("--cumulated_frames", dest="cumulated_frames", type=int, req
 args = parser.parse_args()
 
 poses = load_kitti_poses(args.poses)
+corrections = load_poses_corrections(args.corrections)
 
-for line in open(args.corrections).readlines():
-    tokens = line.split()
-    src_i, trg_i = map(int, tokens[0:2])
-    pose_elements = map(float, tokens[2:])
-    correction = Odometry(pose_elements)
+for c in corrections:
+    src_i, trg_i = c["src_i"], c["trg_i"]
+    correction = c["pose"]
     for i in range(args.cumulated_frames):
         src_pose = poses[src_i+i]
         trg_pose = correction * poses[trg_i+i]
