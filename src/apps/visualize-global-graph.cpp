@@ -39,7 +39,6 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/random_sample.h>
 #include <pcl/filters/passthrough.h>
-#include <pcl/ml/kmeans.h>
 #include <pcl/segmentation/supervoxel_clustering.h>
 
 #include <cv.h>
