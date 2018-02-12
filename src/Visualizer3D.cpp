@@ -245,9 +245,9 @@ Visualizer3D& Visualizer3D::addPosesDots(const vector<Eigen::Affine3f> &poses, i
   return addPointCloud(poses_cloud, Eigen::Matrix4f::Identity(), viewport);
 }
 
-Visualizer3D& Visualizer3D::addPoses(const vector<Eigen::Affine3f> &poses, int viewport) {
+Visualizer3D& Visualizer3D::addPoses(const vector<Eigen::Affine3f> &poses, float axis_size, int viewport) {
   for(vector<Eigen::Affine3f>::const_iterator p = poses.begin(); p < poses.end(); p++) {
-    this->getViewer()->addCoordinateSystem(0.1, *p, viewport);
+    this->getViewer()->addCoordinateSystem(axis_size, *p, viewport);
   }
   return *this;
 }

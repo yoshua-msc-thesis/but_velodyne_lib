@@ -148,6 +148,18 @@ public:
     return colorizeCloud(cloud, r, g, b);
   }
 
+  static pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeCloudByPhase(const VelodynePointCloud &cloud) {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored(new pcl::PointCloud<pcl::PointXYZRGB>);
+    colored->resize(cloud.size());
+    for(int i = 0; i < cloud.size(); i++) {
+      const velodyne_pointcloud::VelodynePoint &pt = cloud[i];
+      pcl::PointXYZRGB &colored_pt = colored->at(i);
+      copyXYZ(pt, colored_pt);
+      colorizeIntensity(pt.phase, colored_pt.r, colored_pt.g, colored_pt.b);
+    }
+    return colored;
+  }
+
   template<typename PointT>
   static pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeCloud(const pcl::PointCloud<PointT> &cloud, bool grayscale = false) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -445,7 +457,7 @@ public:
    */
   Visualizer3D& addPosesDots(const vector<Eigen::Affine3f> &poses, int viewport = 0);
 
-  Visualizer3D& addPoses(const vector<Eigen::Affine3f> &poses, int viewport = 0);
+  Visualizer3D& addPoses(const vector<Eigen::Affine3f> &poses, float axis_size = 0.1, int viewport = 0);
 
   /**!
    * Add visualization of visual loops between 3D poses

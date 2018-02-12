@@ -157,6 +157,7 @@ int main(int argc, char** argv) {
     }
   }
   visualizer
+    .addPoses(poses_to_vis, 1.0)
     .setColor(200, 50, 50).addPosesDots(poses_to_vis)
     .setColor(10, 10, 255).addPosesDots(poses_to_skip);
 
