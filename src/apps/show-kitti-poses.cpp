@@ -80,8 +80,9 @@ void addVelodynePcl(Visualizer3D &vis, const VelodynePointCloud &cloud) {
 bool parse_arguments(int argc, char **argv,
                      vector<Eigen::Affine3f> &poses,
                      vector<string> &clouds_to_process,
-                     vector<bool> &mask) {
-  string pose_filename, skip_filename;
+                     vector<bool> &mask,
+                     vector<double> &times) {
+  string pose_filename, skip_filename, times_filename;
 
   po::options_description desc("Collar Lines Registration of Velodyne scans\n"
       "======================================\n"
@@ -91,6 +92,7 @@ bool parse_arguments(int argc, char **argv,
       ("help,h", "produce help message")
       ("pose_file,p", po::value<string>(&pose_filename)->required(), "KITTI poses file.")
       ("skip_file,s", po::value<string>(&skip_filename)->default_value(""), "File with indidces to skip.")
+      ("times_file,t", po::value<string>(&times_filename)->default_value(""), "File with timestamps for poses.")
   ;
   po::variables_map vm;
   po::parsed_options parsed = po::parse_command_line(argc, argv, desc);
@@ -117,6 +119,8 @@ bool parse_arguments(int argc, char **argv,
     mask[atoi(line.c_str())] = false;
   }
 
+  load_vector_from_file(times_filename, times);
+
   return true;
 }
 
@@ -124,8 +128,9 @@ int main(int argc, char** argv) {
 
   vector<Eigen::Affine3f> poses;
   vector<bool> mask;
+  vector<double> times;
   vector<string> clouds_fnames;
-  if(!parse_arguments(argc, argv, poses, clouds_fnames, mask)) {
+  if(!parse_arguments(argc, argv, poses, clouds_fnames, mask, times)) {
     return EXIT_FAILURE;
   }
 
@@ -157,9 +162,18 @@ int main(int argc, char** argv) {
     }
   }
   visualizer
-    .addPoses(poses_to_vis, 1.0)
+    .addPoses(poses_to_vis, 0.3)
     .setColor(200, 50, 50).addPosesDots(poses_to_vis)
     .setColor(10, 10, 255).addPosesDots(poses_to_skip);
+
+  for(int i = 0; i < times.size(); i++) {
+    stringstream stamp;
+    stamp << times[i] - times[0];
+    PointXYZ position;
+    position.getVector3fMap() = poses[i].translation();
+    position.z -= 0.2;
+    visualizer.getViewer()->addText3D(stamp.str(), position, 0.03, 200, 0, 200, visualizer.getId("text"));
+  }
 
   visualizer.show();
 
