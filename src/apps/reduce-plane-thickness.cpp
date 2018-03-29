@@ -106,7 +106,7 @@ void remove_nonplanar(vector< PointCloud<LabeledPoint> > &clusters, PointCloud<L
     vector<float> ev;
     getEigenvalues(covaraince, ev);
 
-    if(avg_prob > 0.98 && (ev[2] < 3*ev[1] && ev[1] > 2*ev[0])) {
+    if(avg_prob > 0.7 && (ev[2] < 3*ev[1] && ev[1] > 2*ev[0])) {
       c++;
     } else {
       non_plane += *c;
